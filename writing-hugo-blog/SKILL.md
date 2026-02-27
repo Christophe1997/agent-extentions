@@ -1,13 +1,14 @@
 ---
 name: writing-hugo-blog
 description: Create Hugo blog posts in Chinese based on user queries, reading results, or conversations. Use when the user asks to write a blog post, generate content for their blog, or convert research/insights into an article format. Handles article structure, front matter formatting, AI content labeling, and proper file organization in the content/posts/YYYY/ directory.
+
 ---
 
 # Writing Hugo Blog
 
 ## Overview
 
-This skill enables creation of Chinese blog posts for the Neo VRAINS Hugo blog. Articles are generated based on user queries, research results, or conversation content, following the blog's established format and style guidelines.
+This skill enables creation of Chinese blog posts for Neo VRAINS Hugo blog. Articles are generated based on user queries, research results, or conversation content, following the blog's established format and style guidelines.
 
 ## Blog Structure
 
@@ -35,7 +36,7 @@ tags: ["tag1", "tag2", "AI generated"]
 - `title`: Chinese article title (required)
 - `date`: Publication date in ISO 8601 format (required)
 - `draft`: Set to `false` for published posts, `true` for drafts
-- `author`: Article author (required, should be the name of the agent creating the article)
+- `author`: Article author (required, should be name of agent creating the article)
 - `categories`: Typically ["Things I Learned"] or other category names
 - `showToc`: Enable table of contents for longer articles
 - `tags`: Relevant tags for content discoverability (array of strings). MUST include "AI generated" for AI-generated content.
@@ -85,10 +86,10 @@ Use `[Title](Link)` format for easy navigation to original content.
 
 1. **Create front matter** with proper YAML format
 2. **Write article body** in Chinese with:
-   - Engaging title that reflects content
-   - Clear introduction setting context
-   - Well-structured body with headings
-   - Concise conclusion or key takeaways
+   - An engaging title that reflects the content
+   - A clear introduction that sets context
+   - A well-structured body with headings
+   - A concise conclusion or key takeaways
 3. **Add AI content disclaimer** at the end
 4. **Set publication date** to current time in China timezone (+08:00)
 
@@ -97,15 +98,15 @@ Use `[Title](Link)` format for easy navigation to original content.
 1. Determine the year for the article directory (current year)
 2. Create a descriptive filename in lowercase with hyphens (e.g., `my-article.md`)
 3. Save to `content/posts/YYYY/` directory
-4. Verify file structure matches other blog posts
+4. Verify the file structure matches other blog posts
 
 ### Step 4: Verification
 
 Check that:
 - Front matter is valid YAML
 - Date format is correct: `YYYY-MM-DDTHH:MM:SS+08:00`
-- Article contains AI content disclaimer
-- File is in correct directory structure
+- Article contains the AI content disclaimer
+- File is in the correct directory structure
 - Markdown syntax is valid
 
 ## Examples
@@ -146,17 +147,17 @@ tags: ["AI", "Programming", "Productivity", "AI generated"]
 - **Engagement**: Use examples and practical applications when possible
 - **Brevity**: Respect the reader's time, match length to article type - concise for summaries, thorough for deep dives
 
-### 词汇选择原则
+### Vocabulary Selection Principles
 
-- **避免直译**：不要使用技术术语的英文直译，如"Build，不买"这种不易理解的表达
-- **使用贴切术语**：
-  - "自建"或"自己实现"而非"构建"或"造"
-  - "引入"或"使用"而非"购买"（开源框架不存在购买行为）
-  - "开源库"或"第三方库"而非"现成工具"
-  - "集成"或"连接"而非简单的"添加"
-- **准确性优先**：确保使用的词汇准确反映技术实际情况，避免误导读者
-  - 开源技术不存在"购买"概念
-  - 区分自建功能与引入成熟库的不同场景
+- **Avoid literal translations**: Do not use direct translations of technical terms that are difficult to understand, like "Build，不买"
+- **Use appropriate terminology**:
+  - "自建" or "自己实现" instead of "构建" or "造"
+  - "引入" or "使用" instead of "购买" (open-source frameworks don't have a "purchase" concept)
+  - "开源库" or "第三方库" instead of "现成工具"
+  - "集成" or "连接" instead of simple "添加"
+- **Accuracy first**: Ensure the terminology used accurately reflects the actual technical situation and avoids misleading readers
+  - Open-source technology has no "purchase" concept
+  - Distinguish between self-built features and integrating mature libraries
 
 ## Reference Information
 
