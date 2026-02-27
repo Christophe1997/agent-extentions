@@ -146,6 +146,18 @@ tags: ["AI", "Programming", "Productivity", "AI generated"]
 - **Engagement**: Use examples and practical applications when possible
 - **Brevity**: Respect the reader's time, match length to article type - concise for summaries, thorough for deep dives
 
+### 词汇选择原则
+
+- **避免直译**：不要使用技术术语的英文直译，如"Build，不买"这种不易理解的表达
+- **使用贴切术语**：
+  - "自建"或"自己实现"而非"构建"或"造"
+  - "引入"或"使用"而非"购买"（开源框架不存在购买行为）
+  - "开源库"或"第三方库"而非"现成工具"
+  - "集成"或"连接"而非简单的"添加"
+- **准确性优先**：确保使用的词汇准确反映技术实际情况，避免误导读者
+  - 开源技术不存在"购买"概念
+  - 区分自建功能与引入成熟库的不同场景
+
 ## Reference Information
 
 ### Common Categories
