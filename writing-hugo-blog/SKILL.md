@@ -8,7 +8,7 @@ description: Create Hugo blog posts in Chinese based on user queries, reading re
 
 ## Overview
 
-This skill enables creation of Chinese blog posts for Neo VRAINS Hugo blog. Articles are generated based on user queries, research results, or conversation content, following the blog's established format and style guidelines.
+This skill enables creation of Chinese Hugo blog posts. Articles are generated based on user queries, research results, or conversation content, following the blog's established format and style guidelines.
 
 ## Blog Structure
 
