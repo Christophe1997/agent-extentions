@@ -7,6 +7,5 @@
     "email": "hey_christophe@outlook.com"
   },
   "license": "MIT",
-  "keywords": ["hugo", "blog", "writing", "chinese", "markdown"],
-  "category": "content-creation"
+  "keywords": ["hugo", "blog", "writing", "chinese", "markdown"]
 }

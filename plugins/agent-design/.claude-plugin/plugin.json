@@ -7,6 +7,5 @@
     "email": "hey_christophe@outlook.com"
   },
   "license": "MIT",
-  "keywords": ["ai", "agent", "tools", "design", "claude-code"],
-  "category": "ai-development"
+  "keywords": ["ai", "agent", "tools", "design", "claude-code"]
 }
