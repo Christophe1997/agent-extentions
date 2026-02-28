@@ -1,7 +1,6 @@
 ---
 name: writing-hugo-blog
-description: Create Hugo blog posts in Chinese. Triggers when user asks to write a blog post, create a draft article, or convert research into blog format. Follows a structured workflow: explore blog config, understand content formats, gather topic requirements, generate draft, and review writing quality.
-
+description: "Create Hugo blog posts in Chinese. Triggers when user asks to write a blog post, create a draft article, or convert research into blog format. Follows a structured workflow: explore blog config, understand content formats, gather topic requirements, generate draft, and review writing quality."
 ---
 
 # Writing Hugo Blog
