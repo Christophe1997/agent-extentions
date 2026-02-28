@@ -1,6 +1,6 @@
 ---
 name: draft
-description: Create a draft Hugo blog post (draft: true) for later publishing. Follows the full workflow: explore blog config, check content structure, gather topic requirements, generate draft, and review writing quality.
+description: "Create a draft Hugo blog post (draft: true) for later publishing. Follows the full workflow: explore blog config, check content structure, gather topic requirements, generate draft, and review writing quality."
 argument-hint: topic or title for the draft post
 allowed-tools:
   - Read
