@@ -1,12 +1,12 @@
-# Agent extentions
+# Agent Extensions
 
-Agent extentions in claude marketplace structure.
+Agent extentions in Claude marketplace structure.
 
 ## Plugins
 
 | Plugin | Description |
 |--------|-------------|
-| **writing-hugo-blog** | Create Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling |
+| **writing-hugo-blog** | Create and review Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling |
 | **agent-design** | Guidelines for designing tools and action spaces for AI agents |
 
 ## Installation
@@ -14,7 +14,7 @@ Agent extentions in claude marketplace structure.
 ### Add Marketplace
 
 ```bash
-/plugin marketplace add Christophe1997/agent-extentions 
+/plugin marketplace add Christophe1997/agent-extentions
 ```
 
 ### Install Plugins
@@ -29,10 +29,30 @@ Agent extentions in claude marketplace structure.
 
 ## Usage
 
-After installation, skills are automatically activated based on context:
+### writing-hugo-blog
 
-- **writing-hugo-blog**: Activates when creating blog content or working with Hugo
-- **agent-design**: Activates when designing agent tools or discussing AI architecture
+**Skill** - Automatically activates when creating blog content or working with Hugo.
+
+**Workflow:**
+1. Explore blog configuration
+2. Recognize content formats and structure
+3. Identify front matter requirements
+4. Ask user about topic
+5. Generate draft (`draft: true`)
+6. Review writing quality
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/writing-hugo-blog:draft <topic>` | Create a new draft blog post |
+| `/writing-hugo-blog:review <path>` | Review existing post for style issues and apply fixes |
+
+**Style Guide:** Follows [中文技术文档的写作规范](https://github.com/ruanyf/document-style-guide)
+
+### agent-design
+
+**Skill** - Automatically activates when designing agent tools or discussing AI architecture.
 
 ## License
 
