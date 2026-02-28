@@ -5,6 +5,7 @@ argument-hint: topic or title for the draft post
 allowed-tools:
   - Read
   - Write
+  - Edit
   - Glob
   - Grep
   - WebFetch
@@ -105,6 +106,29 @@ Before finalizing, verify:
 **Fact Verification:**
 - [ ] All facts have sources provided by user
 - [ ] Unsourced claims are removed or qualified
+
+### Step 7: Publish Article
+
+After review, ask user if they want to publish:
+
+1. Use AskUserQuestion:
+   ```yaml
+   question: "Review complete. Would you like to publish this article now?"
+   header: "Publish"
+   options:
+     - label: "Yes, publish"
+       description: "Set draft: false, article will be publicly visible"
+     - label: "Keep as draft"
+       description: "Keep draft: true for further editing"
+   ```
+
+2. If user chooses "Yes, publish":
+   - Use Edit tool to change `draft: true` to `draft: false`
+   - Confirm the article is now published
+
+3. If user chooses "Keep as draft":
+   - No changes to front matter
+   - Remind user they can publish later by changing draft to false
 
 ## Example Usage
 

@@ -40,6 +40,7 @@ Agent extentions in Claude marketplace structure.
 4. Ask user about topic
 5. Generate draft (`draft: true`)
 6. Review writing quality
+7. Publish (`draft: false`)
 
 **Commands:**
 

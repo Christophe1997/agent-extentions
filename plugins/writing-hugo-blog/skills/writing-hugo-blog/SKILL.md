@@ -200,6 +200,17 @@ Review the generated content for style and accuracy. For detailed guidelines, se
   - Remove or qualify the claim
 - Mark unsourced claims with "据称" or " reportedly" when necessary
 
+### Step 7: Publish Article
+
+After reviewing, set `draft: false` to publish the article.
+
+**Action:**
+1. Ask user: "Review complete. Would you like to publish this article now?"
+2. If yes, update front matter: `draft: false`
+3. Confirm the article is now publicly visible
+
+**Note:** Only publish after user approval. Keep `draft: true` if user wants to make more changes.
+
 ---
 
 ## Article Content Guidelines
@@ -297,7 +308,8 @@ docker build -t my-go-app .
 3. **Front Matter** → Identify required fields
 4. **Ask** → Clarify topic with user
 5. **Draft** → Generate with `draft: true`
-6. **Review** → Check style, vocabulary, and sources
+6. **Review** → Check style and sources
+7. **Publish** → Set `draft: false` after approval
 
 ### File Locations
 
