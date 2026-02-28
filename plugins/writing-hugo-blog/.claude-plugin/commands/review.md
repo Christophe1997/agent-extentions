@@ -1,6 +1,6 @@
 ---
 name: review
-description: Review a blog post for writing style, punctuation, formatting, and content quality. Shows issues found and offers to apply fixes. Use when user wants to improve an existing draft or published post.
+description: "Review a blog post for writing style, punctuation, formatting, and content quality. Shows issues found and offers to apply fixes. Use when user wants to improve an existing draft or published post."
 argument-hint: path to the blog post file to review
 allowed-tools:
   - Read
