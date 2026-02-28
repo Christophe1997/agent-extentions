@@ -1,30 +1,141 @@
 ---
 name: writing-hugo-blog
-description: Create Hugo blog posts in Chinese based on user queries, reading results, or conversations. Use when the user asks to write a blog post, generate content for their blog, or convert research/insights into an article format. Handles article structure, front matter formatting, AI content labeling, and proper file organization in the content/posts/YYYY/ directory.
+description: Create Hugo blog posts in Chinese. Triggers when user asks to write a blog post, create a draft article, or convert research into blog format. Follows a structured workflow: explore blog config, understand content formats, gather topic requirements, generate draft, and review writing quality.
 
 ---
 
 # Writing Hugo Blog
 
-## Overview
+Create Chinese blog posts for Hugo static sites with proper front matter, content structure, and AI labeling.
 
-This skill enables creation of Chinese Hugo blog posts. Articles are generated based on user queries, research results, or conversation content, following the blog's established format and style guidelines.
+## References
 
-## Blog Structure
+**Hugo Documentation:**
+- Configuration: https://gohugo.io/configuration/all/
+- Content Formats: https://gohugo.io/content-management/formats/
+- Front Matter: https://gohugo.io/content-management/front-matter/
 
-### Location
-- Articles are stored in `content/posts/YYYY/` (year-based subdirectories)
-- Example: `content/posts/2026/my-article.md`
+**Writing Style:**
+- `references/chinese-writing-style.md` - Detailed Chinese writing style guide (based on https://github.com/ruanyf/document-style-guide)
 
-### Front Matter Format
+---
 
-All blog posts use YAML front matter with these required fields:
+## Workflow
 
+### Step 1: Explore Blog Configuration
+
+Before creating any article, read the user's Hugo configuration to understand their blog setup.
+
+**Find and read the config file:**
+- `config.yml` or `config.yaml` (YAML)
+- `config.toml` (TOML)
+- `hugo.toml` (newer Hugo versions)
+- `config/_default/` (directory-based config)
+
+**Key values to extract:**
+- `baseURL`: Blog URL
+- `title`: Site title
+- `theme`: Theme name (affects available front matter fields)
+- `params.author`: Default author
+- `params` section: Theme-specific settings
+
+**Action:** Use Glob to find config files, then Read to understand the structure.
+
+### Step 2: Recognize Content Formats and Structure
+
+Understand how the user organizes their content.
+
+**Check content directory structure:**
+```
+content/
+├── posts/           # Blog posts (most common)
+│   └── YYYY/        # Year-based organization
+├── pages/           # Static pages
+└── archives.md      # Archives page
+```
+
+**Content format options:**
+- `.md` - Markdown (most common)
+- `.markdown` - Markdown (alternative extension)
+- `.html` - Raw HTML
+
+**Action:** Use Glob to explore `content/posts/` structure and identify patterns.
+
+### Step 3: Recognize Front Matter Requirements
+
+Determine what front matter fields the blog expects.
+
+**Standard front matter fields:**
 ```yaml
 ---
-title: "Article Title"
-date: YYYY-MM-DDTHH:MM:SS+08:00
-draft: false
+title: "Article Title"           # Required: Chinese title
+date: YYYY-MM-DDTHH:MM:SS+08:00  # Required: ISO 8601 format
+draft: true                      # true for drafts, false for published
+author: "<AgentName>"            # Article author
+categories: ["Category"]         # Content categories
+showToc: true                    # Table of contents
+tags: ["tag1", "tag2", "AI generated"]  # Content tags
+---
+```
+
+**Field purposes:**
+| Field | Purpose | Notes |
+|-------|---------|-------|
+| `title` | Article title | In Chinese |
+| `date` | Publication date | Use China timezone +08:00 |
+| `draft` | Publication status | `true` for drafts |
+| `author` | Author name | Usually from config or agent name |
+| `categories` | Content grouping | e.g., "Things I Learned" |
+| `showToc` | Enable TOC | `true` for longer articles |
+| `tags` | Discoverability | MUST include "AI generated" |
+
+**Action:** Check existing posts to see what fields are consistently used.
+
+### Step 4: Ask User About Blog Topic
+
+Gather requirements before writing.
+
+**Use AskUserQuestion to clarify:**
+
+```yaml
+questions:
+  - question: "What topic should the blog post cover?"
+    header: "Topic"
+    options:
+      - label: "Technical Tutorial"
+        description: "Step-by-step guide for a technology or tool"
+      - label: "Project Experience"
+        description: "Share practical experience from a project"
+      - label: "Research Summary"
+        description: "Summarize findings from research or reading"
+      - label: "Quick Insight"
+        description: "Brief thought or observation worth sharing"
+
+  - question: "What depth should the article have?"
+    header: "Depth"
+    options:
+      - label: "Quick Summary"
+        description: "500-1500 words, ~3 min read"
+      - label: "Deep Dive"
+        description: "2000-3000 words, ~5+ min read"
+```
+
+**Gather from user:**
+- Main topic and key points to cover
+- Target audience (beginners vs advanced)
+- Source materials (URLs, files, or conversation context)
+- Any specific requirements or constraints
+
+### Step 5: Generate Draft Article
+
+Create the blog post with proper structure.
+
+**Front matter (set `draft: true`):**
+```yaml
+---
+title: "文章标题"
+date: 2026-02-28T14:30:00+08:00
+draft: true
 author: "<AgentName>"
 categories: ["Things I Learned"]
 showToc: true
@@ -32,165 +143,173 @@ tags: ["tag1", "tag2", "AI generated"]
 ---
 ```
 
-**Field descriptions:**
-- `title`: Chinese article title (required)
-- `date`: Publication date in ISO 8601 format (required)
-- `draft`: Set to `false` for published posts, `true` for drafts
-- `author`: Article author (required, should be name of agent creating the article)
-- `categories`: Typically ["Things I Learned"] or other category names
-- `showToc`: Enable table of contents for longer articles
-- `tags`: Relevant tags for content discoverability (array of strings). MUST include "AI generated" for AI-generated content.
-
-### Article Content Guidelines
-
-1. **Language**: Simplified Chinese, natural and fluent writing style
-2. **Length** (determine based on article type):
-   - **Quick Summary/Sharing**: 500-1500 words - For sharing thoughts on external blog posts or quick insights
-   - **Project Analysis/Deep Dive**: 2000-3000 words - For in-depth project analysis, research findings, or practical experience
-   - **General Guideline**: Reading time under 5 minutes (avg 400-600 Chinese characters/minute)
-3. **Structure**: Clear headings, logical flow, short paragraphs
-4. **AI Content Labeling**: Every article generated by AI MUST include this disclaimer at the end:
+**Content structure:**
 
 ```markdown
+## 参考资料
+
+- [Source Title 1](url-1)
+- [Source Title 2](url-2)
+
+---
+
+## Main Heading
+
+Introduction paragraph...
+
+### Subheading
+
+Body content...
+
+### Another Subheading
+
+More content...
+
 ---
 
 *本文包含AI生成内容*
 ```
 
-5. **Code examples**: When including code, use proper syntax highlighting with language tags
-6. **Reference Sources**: For articles based on external content (blog posts, documentation, etc.), add a references section at the end before the AI disclaimer:
+**Structure requirements:**
+1. **Reference Sources FIRST** - List all source materials at the beginning
+2. **Main content** - Clear headings, logical flow
+3. **AI disclaimer LAST** - Required for all AI-generated content
 
-```markdown
+**Save location:**
+- Directory: `content/posts/YYYY/` (current year)
+- Filename: lowercase-with-hyphens.md
+- Example: `content/posts/2026/my-article-title.md`
 
-## 参考资料
+### Step 6: Review Writing Quality
 
-- [Source Title 1](url-1)
-- [Source Title 2](url-2)
-```
+Review the generated content for style and accuracy. For detailed guidelines, see `references/chinese-writing-style.md`.
 
-Use `[Title](Link)` format for easy navigation to original content.
+**Writing Style Checklist:**
 
-## Workflow
+| Aspect | Requirement |
+|--------|-------------|
+| **Tone** | Professional yet conversational |
+| **Voice** | First-person for personal insights |
+| **Clarity** | Explain technical concepts simply |
+| **Engagement** | Use examples and practical applications |
+| **Brevity** | Match length to article type |
 
-### Step 1: Determine Article Context
+**Fact Verification:**
+- All facts must have a source provided by the user
+- If a claim lacks a source, either:
+  - Ask the user for the source, or
+  - Remove or qualify the claim
+- Mark unsourced claims with "据称" or " reportedly" when necessary
 
-- Understand the user's intent: research summary, technical tutorial, reflection, or insight
-- Identify key points from the query, reading results, or conversation
-- **Determine article type** to set appropriate length:
-  - **Quick Summary/Sharing**: 500-1500 words (引用他人博客内容分享思考)
-  - **Project Analysis/Deep Dive**: 2000-3000 words (项目实践分析)
-  - General guideline: Reading time should be under 5 minutes (avg 400-600 Chinese chars/minute)
-- Determine appropriate tags and categories based on content
+---
 
-### Step 2: Generate Article
+## Article Content Guidelines
 
-1. **Create front matter** with proper YAML format
-2. **Write article body** in Chinese with:
-   - An engaging title that reflects the content
-   - A clear introduction that sets context
-   - A well-structured body with headings
-   - A concise conclusion or key takeaways
-3. **Add AI content disclaimer** at the end
-4. **Set publication date** to current time in China timezone (+08:00)
+### Length by Article Type
 
-### Step 3: Save Article
+| Type | Word Count | Reading Time |
+|------|------------|--------------|
+| Quick Summary/Sharing | 500-1500 | ~3 minutes |
+| Project Analysis/Deep Dive | 2000-3000 | ~5+ minutes |
 
-1. Determine the year for the article directory (current year)
-2. Create a descriptive filename in lowercase with hyphens (e.g., `my-article.md`)
-3. Save to `content/posts/YYYY/` directory
-4. Verify the file structure matches other blog posts
+**General rule:** Average reading speed is 400-600 Chinese characters/minute. Keep under 5 minutes for most content.
 
-### Step 4: Verification
+### Language Requirements
 
-Check that:
-- Front matter is valid YAML
-- Date format is correct: `YYYY-MM-DDTHH:MM:SS+08:00`
-- Article contains the AI content disclaimer
-- File is in the correct directory structure
-- Markdown syntax is valid
+- **Language**: Simplified Chinese (简体中文)
+- **Style**: Natural, fluent, avoid translation-ese
+- **Structure**: Short paragraphs, clear headings
+- **Code**: Use proper syntax highlighting with language tags
+
+### Required Elements
+
+1. **Reference Sources** (first section after front matter)
+2. **Main content** with logical headings
+3. **AI disclaimer** (at the very end):
+   ```markdown
+   ---
+
+   *本文包含AI生成内容*
+   ```
+
+---
 
 ## Examples
 
-### Technical Article
+### Complete Draft Article
 
-```yaml
+```markdown
 ---
-title: "使用 Hugo 构建静态博客"
-date: 2026-02-14T01:30:00+08:00
-draft: false
-author: "<YourAgentName>"
+title: "使用 Docker 部署 Go 应用"
+date: 2026-02-28T14:30:00+08:00
+draft: true
+author: "Claude"
 categories: ["Things I Learned"]
 showToc: true
-tags: ["Hugo", "Static Site Generator", "Web Development", "AI generated"]
+tags: ["Docker", "Go", "DevOps", "AI generated"]
 ---
+
+## 参考资料
+
+- [Docker 官方文档](https://docs.docker.com/)
+- [Go 部署最佳实践](https://example.com/go-deploy)
+
+---
+
+## 为什么选择 Docker
+
+Docker 提供了一致的部署环境...
+
+### 基本概念
+
+容器化部署的核心优势...
+
+## 实践步骤
+
+### 1. 创建 Dockerfile
+
+```dockerfile
+FROM golang:1.21-alpine
+WORKDIR /app
+COPY . .
+RUN go build -o main .
+CMD ["./main"]
 ```
 
-### Research Summary
+### 2. 构建镜像
 
-```yaml
----
-title: "AI 辅助编程的实践经验"
-date: 2026-02-14T02:00:00+08:00
-draft: false
-author: "<YourAgentName>"
-categories: ["Things I Learned"]
-showToc: true
-tags: ["AI", "Programming", "Productivity", "AI generated"]
----
+```bash
+docker build -t my-go-app .
 ```
 
-## Writing Style
+---
 
-- **Tone**: Professional yet conversational, similar to technical blog posts
-- **Voice**: First-person perspective when sharing personal insights
-- **Clarity**: Explain technical concepts simply but accurately
-- **Engagement**: Use examples and practical applications when possible
-- **Brevity**: Respect the reader's time, match length to article type - concise for summaries, thorough for deep dives
+*本文包含AI生成内容*
+```
 
-### Vocabulary Selection Principles
+---
 
-- **Avoid literal translations**: Do not use direct translations of technical terms that are difficult to understand, like "Build，不买"
-- **Use appropriate terminology**:
-  - "自建" or "自己实现" instead of "构建" or "造"
-  - "引入" or "使用" instead of "购买" (open-source frameworks don't have a "purchase" concept)
-  - "开源库" or "第三方库" instead of "现成工具"
-  - "集成" or "连接" instead of simple "添加"
-- **Accuracy first**: Ensure the terminology used accurately reflects the actual technical situation and avoids misleading readers
-  - Open-source technology has no "purchase" concept
-  - Distinguish between self-built features and integrating mature libraries
+## Quick Reference
 
-## Reference Information
+### Workflow Summary
 
-### Common Categories
-- "Things I Learned" - Technical tutorials and insights
-- Create new categories as needed based on article type
+1. **Config** → Read Hugo config file
+2. **Structure** → Check content directory organization
+3. **Front Matter** → Identify required fields
+4. **Ask** → Clarify topic with user
+5. **Draft** → Generate with `draft: true`
+6. **Review** → Check style, vocabulary, and sources
 
-### Content Organization
-- `content/posts/YYYY/` - Blog posts organized by year
-- `content/archives.md` - Archives page (if applicable)
-- Front matter consistency is important for proper indexing
+### File Locations
 
-### Blog Configuration (User-Specific)
+| Item | Location |
+|------|----------|
+| Config | `config.yml` / `config.toml` / `hugo.toml` |
+| Posts | `content/posts/YYYY/` |
+| Archives | `content/archives.md` |
 
-**Before creating articles, read the blog configuration to understand:**
+### Common Tags
 
-1. **Config file location**: Hugo supports multiple config file formats:
-   - `config.yml` (YAML)
-   - `config.toml` (TOML)
-   - `config.yaml` (YAML, alternative)
-   - `config.json` (JSON)
-
-2. **Key configuration values** (from `config.yml`):
-   ```yaml
-   baseURL: "https://www.sdlinks.net"  # Blog URL
-   title: "Neo VRAINS"                 # Site title
-   theme: hugo-PaperMod               # Theme used
-
-   params:
-     title: "Neo VRAINS"
-     author: Christophe                # Default author
-   ```
-
-3. **Reading configuration**: Always check the actual config file in the blog root directory before generating content. This ensures articles match the blog's settings and style.
-
-These settings vary by user and should be read dynamically from the config file, not hardcoded.
+- Technical: `["技术名", "AI generated"]`
+- Tutorial: `["Tutorial", "技术名", "AI generated"]`
+- Experience: `["实践经验", "技术名", "AI generated"]`
