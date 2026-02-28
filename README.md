@@ -1,6 +1,6 @@
-# OpenClaw Skills
+# Agent extentions
 
-A collection of Claude Code plugins for content creation and AI development.
+Agent extentions in claude marketplace structure.
 
 ## Plugins
 
@@ -14,17 +14,17 @@ A collection of Claude Code plugins for content creation and AI development.
 ### Add Marketplace
 
 ```bash
-/plugin marketplace add <your-github-username>/skills
+/plugin marketplace add Christophe1997/agent-extentions 
 ```
 
 ### Install Plugins
 
 ```bash
 # Install writing-hugo-blog
-/plugin install writing-hugo-blog@openclaw-skills
+/plugin install writing-hugo-blog@agent-extentions
 
 # Install agent-design
-/plugin install agent-design@openclaw-skills
+/plugin install agent-design@agent-extentions
 ```
 
 ## Usage
