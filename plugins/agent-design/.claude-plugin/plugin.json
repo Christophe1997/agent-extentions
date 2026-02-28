@@ -1,0 +1,12 @@
+{
+  "name": "agent-design",
+  "version": "1.0.0",
+  "description": "Guidelines for designing tools and action spaces for AI agents. Covers progressive disclosure, tool design patterns, and lessons from Claude Code development.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "license": "MIT",
+  "keywords": ["ai", "agent", "tools", "design", "claude-code"],
+  "category": "ai-development"
+}

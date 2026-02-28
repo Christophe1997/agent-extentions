@@ -1,0 +1,12 @@
+{
+  "name": "writing-hugo-blog",
+  "version": "1.0.0",
+  "description": "Create Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "license": "MIT",
+  "keywords": ["hugo", "blog", "writing", "chinese", "markdown"],
+  "category": "content-creation"
+}

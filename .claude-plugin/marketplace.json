@@ -1,0 +1,37 @@
+{
+  "name": "openclaw-skills",
+  "owner": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "metadata": {
+    "description": "Marketplace for Claude Code extensions",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "writing-hugo-blog",
+      "source": "./plugins/writing-hugo-blog",
+      "description": "Create Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "content-creation",
+      "keywords": ["hugo", "blog", "writing", "chinese", "markdown"]
+    },
+    {
+      "name": "agent-design",
+      "source": "./plugins/agent-design",
+      "description": "Guidelines for designing tools and action spaces for AI agents. Covers progressive disclosure, tool design patterns, and lessons from Claude Code development.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "ai-development",
+      "keywords": ["ai", "agent", "tools", "design", "claude-code"]
+    }
+  ]
+}
