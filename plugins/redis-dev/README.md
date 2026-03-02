@@ -17,13 +17,15 @@ Comprehensive Redis design patterns, best practices, and command references for 
 
 ### Commands
 
-- `/redis-dev:connect` - Connect to a Redis instance (asks for approval before creating files)
-- `/redis-dev:query <command>` - Execute a Redis command and explain results
-- `/redis-dev:pattern <use-case>` - Look up patterns by use case
+| Command | Description |
+|---------|-------------|
+| `/redis-dev:connect` | Connect to a Redis instance (asks for approval before creating files) |
+| `/redis-dev:query <command>` | Execute a Redis command and explain results |
+| `/redis-dev:pattern <use-case>` | Look up patterns by use case |
 
 ### Agents
 
-- `redis-code-reviewer` - Analyzes code for Redis anti-patterns
+- `redis-code-reviewer` - Analyzes code for Redis anti-patterns and suggests improvements
 
 ### MCP Integration
 
@@ -31,16 +33,8 @@ Connect to live Redis instances for real-time queries and inspection.
 
 ## Installation
 
-This plugin is available in the marketplace. To install:
-
 ```bash
-claude plugin install redis-dev
-```
-
-Or clone directly:
-
-```bash
-git clone <repo-url> ~/.claude/plugins/redis-dev
+/plugin install redis-dev@agent-extentions
 ```
 
 ## MCP Configuration
@@ -57,7 +51,6 @@ redis_db: 0
 ```
 
 Or set environment variables:
-
 ```bash
 export REDIS_HOST=localhost
 export REDIS_PORT=6379
@@ -70,6 +63,7 @@ export REDIS_PORT=6379
 ```
 "How do I implement a rate limiter with Redis?"
 "What's the best caching strategy for read-heavy workloads?"
+"How do I build a reliable message queue with Redis?"
 ```
 
 ### Use commands
@@ -87,6 +81,13 @@ The `redis-code-reviewer` agent automatically analyzes code for:
 - Missing TTL on cache keys
 - Inefficient data structure choices
 - Race conditions in distributed scenarios
+
+## Code Examples
+
+This plugin uses **pseudocode + Redis commands** for language-agnostic documentation. When you ask questions, it will:
+1. Detect your project's programming language
+2. Generate code examples in that language
+3. Fall back to pseudocode if no language is detected
 
 ## Documentation Source
 

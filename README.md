@@ -6,8 +6,9 @@ Agent extentions in Claude marketplace structure.
 
 | Plugin | Description |
 |--------|-------------|
-| **writing-hugo-blog** | Create and review Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling |
-| **agent-design** | Guidelines for designing tools and action spaces for AI agents |
+| [writing-hugo-blog](./plugins/writing-hugo-blog/README.md) | Create and review Hugo blog posts in Chinese with proper front matter and AI content labeling |
+| [agent-design](./plugins/agent-design/README.md) | Guidelines for designing tools and action spaces for AI agents |
+| [redis-dev](./plugins/redis-dev/README.md) | Redis design patterns, best practices, and command references with MCP integration |
 
 ## Installation
 
@@ -20,40 +21,10 @@ Agent extentions in Claude marketplace structure.
 ### Install Plugins
 
 ```bash
-# Install writing-hugo-blog
 /plugin install writing-hugo-blog@agent-extentions
-
-# Install agent-design
 /plugin install agent-design@agent-extentions
+/plugin install redis-dev@agent-extentions
 ```
-
-## Usage
-
-### writing-hugo-blog
-
-**Skill** - Automatically activates when creating blog content or working with Hugo.
-
-**Workflow:**
-1. Explore blog configuration
-2. Recognize content formats and structure
-3. Identify front matter requirements
-4. Ask user about topic
-5. Generate draft (`draft: true`)
-6. Review writing quality
-7. Publish (`draft: false`)
-
-**Commands:**
-
-| Command | Description |
-|---------|-------------|
-| `/writing-hugo-blog:draft <topic>` | Create a new draft blog post |
-| `/writing-hugo-blog:review <path>` | Review existing post for style issues and apply fixes |
-
-**Style Guide:** Follows [中文技术文档的写作规范](https://github.com/ruanyf/document-style-guide)
-
-### agent-design
-
-**Skill** - Automatically activates when designing agent tools or discussing AI architecture.
 
 ## License
 
