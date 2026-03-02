@@ -6,6 +6,13 @@ version: 1.0.0
 
 # Redis Production Patterns
 
+## ⚡ Code Example Guidelines
+
+When showing code examples:
+1. **Detect the project's programming language** first (check package.json, go.mod, requirements.txt, pom.xml, etc.)
+2. **Generate code in the detected language** using the appropriate Redis client
+3. **If no language detected**, use pseudocode with Redis commands as shown below
+
 Real-world patterns for scaling, tuning, and operating Redis in production.
 
 ## Topics
