@@ -32,6 +32,18 @@
       },
       "category": "ai-development",
       "keywords": ["ai", "agent", "tools", "design", "claude-code"]
+    },
+    {
+      "name": "redis-dev",
+      "source": "./plugins/redis-dev",
+      "description": "Comprehensive Redis design patterns, best practices, and command references. Includes caching, messaging, coordination patterns, and MCP integration for live queries.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "database",
+      "keywords": ["redis", "caching", "patterns", "database", "messaging", "distributed-systems", "queue", "rate-limiting"]
     }
   ]
 }

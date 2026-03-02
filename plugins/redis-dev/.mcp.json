@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "redis": {
+      "command": "redis-cli",
+      "args": ["-h", "${REDIS_HOST:-localhost}", "-p", "${REDIS_PORT:-6379}"],
+      "env": {
+        "REDIS_HOST": "${REDIS_HOST}",
+        "REDIS_PORT": "${REDIS_PORT}",
+        "REDIS_PASSWORD": "${REDIS_PASSWORD}"
+      }
+    }
+  }
+}
