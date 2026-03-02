@@ -6,6 +6,13 @@ version: 1.0.0
 
 # Redis Coordination Patterns
 
+## ⚡ Code Example Guidelines
+
+When showing code examples:
+1. **Detect the project's programming language** first (check package.json, go.mod, requirements.txt, pom.xml, etc.)
+2. **Generate code in the detected language** using the appropriate Redis client
+3. **If no language detected**, use pseudocode with Redis commands as shown below
+
 Solutions for distributed coordination, locking, and rate limiting.
 
 ## Use Case → Pattern Mapping
@@ -26,49 +33,53 @@ Solutions for distributed coordination, locking, and rate limiting.
 
 **How it works:** Use `SET key value NX PX timeout` for atomic lock acquisition with automatic expiration.
 
-```python
-import uuid
-
-def acquire_lock(lock_name, timeout_ms=10000):
-    """Acquire a distributed lock."""
-    identifier = str(uuid.uuid4())
-    lock_key = f"lock:{lock_name}"
-
-    # Atomic set-if-not-exists with expiration
-    acquired = redis.set(lock_key, identifier, nx=True, px=timeout_ms)
-
-    if acquired:
-        return identifier
-    return None
-
-def release_lock(lock_name, identifier):
-    """Release lock only if we own it."""
-    lock_key = f"lock:{lock_name}"
-
-    # Lua script for atomic check-and-delete
-    script = """
-    if redis.call("get", KEYS[1]) == ARGV[1] then
-        return redis.call("del", KEYS[1])
-    else
-        return 0
-    end
-    """
-
-    return redis.eval(script, 1, lock_key, identifier)
-
-# Usage
-def with_lock(lock_name, timeout_ms, fn):
-    lock_id = acquire_lock(lock_name, timeout_ms)
-    if not lock_id:
-        raise Exception("Could not acquire lock")
-
-    try:
-        return fn()
-    finally:
-        release_lock(lock_name, lock_id)
+### Redis Commands
+```bash
+SET lock:{name} {identifier} NX PX 10000   # Acquire lock (10s expiry)
+GET lock:{name}                            # Check lock owner
+DEL lock:{name}                            # Release lock (use Lua for safety)
 ```
 
-**Key commands:** `SET NX PX`, `GET`, `DEL` (via Lua)
+### Lua Script for Safe Release
+```lua
+-- Only delete if we own the lock
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end
+```
+
+### Pseudocode
+```
+function acquire_lock(lock_name, timeout_ms=10000):
+    identifier = generate_uuid()
+    lock_key = "lock:" + lock_name
+
+    # Atomic set-if-not-exists with expiration
+    acquired = REDIS.SET(lock_key, identifier, NX=True, PX=timeout_ms)
+
+    IF acquired:
+        RETURN identifier
+    RETURN NULL
+
+function release_lock(lock_name, identifier):
+    lock_key = "lock:" + lock_name
+
+    # Use Lua script for atomic check-and-delete
+    RETURN REDIS.EVAL(release_script, 1, lock_key, identifier)
+
+# Usage
+function with_lock(lock_name, timeout_ms, fn):
+    lock_id = acquire_lock(lock_name, timeout_ms)
+    IF NOT lock_id:
+        RAISE "Could not acquire lock"
+
+    TRY:
+        RETURN fn()
+    FINALLY:
+        release_lock(lock_name, lock_id)
+```
 
 **Important:** Always use a unique identifier to prevent releasing another process's lock.
 
@@ -80,51 +91,49 @@ def with_lock(lock_name, timeout_ms, fn):
 
 **How it works:** Acquire locks on a majority (N/2+1) of N independent Redis instances.
 
-```python
-import time
+### Redis Commands (on each instance)
+```bash
+SET lock:{name} {identifier} NX PX {ttl_ms}
+```
 
+### Pseudocode
+```
 class Redlock:
-    def __init__(self, redis_clients, lock_name, ttl_ms):
+    function __init__(redis_clients, lock_name, ttl_ms):
         self.clients = redis_clients
         self.lock_name = lock_name
         self.ttl_ms = ttl_ms
-        self.quorum = len(redis_clients) // 2 + 1
+        self.quorum = length(redis_clients) / 2 + 1
 
-    def acquire(self):
-        identifier = str(uuid.uuid4())
-        start_time = time.time()
+    function acquire():
+        identifier = generate_uuid()
+        start_time = current_time()
 
         acquired = 0
-        for client in self.clients:
-            try:
-                if client.set(f"lock:{self.lock_name}", identifier, nx=True, px=self.ttl_ms):
+        FOR client IN self.clients:
+            TRY:
+                IF client.SET("lock:" + self.lock_name, identifier, NX=True, PX=self.ttl_ms):
                     acquired += 1
-            except:
-                pass
+            CATCH:
+                PASS
 
         # Check if we got quorum and time remains
-        elapsed = (time.time() - start_time) * 1000
-        if acquired >= self.quorum and elapsed < self.ttl_ms:
+        elapsed = (current_time() - start_time) * 1000
+        IF acquired >= self.quorum AND elapsed < self.ttl_ms:
             self.identifier = identifier
-            return True
+            RETURN TRUE
 
         # Failed - release all
         self._release_all(identifier)
-        return False
+        RETURN FALSE
 
-    def _release_all(self, identifier):
-        for client in self.clients:
-            try:
+    function _release_all(identifier):
+        FOR client IN self.clients:
+            TRY:
                 release_lock_on_client(client, self.lock_name, identifier)
-            except:
-                pass
-
-    def release(self):
-        if hasattr(self, 'identifier'):
-            self._release_all(self.identifier)
+            CATCH:
+                PASS
 ```
-
-**Key commands:** `SET NX PX` on multiple instances
 
 **Pros:** Tolerates node failures
 **Cons:** Higher latency, more complex
@@ -137,39 +146,49 @@ class Redlock:
 
 ### Option A: Fixed Window
 
-```python
-def fixed_window_rate_limit(key, limit, window_seconds):
-    """Simple fixed window rate limiter."""
-    current = redis.incr(key)
+### Redis Commands
+```bash
+INCR ratelimit:{key}
+EXPIRE ratelimit:{key} {window_seconds}
+```
 
-    if current == 1:
-        redis.expire(key, window_seconds)
+### Pseudocode
+```
+function fixed_window_rate_limit(key, limit, window_seconds):
+    current = REDIS.INCR(key)
 
-    return current <= limit
+    IF current == 1:
+        REDIS.EXPIRE(key, window_seconds)
 
-# Usage: 100 requests per minute
-if not fixed_window_rate_limit("ratelimit:user:123", 100, 60):
-    raise Exception("Rate limit exceeded")
+    RETURN current <= limit
 ```
 
 **Issue:** Allows burst at window boundaries (2x limit possible).
 
 ### Option B: Sliding Window Log
 
-```python
-def sliding_window_rate_limit(key, limit, window_seconds):
-    """Accurate sliding window using sorted set."""
-    now = time.time()
+### Redis Commands
+```bash
+ZREMRANGEBYSCORE {key} 0 {old_timestamp}
+ZADD {key} {timestamp} {uuid}
+ZCARD {key}
+EXPIRE {key} {window_seconds}
+```
+
+### Pseudocode
+```
+function sliding_window_rate_limit(key, limit, window_seconds):
+    now = current_timestamp()
     window_start = now - window_seconds
 
-    pipe = redis.pipeline()
-    pipe.zremrangebyscore(key, 0, window_start)
-    pipe.zadd(key, {str(uuid.uuid4()): now})
-    pipe.zcard(key)
-    pipe.expire(key, window_seconds + 1)
+    # Pipeline for atomicity
+    REDIS.PIPELINE():
+        ZREMRANGEBYSCORE(key, 0, window_start)
+        ZADD(key, now, generate_uuid())
+        count = ZCARD(key)
+        EXPIRE(key, window_seconds + 1)
 
-    _, _, count, _ = pipe.execute()
-    return count <= limit
+    RETURN count <= limit
 ```
 
 **Pros:** Accurate, no boundary issues
@@ -177,82 +196,41 @@ def sliding_window_rate_limit(key, limit, window_seconds):
 
 ### Option C: Token Bucket
 
-```python
-def token_bucket(key, capacity, refill_rate):
-    """Token bucket for smooth rate limiting."""
-    now = time.time()
-    bucket_key = f"bucket:{key}"
+### Redis Commands
+```bash
+HMGET bucket:{key} tokens last_refill
+HMSET bucket:{key} tokens {n} last_refill {timestamp}
+EXPIRE bucket:{key} 3600
+```
 
-    script = """
-    local key = KEYS[1]
-    local capacity = tonumber(ARGV[1])
-    local refill_rate = tonumber(ARGV[2])
-    local now = tonumber(ARGV[3])
-    local requested = tonumber(ARGV[4])
+### Lua Script (Recommended)
+```lua
+local key = KEYS[1]
+local capacity = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local requested = tonumber(ARGV[4])
 
-    local bucket = redis.call("HMGET", key, "tokens", "last_refill")
-    local tokens = tonumber(bucket[1]) or capacity
-    local last_refill = tonumber(bucket[2]) or now
+local bucket = redis.call("HMGET", key, "tokens", "last_refill")
+local tokens = tonumber(bucket[1]) or capacity
+local last_refill = tonumber(bucket[2]) or now
 
-    -- Refill tokens
-    local elapsed = now - last_refill
-    tokens = math.min(capacity, tokens + elapsed * refill_rate)
+-- Refill tokens based on elapsed time
+local elapsed = now - last_refill
+tokens = math.min(capacity, tokens + elapsed * refill_rate)
 
-    if tokens >= requested then
-        tokens = tokens - requested
-        redis.call("HMSET", key, "tokens", tokens, "last_refill", now)
-        redis.call("EXPIRE", key, 3600)
-        return {1, tokens}
-    else
-        return {0, tokens}
-    end
-    """
-
-    allowed, tokens = redis.eval(script, 1, bucket_key, capacity, refill_rate, now, 1)
-    return bool(allowed)
+if tokens >= requested then
+    tokens = tokens - requested
+    redis.call("HMSET", key, "tokens", tokens, "last_refill", now)
+    redis.call("EXPIRE", key, 3600)
+    return {1, tokens}
+else
+    return {0, tokens}
+end
 ```
 
 **Pros:** Smooth traffic, allows bursts up to capacity
 **Cons:** More complex
-
-### Option D: Leaky Bucket
-
-```python
-def leaky_bucket(key, capacity, leak_rate):
-    """Process requests at a constant rate."""
-    now = time.time()
-    bucket_key = f"leaky:{key}"
-
-    script = """
-    local key = KEYS[1]
-    local capacity = tonumber(ARGV[1])
-    local leak_rate = tonumber(ARGV[2])
-    local now = tonumber(ARGV[3])
-
-    local bucket = redis.call("HMGET", key, "water", "last_leak")
-    local water = tonumber(bucket[1]) or 0
-    local last_leak = tonumber(bucket[2]) or now
-
-    -- Leak water
-    local elapsed = now - last_leak
-    water = math.max(0, water - elapsed * leak_rate)
-
-    if water < capacity then
-        water = water + 1
-        redis.call("HMSET", key, "water", water, "last_leak", now)
-        redis.call("EXPIRE", key, 3600)
-        return {1, water}
-    else
-        return {0, water}
-    end
-    """
-
-    allowed, water = redis.eval(script, 1, bucket_key, capacity, leak_rate, now)
-    return bool(allowed)
-```
-
-**Pros:** Constant output rate
-**Cons:** No bursting allowed
 
 ---
 
@@ -262,25 +240,26 @@ def leaky_bucket(key, capacity, leak_rate):
 
 **How it works:** Force related keys to the same slot using hash tags `{tag}`.
 
-```python
+### Key Naming
+```bash
 # Without hash tag - different slots, can't use transactions
-user_key = "user:123"
-session_key = "session:123"
-# These may be on different nodes!
+user:123        # Slot 1
+session:123     # Slot 2 (different node!)
 
 # With hash tag - same slot
-user_key = "user:{123}"
-session_key = "session:{123}"
-# Guaranteed on same node
+user:{123}      # Same slot
+session:{123}   # Same slot (guaranteed)
+```
 
+### Pseudocode
+```
 # Now you can use transactions
-pipe = redis.pipeline()
-pipe.get("user:{123}")
-pipe.get("session:{123}")
-user, session = pipe.execute()
+REDIS.PIPELINE():
+    GET("user:{123}")
+    GET("session:{123}")
 
 # Or Lua scripts
-redis.eval(script, 2, "user:{123}", "session:{123}", ...)
+REDIS.EVAL(script, 2, "user:{123}", "session:{123}", ...)
 ```
 
 **Key concept:** Only the part inside `{}` is used for hash calculation.
@@ -293,41 +272,40 @@ redis.eval(script, 2, "user:{123}", "session:{123}", ...)
 
 **How it works:** Use transaction stamps, version tokens, and commit markers.
 
-```python
-def write_with_consistency(keys_values):
-    """Write to multiple shards with consistency detection."""
-    tx_id = str(uuid.uuid4())
-    timestamp = time.time()
+### Pseudocode
+```
+function write_with_consistency(keys_values):
+    tx_id = generate_uuid()
+    timestamp = current_time()
 
     # Phase 1: Write with transaction stamp
-    for key, value in keys_values:
-        redis.hset(f"tx:{tx_id}", key, json.dumps({
+    FOR key, value IN keys_values:
+        REDIS.HSET("tx:" + tx_id, key, {
             "value": value,
             "timestamp": timestamp,
             "status": "pending"
-        }))
+        })
 
     # Phase 2: Commit each key
     committed = []
-    for key, _ in keys_values:
-        try:
-            # Atomic write
-            redis.set(key, ...)
-            redis.hset(f"tx:{tx_id}", f"{key}:status", "committed")
+    FOR key, value IN keys_values:
+        TRY:
+            REDIS.SET(key, value)
+            REDIS.HSET("tx:" + tx_id, key + ":status", "committed")
             committed.append(key)
-        except:
-            break
+        CATCH:
+            BREAK
 
     # Phase 3: Verify or rollback
-    if len(committed) != len(keys_values):
+    IF length(committed) != length(keys_values):
         # Rollback committed writes
-        for key in committed:
-            redis.delete(key)
-        redis.delete(f"tx:{tx_id}")
-        return False
+        FOR key IN committed:
+            REDIS.DEL(key)
+        REDIS.DEL("tx:" + tx_id)
+        RETURN FALSE
 
-    redis.delete(f"tx:{tx_id}")
-    return True
+    REDIS.DEL("tx:" + tx_id)
+    RETURN TRUE
 ```
 
 ---

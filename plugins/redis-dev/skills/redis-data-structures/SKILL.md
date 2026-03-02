@@ -6,6 +6,13 @@ version: 1.0.0
 
 # Redis Data Structure Patterns
 
+## ⚡ Code Example Guidelines
+
+When showing code examples:
+1. **Detect the project's programming language** first (check package.json, go.mod, requirements.txt, pom.xml, etc.)
+2. **Generate code in the detected language** using the appropriate Redis client
+3. **If no language detected**, use pseudocode with Redis commands as shown below
+
 Solutions for efficient data storage, counting, and querying use cases.
 
 ## Use Case → Pattern Mapping
@@ -26,25 +33,29 @@ Solutions for efficient data storage, counting, and querying use cases.
 
 **When to use:** Count unique items with ~0.81% error using only 12KB memory.
 
-```python
-# Add items to HyperLogLog
-redis.pfadd("unique:visitors", "user1")
-redis.pfadd("unique:visitors", "user2")
-redis.pfadd("unique:visitors", "user1")  # Duplicate - ignored
-
-# Get approximate unique count
-count = redis.pfcount("unique:visitors")
-
-# Merge multiple HyperLogLogs
-redis.pfmerge("unique:total", "unique:day1", "unique:day2")
+### Redis Commands
+```bash
+PFADD unique:visitors user1 user2 user1   # Add items (duplicates ignored)
+PFCOUNT unique:visitors                    # Get approximate count
+PFMERGE unique:total unique:day1 unique:day2  # Merge multiple HLLs
 ```
 
-**Key commands:** `PFADD`, `PFCOUNT`, `PFMERGE`
+### Pseudocode
+```
+# Add items to HyperLogLog
+REDIS.PFADD("unique:visitors", "user1")
+REDIS.PFADD("unique:visitors", "user2")
+REDIS.PFADD("unique:visitors", "user1")  # Duplicate - ignored
+
+# Get approximate unique count
+count = REDIS.PFCOUNT("unique:visitors")
+
+# Merge multiple HyperLogLogs
+REDIS.PFMERGE("unique:total", "unique:day1", "unique:day2")
+```
 
 **Memory:** Always 12KB regardless of cardinality
 **Error rate:** ~0.81% standard error
-
-**Use cases:** Unique visitors, unique searches, distinct count analytics
 
 ---
 
@@ -52,28 +63,27 @@ redis.pfmerge("unique:total", "unique:day1", "unique:day2")
 
 **When to use:** Test if an item might be in a set (no false negatives, possible false positives).
 
-```python
+### Redis Commands (RedisBloom Module)
+```bash
+BF.ADD filter:emails user@example.com       # Add to filter
+BF.EXISTS filter:emails user@example.com    # Check membership (1=maybe, 0=no)
+BF.RESERVE filter:emails 0.01 1000000       # Create with 1% error, 1M items
+```
+
+### Pseudocode
+```
 # Using RedisBloom module (recommended)
-redis.execute_command("BF.ADD", "filter:emails", "user@example.com")
-redis.execute_command("BF.ADD", "filter:emails", "another@example.com")
+REDIS.EXECUTE("BF.ADD", "filter:emails", "user@example.com")
+REDIS.EXECUTE("BF.ADD", "filter:emails", "another@example.com")
 
 # Check membership
-exists = redis.execute_command("BF.EXISTS", "filter:emails", "user@example.com")
+exists = REDIS.EXECUTE("BF.EXISTS", "filter:emails", "user@example.com")
 # Returns 1 = probably exists, 0 = definitely does not exist
 
-# Create with custom error rate
-redis.execute_command("BF.RESERVE", "filter:emails", "0.01", "1000000")
-# 1% false positive rate, 1 million expected items
+# Without RedisBloom: use SET for exact membership (more memory)
+REDIS.SADD("set:emails", "user@example.com")
+exists = REDIS.SISMEMBER("set:emails", "user@example.com")
 ```
-
-**Without RedisBloom module (using SET):**
-```python
-# Fallback: use SET for exact membership (more memory)
-redis.sadd("set:emails", "user@example.com")
-exists = redis.sismember("set:emails", "user@example.com")
-```
-
-**Use cases:** Email/filter checking, preventing cache penetration, fraud detection
 
 ---
 
@@ -81,31 +91,40 @@ exists = redis.sismember("set:emails", "user@example.com")
 
 **When to use:** Real-time rankings with O(log N) score updates and rank lookups.
 
-```python
-# Add/update scores
-redis.zadd("leaderboard:global", {"player1": 1500, "player2": 2000, "player3": 1800})
-
-# Get top 10 players
-top10 = redis.zrevrange("leaderboard:global", 0, 9, withscores=True)
-
-# Get a player's rank (0-indexed)
-rank = redis.zrevrank("leaderboard:global", "player1")
-
-# Get players around a specific player (contextual leaderboard)
-player_rank = redis.zrevrank("leaderboard:global", "player2")
-nearby = redis.zrevrange("leaderboard:global",
-                          max(0, player_rank - 5),
-                          player_rank + 5,
-                          withscores=True)
-
-# Get score directly
-score = redis.zscore("leaderboard:global", "player1")
-
-# Increment score atomically
-redis.zincrby("leaderboard:global", 100, "player1")
+### Redis Commands
+```bash
+ZADD leaderboard:global 1500 player1 2000 player2 1800 player3
+ZREVRANGE leaderboard:global 0 9 WITHSCORES    # Top 10
+ZREVRANK leaderboard:global player1             # Get rank
+ZSCORE leaderboard:global player1               # Get score
+ZINCRBY leaderboard:global 100 player1          # Add 100 points
 ```
 
-**Key commands:** `ZADD`, `ZREVRANGE`, `ZREVRANK`, `ZSCORE`, `ZINCRBY`, `ZRANGEBYSCORE`
+### Pseudocode
+```
+# Add/update scores
+REDIS.ZADD("leaderboard:global", {
+    "player1": 1500,
+    "player2": 2000,
+    "player3": 1800
+})
+
+# Get top 10 players
+top10 = REDIS.ZREVRANGE("leaderboard:global", 0, 9, WITHSCORES=TRUE)
+
+# Get a player's rank (0-indexed)
+rank = REDIS.ZREVRANK("leaderboard:global", "player1")
+
+# Get players around a specific player
+player_rank = REDIS.ZREVRANK("leaderboard:global", "player2")
+nearby = REDIS.ZREVRANGE("leaderboard:global",
+                          max(0, player_rank - 5),
+                          player_rank + 5,
+                          WITHSCORES=TRUE)
+
+# Increment score atomically
+REDIS.ZINCRBY("leaderboard:global", 100, "player1")
+```
 
 **Time complexity:** O(log N) for most operations
 
@@ -115,30 +134,36 @@ redis.zincrby("leaderboard:global", 100, "player1")
 
 **When to use:** Store locations and query by radius, distance, or bounding box.
 
-```python
-# Add locations (longitude, latitude)
-redis.geoadd("locations:stores",
-             -122.4194, 37.7749, "store_sf",
-             -118.2437, 34.0522, "store_la",
-             -122.0322, 37.3688, "store_sj")
-
-# Find stores within 50km radius
-nearby = redis.geosearch("locations:stores",
-                         longitude=-122.4194,
-                         latitude=37.7749,
-                         radius=50,
-                         unit="km",
-                         withdist=True,
-                         withcoord=True)
-
-# Get distance between two locations
-distance = redis.geodist("locations:stores", "store_sf", "store_la", unit="km")
-
-# Get coordinates of a location
-coords = redis.geopos("locations:stores", "store_sf")
+### Redis Commands
+```bash
+GEOADD locations:stores -122.4194 37.7749 store_sf -118.2437 34.0522 store_la
+GEOSEARCH locations:stores FROMLONLAT -122.4 37.8 BYRADIUS 50 km WITHDIST
+GEODIST locations:stores store_sf store_la KM
+GEOPOS locations:stores store_sf
 ```
 
-**Key commands:** `GEOADD`, `GEOSEARCH`, `GEODIST`, `GEOPOS`, `GEOHASH`
+### Pseudocode
+```
+# Add locations (longitude, latitude)
+REDIS.GEOADD("locations:stores",
+    -122.4194, 37.7749, "store_sf",
+    -118.2437, 34.0522, "store_la",
+    -122.0322, 37.3688, "store_sj"
+)
+
+# Find stores within 50km radius
+nearby = REDIS.GEOSEARCH("locations:stores",
+    longitude=-122.4194,
+    latitude=37.7749,
+    radius=50,
+    unit="km",
+    WITHDIST=TRUE,
+    WITHCOORD=TRUE
+)
+
+# Get distance between two locations
+distance = REDIS.GEODIST("locations:stores", "store_sf", "store_la", unit="km")
+```
 
 **Note:** Built on Sorted Sets with geohash as score
 
@@ -148,35 +173,39 @@ coords = redis.geopos("locations:stores", "store_sf")
 
 **When to use:** Millions of boolean flags with minimal memory (1 bit per flag).
 
-```python
-# Set bits (user activity tracking)
-redis.setbit("active:users:2024-01-15", user_id, 1)
-
-# Check if user was active
-active = redis.getbit("active:users:2024-01-15", user_id)
-
-# Count active users
-count = redis.bitcount("active:users:2024-01-15")
-
-# Find first active user
-first_active = redis.bitpos("active:users:2024-01-15", 1)
-
-# Bitwise operations across days
-redis.bitop("AND", "active:both", "active:day1", "active:day2")
-redis.bitop("OR", "active:either", "active:day1", "active:day2")
-
-# Retention analysis: users active on all days in range
-redis.bitop("AND", "retained:7day",
-            "active:day1", "active:day2", "active:day3",
-            "active:day4", "active:day5", "active:day6", "active:day7")
-retained_count = redis.bitcount("retained:7day")
+### Redis Commands
+```bash
+SETBIT active:2024-01-15 {user_id} 1     # Mark user active
+GETBIT active:2024-01-15 {user_id}       # Check if active
+BITCOUNT active:2024-01-15               # Count active users
+BITPOS active:2024-01-15 1               # Find first active
+BITOP AND result day1 day2 day3          # Bitwise AND
 ```
 
-**Key commands:** `SETBIT`, `GETBIT`, `BITCOUNT`, `BITPOS`, `BITOP`, `BITFIELD`
+### Pseudocode
+```
+# Set bits (user activity tracking)
+REDIS.SETBIT("active:users:2024-01-15", user_id, 1)
+
+# Check if user was active
+active = REDIS.GETBIT("active:users:2024-01-15", user_id)
+
+# Count active users
+count = REDIS.BITCOUNT("active:users:2024-01-15")
+
+# Bitwise operations across days
+REDIS.BITOP("AND", "active:both", "active:day1", "active:day2")
+REDIS.BITOP("OR", "active:either", "active:day1", "active:day2")
+
+# Retention analysis: users active on all 7 days
+REDIS.BITOP("AND", "retained:7day",
+    "active:day1", "active:day2", "active:day3",
+    "active:day4", "active:day5", "active:day6", "active:day7"
+)
+retained_count = REDIS.BITCOUNT("retained:7day")
+```
 
 **Memory:** 1 bit per position (125 million flags = ~15MB)
-
-**Use cases:** Daily active users, feature flags, attendance tracking, retention analysis
 
 ---
 
@@ -184,28 +213,35 @@ retained_count = redis.bitcount("retained:7day")
 
 **When to use:** Store many small objects efficiently.
 
-```python
+### Redis Commands
+```bash
+HSET user:1 name Alice email alice@example.com age 30
+HGET user:1 name
+HGETALL user:1
+```
+
+### Pseudocode
+```
 # Instead of many string keys (more memory)
-redis.set("user:1:name", "Alice")
-redis.set("user:1:email", "alice@example.com")
-redis.set("user:1:age", "30")
+REDIS.SET("user:1:name", "Alice")
+REDIS.SET("user:1:email", "alice@example.com")
+REDIS.SET("user:1:age", "30")
 
 # Use a hash (less memory for small objects)
-redis.hset("user:1", mapping={
+REDIS.HSET("user:1", {
     "name": "Alice",
     "email": "alice@example.com",
     "age": "30"
 })
 
 # Access individual fields
-name = redis.hget("user:1", "name")
-all_fields = redis.hgetall("user:1")
+name = REDIS.HGET("user:1", "name")
+all_fields = REDIS.HGETALL("user:1")
 ```
 
 **Why it saves memory:**
 - Redis uses listpack encoding for small hashes (very compact)
 - Single key overhead instead of multiple keys
-- Configure thresholds in redis.conf: `hash-max-listpack-entries`, `hash-max-listpack-value`
 
 ---
 
@@ -213,22 +249,31 @@ all_fields = redis.hgetall("user:1")
 
 **When to use:** Prefix queries, range scans, and autocomplete on string data.
 
-```python
+### Redis Commands
+```bash
+ZADD autocomplete:words 0 apple 0 application 0 banana 0 app
+ZRANGEBYLEX autocomplete:words "[app" "[app\xff"   # Prefix "app"
+ZRANGEBYLEX autocomplete:words "[a" "[c"           # Range a-c
+```
+
+### Pseudocode
+```
 # Add items with same score (0) for lexicographic ordering
-redis.zadd("autocomplete:words", {"apple": 0, "application": 0, "banana": 0, "app": 0})
+REDIS.ZADD("autocomplete:words", {
+    "apple": 0,
+    "application": 0,
+    "banana": 0,
+    "app": 0
+})
 
 # Find all words starting with "app"
 # Use [app and [app\xff as range (inclusive)
-words = redis.zrangebylex("autocomplete:words", "[app", "[app\xff")
-
-# Find words in range
-words = redis.zrangebylex("autocomplete:words", "[a", "[c")
+words = REDIS.ZRANGEBYLEX("autocomplete:words", "[app", "[app\xff")
 
 # Autocomplete with limit
-words = redis.zrangebylex("autocomplete:words", "[app", "[app\xff", start=0, num=10)
+words = REDIS.ZRANGEBYLEX("autocomplete:words", "[app", "[app\xff",
+                          START=0, NUM=10)
 ```
-
-**Key commands:** `ZRANGEBYLEX`, `ZREVRANGEBYLEX`, `ZLEXCOUNT`
 
 **Requirement:** All elements must have the same score (typically 0)
 

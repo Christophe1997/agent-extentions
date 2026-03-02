@@ -8,7 +8,19 @@ version: 1.0.0
 
 Solutions for common caching use cases using Redis.
 
-## Use Case → Pattern Mapping
+## ⚡ Code Example Guidelines
+
+When showing code examples:
+1. **Detect the project's programming language** first (check package.json, go.mod, requirements.txt, pom.xml, etc.)
+2. **Generate code in the detected language** using the appropriate Redis client:
+   - JavaScript/TypeScript: `ioredis` or `redis` (node-redis)
+   - Python: `redis-py`
+   - Go: `go-redis`
+   - Java: `jedis` or `lettuce`
+   - C#: `StackExchange.Redis`
+3. **If no language detected**, use pseudocode with Redis commands
+
+---
 
 | Use Case | Recommended Pattern |
 |----------|---------------------|
@@ -26,26 +38,41 @@ Solutions for common caching use cases using Redis.
 
 **How it works:** On cache miss, fetch from database and populate cache. On write, invalidate or update cache explicitly.
 
-```python
-def get_user(user_id):
-    # Try cache first
-    cached = redis.get(f"user:{user_id}")
-    if cached:
-        return json.loads(cached)
+### Redis Commands
+```bash
+# Read flow
+GET user:{id}           # Try cache first
+# If nil:
+SETEX user:{id} 3600 {value}  # Cache with 1 hour TTL
 
-    # Cache miss - fetch from DB
-    user = db.query("SELECT * FROM users WHERE id = ?", user_id)
+# Write flow
+DEL user:{id}           # Invalidate cache
+```
 
-    # Populate cache with TTL
-    redis.setex(f"user:{user_id}", 3600, json.dumps(user))
-    return user
+### Pseudocode
+```
+function get_user(user_id):
+    key = "user:" + user_id
 
-def update_user(user_id, data):
-    # Update database
-    db.update("UPDATE users SET ... WHERE id = ?", user_id)
+    # 1. Try cache first
+    cached = REDIS.GET(key)
+    IF cached:
+        RETURN parse(cached)
 
-    # Invalidate cache
-    redis.delete(f"user:{user_id}")
+    # 2. Cache miss - fetch from database
+    user = DATABASE.query("SELECT * FROM users WHERE id = ?", user_id)
+
+    # 3. Populate cache with TTL
+    REDIS.SETEX(key, 3600, serialize(user))
+
+    RETURN user
+
+function update_user(user_id, data):
+    # 1. Update database
+    DATABASE.update("UPDATE users SET ... WHERE id = ?", user_id)
+
+    # 2. Invalidate cache
+    REDIS.DEL("user:" + user_id)
 ```
 
 **Key commands:** `GET`, `SETEX`, `DEL`
@@ -61,17 +88,26 @@ def update_user(user_id, data):
 
 **How it works:** Write to both cache and database synchronously before returning success.
 
-```python
-def update_user(user_id, data):
+### Redis Commands
+```bash
+SET user:{id} {value}   # Update cache immediately
+```
+
+### Pseudocode
+```
+function update_user(user_id, data):
     # Use a transaction or distributed transaction
-    with transaction():
-        # Update database
-        db.update("UPDATE users SET ... WHERE id = ?", user_id)
+    BEGIN_TRANSACTION():
 
-        # Update cache immediately
-        redis.set(f"user:{user_id}", json.dumps(data))
+        # 1. Update database
+        DATABASE.update("UPDATE users SET ... WHERE id = ?", user_id)
 
-    return success
+        # 2. Update cache immediately
+        REDIS.SET("user:" + user_id, serialize(data))
+
+    COMMIT_TRANSACTION()
+
+    RETURN success
 ```
 
 **Key commands:** `SET`, `GET`
@@ -87,28 +123,40 @@ def update_user(user_id, data):
 
 **How it works:** Write only to Redis, asynchronously sync to database later.
 
-```python
-def update_user(user_id, data):
-    # Write to Redis immediately
-    redis.set(f"user:{user_id}", json.dumps(data))
+### Redis Commands
+```bash
+SET user:{id} {value}           # Write to cache immediately
+LPUSH sync:queue {task_data}    # Queue for async sync
+BRPOP sync:queue 0              # Worker picks up task (blocking)
+```
 
-    # Queue for async DB sync
-    redis.lpush("sync:queue", json.dumps({
+### Pseudocode
+```
+function update_user(user_id, data):
+    key = "user:" + user_id
+
+    # 1. Write to Redis immediately
+    REDIS.SET(key, serialize(data))
+
+    # 2. Queue for async DB sync
+    task = {
         "type": "user_update",
         "id": user_id,
         "data": data,
-        "timestamp": time.time()
-    }))
+        "timestamp": current_time()
+    }
+    REDIS.LPUSH("sync:queue", serialize(task))
 
-    return success
+    RETURN success
 
-# Background worker
-async def sync_worker():
-    while True:
-        item = redis.brpop("sync:queue", timeout=1)
-        if item:
-            data = json.loads(item[1])
-            db.update(...)  # Sync to database
+# Background worker (runs separately)
+function sync_worker():
+    LOOP:
+        # Blocking pop from queue
+        item = REDIS.BRPOP("sync:queue", timeout=1)
+        IF item:
+            data = parse(item)
+            DATABASE.update(...)  # Sync to database
 ```
 
 **Key commands:** `SET`, `LPUSH`, `BRPOP`
@@ -124,33 +172,42 @@ async def sync_worker():
 
 **How it works:** Cache values in application memory with Redis 6+ sending invalidation messages when data changes.
 
-```python
-# Enable client tracking
-redis.execute_command("CLIENT", "TRACKING", "ON")
+### Redis Commands
+```bash
+CLIENT TRACKING ON      # Enable invalidation messages
+GET user:{id}           # Redis tracks this key
+# When key changes, Redis sends: invalidate user:{id}
+```
 
-# Local cache
-local_cache = {}
+### Pseudocode
+```
+# Enable client tracking on connection
+REDIS.EXECUTE("CLIENT", "TRACKING", "ON")
 
-def get_user(user_id):
-    key = f"user:{user_id}"
+# Local in-memory cache
+LOCAL_CACHE = {}
 
-    # Check local cache first
-    if key in local_cache:
-        return local_cache[key]
+function get_user(user_id):
+    key = "user:" + user_id
 
-    # Fetch from Redis
-    value = redis.get(key)
-    if value:
-        local_cache[key] = json.loads(value)
+    # 1. Check local cache first
+    IF key IN LOCAL_CACHE:
+        RETURN LOCAL_CACHE[key]
 
-    return local_cache.get(key)
+    # 2. Fetch from Redis
+    value = REDIS.GET(key)
+    IF value:
+        LOCAL_CACHE[key] = parse(value)
 
-# Handle invalidation messages (in separate thread)
-def handle_invalidation():
-    for message in redis.listen():
-        if message["type"] == "invalidate":
-            for key in message["keys"]:
-                local_cache.pop(key, None)
+    RETURN LOCAL_CACHE[key]
+
+# Handle invalidation messages (separate thread/connection)
+function handle_invalidation():
+    LOOP:
+        message = REDIS.LISTEN()
+        IF message.type == "invalidate":
+            FOR key IN message.keys:
+                LOCAL_CACHE.DELETE(key)
 ```
 
 **Key commands:** `CLIENT TRACKING`, `GET`
@@ -168,45 +225,65 @@ def handle_invalidation():
 
 ### Option A: Locking
 
-```python
-def get_with_lock(key, ttl, compute_fn):
-    value = redis.get(key)
-    if value:
-        return value
+### Redis Commands
+```bash
+SET lock:{key} 1 NX EX 10   # Acquire lock (atomic, 10s expiry)
+GET {key}                   # Check cache
+SETEX {key} 3600 {value}    # Update cache
+DEL lock:{key}              # Release lock
+```
+
+### Pseudocode
+```
+function get_with_lock(key, ttl, compute_fn):
+    value = REDIS.GET(key)
+    IF value:
+        RETURN value
 
     # Try to acquire lock
-    lock_key = f"lock:{key}"
-    if redis.set(lock_key, "1", nx=True, ex=10):
-        try:
+    lock_key = "lock:" + key
+    acquired = REDIS.SET(lock_key, "1", NX=True, EX=10)
+
+    IF acquired:
+        TRY:
             # Compute and cache
             value = compute_fn()
-            redis.setex(key, ttl, value)
-            return value
-        finally:
-            redis.delete(lock_key)
-    else:
+            REDIS.SETEX(key, ttl, value)
+            RETURN value
+        FINALLY:
+            REDIS.DEL(lock_key)
+    ELSE:
         # Wait and retry
-        time.sleep(0.1)
-        return get_with_lock(key, ttl, compute_fn)
+        SLEEP(0.1)
+        RETURN get_with_lock(key, ttl, compute_fn)
 ```
 
 ### Option B: Probabilistic Early Refresh
 
-```python
-def get_with_early_refresh(key, ttl, compute_fn):
-    value, remaining_ttl = redis.get(key), redis.ttl(key)
+### Redis Commands
+```bash
+GET {key}
+TTL {key}                   # Get remaining TTL
+SETEX {key} 3600 {value}
+```
 
-    if value is None:
+### Pseudocode
+```
+function get_with_early_refresh(key, ttl, compute_fn):
+    value = REDIS.GET(key)
+    remaining_ttl = REDIS.TTL(key)
+
+    IF value IS NIL:
         value = compute_fn()
-        redis.setex(key, ttl, value)
-        return value
+        REDIS.SETEX(key, ttl, value)
+        RETURN value
 
     # Probabilistic early refresh
-    if remaining_ttl < ttl * 0.2:  # Less than 20% TTL remaining
-        if random.random() < 0.1:  # 10% chance to refresh
-            threading.Thread(target=refresh_cache, args=(key, ttl, compute_fn)).start()
+    IF remaining_ttl < ttl * 0.2:  # Less than 20% TTL remaining
+        IF RANDOM() < 0.1:  # 10% chance to refresh
+            SPAWN_THREAD(refresh_cache, key, ttl, compute_fn)
 
-    return value
+    RETURN value
 ```
 
 **Key commands:** `SET NX EX`, `GET`, `TTL`, `SETEX`
