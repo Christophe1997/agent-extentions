@@ -1,0 +1,11 @@
+{
+  "name": "redis-dev",
+  "version": "0.1.0",
+  "description": "Redis design patterns, best practices, and command references for AI coding agents. Includes MCP integration for live Redis queries.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "keywords": ["redis", "caching", "patterns", "database", "messaging", "distributed-systems"],
+  "license": "MIT"
+}
