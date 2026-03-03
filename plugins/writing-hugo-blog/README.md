@@ -8,11 +8,22 @@ Create Chinese blog posts for Hugo static sites with proper front matter, conten
 Automatically activates when creating blog content or working with Hugo. Follows a structured workflow:
 1. Explore blog configuration
 2. Recognize content formats and structure
-3. Identify front matter requirements
-4. Ask user about topic
-5. Generate draft (`draft: true`)
-6. Review writing quality
-7. Publish (`draft: false`)
+3. **Check archetypes** (respects user's custom archetypes)
+4. Identify front matter requirements
+5. Ask user about topic
+6. Generate draft (`draft: true`)
+7. Review writing quality
+8. Publish (`draft: false`)
+
+### Archetype Support
+
+The plugin respects Hugo's archetype lookup order:
+1. `archetypes/posts.md` → 2. Theme archetype → 3. `archetypes/default.md` → 4. Theme default → 5. Built-in
+
+When creating posts, the plugin:
+- Reads existing archetype to understand provided fields
+- Only adds missing front matter fields (author, categories, showToc, tags)
+- Always includes `"AI generated"` in tags for transparency
 
 ### Commands
 
