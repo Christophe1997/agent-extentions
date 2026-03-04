@@ -9,15 +9,19 @@ Create an AGENTS.md file tailored to the current project by analyzing its struct
 
 ## Load Context
 
-First, load the `agents-md` skill to understand AGENTS.md format and best practices:
-```
-Use Skill tool with skill="llm-doc:agents-md"
-```
+Load both skills for comprehensive context:
 
-This provides:
-- Recommended sections and structure
-- Agent-specific symlink patterns
-- Best practices for content
+1. **AGENTS.md format** - Load `agents-md` skill:
+   ```
+   Use Skill tool with skill="llm-doc:agents-md"
+   ```
+   Provides: sections, structure, symlink patterns, best practices
+
+2. **Commit format** - Load `commit-message` skill (for PR/Commit Guidelines section):
+   ```
+   Use Skill tool with skill="llm-doc:commit-message"
+   ```
+   Provides: Conventional Commits types, style rules, examples
 
 ## Process
 
