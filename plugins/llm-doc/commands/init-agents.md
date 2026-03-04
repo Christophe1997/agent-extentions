@@ -2,10 +2,22 @@
 name: init-agents
 description: Scaffold an AGENTS.md file with project-specific content
 argument-hint: optional path (default: ./AGENTS.md)
-allowed-tools: [Bash, Read, Write, Glob]
+allowed-tools: [Bash, Read, Write, Glob, Skill]
 ---
 
 Create an AGENTS.md file tailored to the current project by analyzing its structure and configuration.
+
+## Load Context
+
+First, load the `agents-md` skill to understand AGENTS.md format and best practices:
+```
+Use Skill tool with skill="llm-doc:agents-md"
+```
+
+This provides:
+- Recommended sections and structure
+- Agent-specific symlink patterns
+- Best practices for content
 
 ## Process
 
@@ -26,36 +38,14 @@ Create an AGENTS.md file tailored to the current project by analyzing its struct
    - Existing documentation
    - CI/CD configuration (.github/workflows, etc.)
 
-4. **Generate AGENTS.md** with sections:
-
-```markdown
-# AGENTS.md
-
-## Project Overview
-[Brief description based on README or package.json]
-
-## Setup Commands
-- Install: [detected install command]
-- Dev: [detected dev command]
-- Build: [detected build command]
-
-## Testing
-- Run tests: [detected test command]
-- [Additional test instructions]
-
-## Code Style
-[Detected conventions from config files]
-
-## PR Guidelines
-[Standard PR guidelines]
-
-## Security
-- [Security considerations]
-```
+4. **Generate AGENTS.md** using the format from the skill:
+   - Apply recommended sections from skill knowledge
+   - Fill in detected project-specific content
+   - Keep content concise and actionable
 
 5. **Write the file** to the specified path (default: `./AGENTS.md`)
 
-6. **Ask about symlinks**:
+6. **Ask about symlinks** (from skill best practices):
    After creating AGENTS.md, ask: "Would you like me to create symlinks for other AI agents? (CLAUDE.md, .cursorrules, .windsurfrules)"
 
 ## Template Detection
@@ -68,39 +58,9 @@ Create an AGENTS.md file tailored to the current project by analyzing its struct
 | `pyproject.toml` | Python: poetry/pip commands |
 | `Makefile` | Make targets |
 
-## Example Output
-
-```markdown
-# AGENTS.md
-
-## Project Overview
-A TypeScript CLI tool for data processing.
-
-## Setup Commands
-- Install: `pnpm install`
-- Dev: `pnpm dev`
-- Build: `pnpm build`
-
-## Testing
-- Run tests: `pnpm test`
-- Coverage: `pnpm test:coverage`
-
-## Code Style
-- TypeScript strict mode
-- Single quotes, no semicolons
-- Max line length: 100
-
-## PR Guidelines
-- Run `pnpm lint` and `pnpm test` before committing
-- Use Conventional Commits format
-
-## Security
-- Never commit .env files
-- Validate all external inputs
-```
-
 ## Notes
 
 - Do not overwrite existing AGENTS.md without confirmation
 - Keep generated content concise and actionable
 - Include actual commands the agent can execute
+- Follow the format and best practices from the loaded skill
