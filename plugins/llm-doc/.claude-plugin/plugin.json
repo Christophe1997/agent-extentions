@@ -1,0 +1,10 @@
+{
+  "name": "llm-doc",
+  "version": "0.1.0",
+  "description": "Documentation standards for AI coding agents: AGENTS.md format and conventional commit messages",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "keywords": ["agents.md", "ai", "documentation", "commit", "conventional-commits"]
+}
