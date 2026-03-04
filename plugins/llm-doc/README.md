@@ -30,9 +30,28 @@ Generate compact, clear commit messages following the Conventional Commits speci
 /plugin install llm-doc@agent-extentions
 ```
 
+## Commands
+
+### /llm-doc:commit [scope]
+Generate a commit message from staged changes and create the commit. Analyzes the diff to determine type, scope, and description following Conventional Commits.
+
+```bash
+/llm-doc:commit        # Auto-detect scope from changed files
+/llm-doc:commit api    # Use "api" as scope
+```
+
+### /llm-doc:init-agents [path]
+Scaffold an AGENTS.md file by analyzing project configuration (package.json, Cargo.toml, etc.). Detects test commands, build scripts, and code style automatically.
+
+```bash
+/llm-doc:init-agents           # Create ./AGENTS.md
+/llm-doc:init-agents ./docs/   # Create ./docs/AGENTS.md
+```
+
 ## Usage
 
-Just ask questions using the trigger phrases above. The skills will automatically activate to provide guidance.
+- **For guidance**: Ask questions using the trigger phrases above
+- **For action**: Use commands like `/llm-doc:commit` or `/llm-doc:init-agents`
 
 ## License
 
