@@ -44,6 +44,18 @@
       },
       "category": "database",
       "keywords": ["redis", "caching", "patterns", "database", "messaging", "distributed-systems", "queue", "rate-limiting"]
+    },
+    {
+      "name": "llm-doc",
+      "source": "./plugins/llm-doc",
+      "description": "Documentation standards for AI coding agents: AGENTS.md format for project context and conventional commit messages for clear git history.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "developer-tools",
+      "keywords": ["agents.md", "ai", "documentation", "commit", "conventional-commits", "coding-agents"]
     }
   ]
 }
