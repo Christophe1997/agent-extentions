@@ -5,32 +5,34 @@ Documentation standards for AI coding agents. Includes guidance for AGENTS.md fo
 ## Skills
 
 ### agents-md
-Guidance for creating AGENTS.md files - a standard format for providing context to AI coding agents. Covers structure, sections, and best practices.
+Guidance for creating AGENTS.md files - a standardized format for providing context and instructions to AI coding agents. Covers structure, sections, best practices, and agent-specific symlinks.
 
-### git-commit-message
-Generate compact, clear commit messages following Conventional Commits specification.
+**Trigger phrases:**
+- "create an AGENTS.md"
+- "write AGENTS.md"
+- "help me set up AGENTS.md"
+- "what is AGENTS.md"
+
+### commit-message
+Generate compact, clear commit messages following the Conventional Commits specification. Covers types, scopes, breaking changes, and style guidelines.
+
+**Trigger phrases:**
+- "write a commit message"
+- "generate a commit"
+- "help me commit"
+- "commit these changes"
 
 ## Installation
 
-Add to your Claude Code settings or use plugin directory:
+### Via Marketplace
 
 ```bash
-cc --plugin-dir ./plugins/llm-doc
+/plugin install llm-doc@agent-extentions
 ```
 
 ## Usage
 
-### AGENTS.md
-Ask about creating agent documentation:
-- "create an AGENTS.md for my project"
-- "help me write agent instructions"
-- "what should I put in AGENTS.md"
-
-### Commit Messages
-Ask for commit help:
-- "write a commit message for these changes"
-- "generate a commit"
-- "help me commit this"
+Just ask questions using the trigger phrases above. The skills will automatically activate to provide guidance.
 
 ## License
 
