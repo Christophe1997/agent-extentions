@@ -72,12 +72,15 @@ Conventions and patterns:
 ```
 
 ### 5. PR/Commit Guidelines
+Reference the `llm-doc:commit-message` skill for Conventional Commits format:
 ```markdown
 ## PR instructions
-- Title format: [type] description
+- Use Conventional Commits format (see llm-doc:commit-message skill)
 - Run `pnpm lint` and `pnpm test` before committing
 - Reference issues: Fixes #123
 ```
+
+When generating this section, load the `commit-message` skill for commit format details.
 
 ### 6. Security Considerations
 ```markdown

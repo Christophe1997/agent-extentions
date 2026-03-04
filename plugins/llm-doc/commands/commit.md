@@ -21,16 +21,33 @@ This provides:
 
 ## Process
 
-1. **Check for unstaged changes**:
+1. **Check git status**:
    ```bash
    git status --short
    ```
+   Identify unstaged files (lines where first column is space, `?`, or has changes not yet staged).
 
-2. **If there are unstaged changes**, always ask the user:
-   - Show the unstaged files
-   - Ask: "There are unstaged changes. Would you like me to stage them?"
-   - If yes, run: `git add <files>` or `git add -A` for all
-   - If no, proceed with only currently staged changes
+2. **Handle staging decision**:
+
+   Call the AskUserQuestion tool with these parameters:
+   ```json
+   {
+     "questions": [{
+       "question": "There are unstaged changes. Would you like me to stage them?",
+       "header": "Stage changes",
+       "options": [
+         {"label": "Stage all", "description": "Run 'git add -A' to stage all changes"},
+         {"label": "Skip staging", "description": "Commit only currently staged changes"}
+       ]
+     }]
+   }
+   ```
+
+   Wait for the tool response, then:
+   - "Stage all" → Run `git add -A`, then continue to step 3
+   - "Skip staging" → Continue to step 3 with current staged changes
+
+   If no unstaged changes exist, skip this step and continue directly to step 3.
 
 3. **Analyze the diff** to determine:
    - **Type**: Use types from the loaded skill (feat, fix, docs, etc.)
@@ -49,6 +66,6 @@ This provides:
 
 ## Error Handling
 
-- If there are unstaged changes, always ask user whether to stage them first
+- When unstaged changes exist, ask user via AskUserQuestion before proceeding to step 3
 - If no changes at all (staged or unstaged), inform user and exit
 - Follow breaking change format from the skill when applicable

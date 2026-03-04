@@ -8,7 +8,9 @@ This is a Claude Code extensions marketplace repository. It distributes plugins 
 
 ## Core Design Principle
 
-**Progressive Disclosure Over Context Bloat**: Instead of stuffing everything in system prompts, give agents tools to discover context themselves. Skills should reference other files for nested discovery rather than containing all information inline.
+**Progressive Disclosure Over Context Bloat**: Give agents tools to discover context themselves. Skills should reference other files rather than containing all information inline.
+
+See [docs/agents/progressive-disclosure.md](docs/agents/progressive-disclosure.md) for detailed patterns.
 
 ## Repository Structure
 
@@ -66,10 +68,7 @@ trigger: Optional glob patterns for auto-activation
 ---
 ```
 
-**Best practices:**
-- Use third-person description with specific trigger phrases
-- Keep body lean (1,500-2,000 words), use references/ for detailed content
-- Write in imperative form within the skill body
+Keep body lean, use `references/` for details, `examples/` for code samples.
 
 ### Commands (commands/*.md)
 Commands are user-initiated slash commands.
@@ -79,11 +78,11 @@ Commands are user-initiated slash commands.
 name: command-name
 description: What the command does
 argument-hint: Optional argument description
-allowed-tools: [Read, Write, Bash]  # Minimal necessary
+allowed-tools: [Read, Write, Bash, Skill]
 ---
 ```
 
-**Invoked as:** `/plugin-name:command-name [args]`
+Invoked as: `/plugin-name:command-name [args]`. Include `Skill` in allowed-tools to load skills for context.
 
 ### Agents (agents/*.md)
 Agents are autonomous subagents for specialized tasks.
