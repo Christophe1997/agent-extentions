@@ -13,55 +13,68 @@ allowed-tools:
 
 Configure connection to a Redis instance for live queries through MCP.
 
-## Instructions
+## Process
 
-1. Parse the connection arguments provided by the user
-2. Default values if not specified:
-   - host: localhost
-   - port: 6379
-   - password: (empty)
-   - db: 0
+1. **Parse connection arguments**:
+   - Default values if not specified:
+     - host: localhost
+     - port: 6379
+     - password: (empty)
+     - db: 0
 
-3. **Test the connection first** using redis-cli:
-```bash
-redis-cli -h <host> -p <port> -a <password> -n <db> PING
-```
+2. **Test the connection**:
+   ```bash
+   redis-cli -h <host> -p <port> -a <password> -n <db> PING
+   ```
 
-4. **Ask user for approval** before creating any files. Present this clearly:
+3. **Ask user for approval**:
 
-```
-📦 The following files will be created to save your Redis connection:
+   Present clearly:
+   ```
+   📦 The following files will be created to save your Redis connection:
 
-1. .claude/redis-dev.local.md  - Connection settings (may contain credentials)
-2. .gitignore                   - Updated to exclude .claude/*.local.md
+   1. .claude/redis-dev.local.md  - Connection settings (may contain credentials)
+   2. .gitignore                   - Updated to exclude .claude/*.local.md
 
-Do you want to proceed?
-```
+   Do you want to proceed?
+   ```
 
-Use the AskUserQuestion tool to get explicit approval before proceeding.
+   Call the AskUserQuestion tool:
+   ```json
+   {
+     "questions": [{
+       "question": "Create these files to save your Redis connection?",
+       "header": "Confirm",
+       "options": [
+         {"label": "Yes, proceed", "description": "Create connection files"},
+         {"label": "Cancel", "description": "Abort connection setup"}
+       ]
+     }]
+   }
+   ```
 
-5. After approval, check if `.gitignore` exists in the project root:
-   - If it exists: Check if `.claude/*.local.md` is already ignored. If not, append the entry.
-   - If it doesn't exist: Create a new `.gitignore` file with appropriate entries.
+4. **Update .gitignore**:
+   - If `.gitignore` exists: Check if `.claude/*.local.md` is already ignored. If not, append the entry.
+   - If not exists: Create new `.gitignore` with appropriate entries.
 
-6. Create the MCP configuration file at `.claude/redis-dev.local.md`:
+5. **Create MCP configuration file** at `.claude/redis-dev.local.md`:
 
-```yaml
----
-redis_host: <host>
-redis_port: <port>
-redis_password: <password>
-redis_db: <db>
----
-# Redis Connection Settings
-# This file is ignored by git to protect credentials.
-# To reconnect, run: /redis-dev:connect
-```
+   ```yaml
+   ---
+   redis_host: <host>
+   redis_port: <port>
+   redis_password: <password>
+   redis_db: <db>
+   ---
+   # Redis Connection Settings
+   # This file is ignored by git to protect credentials.
+   # To reconnect, run: /redis-dev:connect
+   ```
 
-7. If successful, confirm connection and show server info:
-```bash
-redis-cli -h <host> -p <port> INFO server
-```
+6. **Confirm connection**:
+   ```bash
+   redis-cli -h <host> -p <port> INFO server
+   ```
 
 ## Example Usage
 
@@ -82,7 +95,7 @@ After connecting, the following commands will use this connection:
 ⚠️ The `.claude/redis-dev.local.md` file may contain sensitive credentials (passwords).
 This file is automatically added to `.gitignore` to prevent accidental commits.
 
-## Troubleshooting
+## Error Handling
 
 If connection fails:
 1. Check if Redis is running: `redis-cli ping`

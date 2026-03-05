@@ -9,9 +9,9 @@ allowed-tools: [Read, Write, Glob, Grep, Bash, Skill]
 
 Create a new ADK-Go agent project with the specified name.
 
-## Steps
+## Process
 
-1. **Get agent name**: If not provided as argument, ask user for agent name (kebab-case, e.g., "weather-agent")
+1. **Get agent name**: If not provided as argument, ask user for agent name (kebab-case, e.g., "weather-agent").
 
 2. **Check if directory exists**: If `.` is provided, use current directory; otherwise create `{agent-name}/`
 
