@@ -1,6 +1,6 @@
 ---
 name: agents-md
-description: This skill should be used when the user asks to "create an AGENTS.md", "write AGENTS.md", "help me set up AGENTS.md", "what is AGENTS.md", "configure AI coding agent instructions", "add agent documentation", or mentions AGENTS.md format. Provides guidance for creating AGENTS.md files - a standardized format for providing context and instructions to AI coding agents.
+description: This skill should be used when the user asks to "create an AGENTS.md", "write AGENTS.md", "set up AGENTS.md", "what is AGENTS.md", "configure AI agent instructions", "migrate AGENT.md", "update AGENTS.md", or mentions AGENTS.md format. Provides guidance for creating and maintaining AGENTS.md files - a standardized format for AI coding agent context.
 ---
 
 # AGENTS.md Format
@@ -36,170 +36,158 @@ AGENTS.md is standard Markdown with no required fields:
 - Use functional patterns where possible
 ```
 
-## Recommended Sections
+## Simple First Approach
 
-### 1. Project Overview
-Brief description of what the project does and its architecture.
+**Default**: Create one compact, lean AGENTS.md file. This satisfies most projects.
 
-### 2. Dev Environment Setup
-Essential commands for getting started:
-```markdown
-## Setup commands
-- Install: `npm install`
-- Dev server: `npm run dev`
-- Build: `npm run build`
-- Test: `npm test`
-```
+**References folder** (optional): Only create `docs/agents/` when:
+- Project has complex, project-specific patterns that need detailed explanation
+- User explicitly wants separate reference files
+- Content exceeds ~80 lines and cannot be condensed
 
-### 3. Testing Instructions
-How to run and write tests:
+Commands use `AskUserQuestion` to ask about references folder when appropriate.
+
+## Progressive Disclosure Pattern
+
+**Key Principle**: Keep AGENTS.md lean by referencing detailed documentation instead of duplicating content inline.
+
+**Keep in AGENTS.md** (inline):
+- Essential commands (install, test, build)
+- Critical conventions (quotes, semicolons, etc.)
+- Security requirements (brief reminders)
+- Brief project overview (1-2 sentences)
+
+**Move to references** (only if needed, default: `docs/agents/`):
+- Detailed architecture explanations
+- Extensive code examples (>5 lines)
+- Long-form documentation (>10 lines per section)
+- Project-specific patterns and conventions
+
+Example reference format:
 ```markdown
 ## Testing instructions
-- Run all tests: `pnpm test`
-- Run specific test: `pnpm vitest run -t "test name"`
-- Coverage: `pnpm test:coverage`
-- Add or update tests for code you change
+- Unit tests: `pnpm test`
+- E2E tests: `pnpm test:e2e`
+See docs/agents/testing.md for detailed guidelines.
 ```
 
-### 4. Code Style Guidelines
-Conventions and patterns:
-```markdown
-## Code style
-- Use TypeScript strict mode
-- Prefer const over let
-- Max line length: 100 characters
-- Use meaningful variable names
-```
-
-### 5. PR/Commit Guidelines
-Reference the `llm-doc:commit-message` skill for Conventional Commits format:
+**Cross-skill references**: Use skill names instead of duplicating content from other domains:
 ```markdown
 ## PR instructions
-- Use Conventional Commits format (see llm-doc:commit-message skill)
-- Run `pnpm lint` and `pnpm test` before committing
-- Reference issues: Fixes #123
+- Use Conventional Commits (see llm-doc:commit-message skill)
 ```
 
-When generating this section, load the `commit-message` skill for commit format details.
+**Implementation checklist**:
+- [ ] AGENTS.md under 100 lines (ideally 50-80)
+- [ ] References folder only created if needed
+- [ ] Essential commands remain inline
 
-### 6. Security Considerations
-```markdown
-## Security
-- Never commit .env files
-- Validate all user inputs
-- Use parameterized queries
+## Recommended Sections
+
+1. **Project Overview**: Brief description (1-2 sentences)
+2. **Dev Environment Setup**: Essential commands
+3. **Testing Instructions**: How to run and write tests
+4. **Code Style Guidelines**: Conventions and patterns
+5. **PR/Commit Guidelines**: Reference `llm-doc:commit-message` skill
+6. **Security Considerations**: Critical security reminders
+
+See [examples/basic-agents-md.md](./examples/basic-agents-md.md) for a complete example.
+
+## Lifecycle Management
+
+### Commands
+
+| Command | Purpose | When to Use |
+|---------|---------|-------------|
+| `/llm-doc:init-agents-md` | Create new from scratch | New project, no existing docs |
+| `/llm-doc:migrate-agents-md` | Convert from other format | Have AGENT.md, .cursorrules, etc. |
+| `/llm-doc:update-agents-md` | Update existing AGENTS.md | File exists but outdated |
+
+### Decision Tree
+
+```
+No AGENTS.md exists? → Use init-agents-md
+AGENT.md or other format exists? → Use migrate-agents-md
+AGENTS.md exists but outdated? → Use update-agents-md
 ```
 
-## Monorepo Support
+### References Folder Decision
 
-For large monorepos, use nested AGENTS.md files:
+Commands use `AskUserQuestion` to ask about creating the references folder:
 
-```
-my-monorepo/
-├── AGENTS.md              # Root-level instructions
-├── packages/
-│   ├── api/
-│   │   └── AGENTS.md      # API-specific instructions
-│   └── web/
-│       └── AGENTS.md      # Web-specific instructions
-```
+**Ask when**:
+- Project has complex, project-specific patterns
+- Content would benefit from detailed documentation
+- User wants to add architecture diagrams, tutorials, etc.
 
-**Precedence**: The closest AGENTS.md to the edited file wins. Explicit user chat prompts override everything.
+**Default path**: `docs/agents/`
+
+See [references/lifecycle.md](./references/lifecycle.md) for detailed processes.
 
 ## Agent Compatibility
 
-AGENTS.md works across many AI coding agents:
-- OpenAI Codex
-- Cursor
-- Claude Code
-- Aider
-- Google Jules
-- Factory
+AGENTS.md works across AI coding agents: OpenAI Codex, Cursor, Claude Code, Aider, Google Jules, Factory.
 
-### Tool-Specific Configuration
+**Symlinks**: Create symbolic links for agent-specific files to maintain one source of truth:
+- Claude Code: `ln -s AGENTS.md CLAUDE.md`
+- Cursor: `ln -s AGENTS.md .cursorrules`
+- Windsurf: `ln -s AGENTS.md .windsurfrules`
 
-**Aider** (`.aider.conf.yml`):
-```yaml
-read: AGENTS.md
+See [references/agent-compatibility.md](./references/agent-compatibility.md) for tool-specific configs and monorepo patterns.
+
+## Migration
+
+### Automated
+Use `/llm-doc:migrate-agents-md [source-file]` to auto-detect and convert AGENT.md, .cursorrules, etc.
+
+### Manual
+```bash
+mv AGENT.md AGENTS.md
+ln -s AGENTS.md AGENT.md  # backward compatibility
 ```
 
-**Gemini CLI** (`.gemini/settings.json`):
-```json
-{
-  "contextFileName": "AGENTS.md"
-}
-```
+See [examples/migration-example.md](./examples/migration-example.md) for a complete before/after example.
 
 ## Best Practices
 
 ### Do
-
 - Keep it concise and scannable
 - Use code blocks for commands
 - Include actual commands agents can execute
 - Treat it as living documentation
-- Add sections that help agents work effectively
-- Include anything you'd tell a new teammate
+- Apply progressive disclosure
 
 ### Don't
-
 - Don't duplicate README content verbatim
 - Don't include vague instructions
-- Don't forget to update it as the project evolves
 - Don't make it too long (agents work better with focused context)
+- Don't forget to update as project evolves
 
-## Complete Example
+## Validation
 
-See [examples/basic-agents-md.md](./examples/basic-agents-md.md) for a full working example demonstrating:
-- Project overview with stack description
-- Setup and dev commands
-- Testing instructions with specific commands
-- Code style conventions
-- PR workflow and commit format
-- Security considerations
+After creating, migrating, or updating AGENTS.md, verify:
+- [ ] All commands are executable
+- [ ] File is concise (under 100 lines)
+- [ ] Progressive disclosure applied
+- [ ] No placeholder content
+- [ ] Essential commands remain inline
 
-## Migration Guide
-
-If you have existing agent documentation:
-
-```bash
-# Rename existing file
-mv AGENT.md AGENTS.md
-
-# Create backward-compatible symlink
-ln -s AGENTS.md AGENT.md
-```
+See [references/validation.md](./references/validation.md) for comprehensive validation checklist.
 
 ## Agent Behavior Rules
 
-When working with AGENTS.md, follow these rules:
-
 | Rule | Behavior |
 |------|----------|
-| **No required fields** | AGENTS.md is standard Markdown - use any structure that fits the project |
-| **Test execution** | If tests are listed, execute them and fix failures before completing tasks |
-| **Living document** | Update AGENTS.md as the project evolves - it's not static |
-| **Symlink prompt** | After creating AGENTS.md, ask user if they want symlinks for agent-specific files |
+| **No required fields** | Use any structure that fits the project |
+| **Test execution** | If tests listed, execute them before completing tasks |
+| **Living document** | Update AGENTS.md as project evolves |
+| **Symlink prompt** | Ask user about symlinks after creating AGENTS.md |
+| **References prompt** | Use AskUserQuestion to ask about references folder when project is complex |
 
-## Agent-Specific Symlinks
+## References
 
-Many AI coding agents have their own configuration file names. Instead of maintaining multiple files, create symbolic links to AGENTS.md:
-
-| Agent | File | Symlink Command |
-|-------|------|-----------------|
-| Claude Code | `CLAUDE.md` | `ln -s AGENTS.md CLAUDE.md` |
-| Cursor | `.cursorrules` | `ln -s AGENTS.md .cursorrules` |
-| Windsurf | `.windsurfrules` | `ln -s AGENTS.md .windsurfrules` |
-| Aider | `AGENTS.md` | Configured in `.aider.conf.yml` |
-| Gemini CLI | `AGENTS.md` | Configured in `.gemini/settings.json` |
-
-**Benefits**: Maintain one source of truth while supporting multiple agents.
-
-## Process for Creating AGENTS.md
-
-1. **Start simple**: Create basic file with setup commands and test instructions
-2. **Add conventions**: Document code style and patterns
-3. **Include context**: Add anything you'd tell a new teammate
-4. **Iterate**: Update as you discover what agents need
-5. **For monorepos**: Add nested AGENTS.md files for subprojects
-6. **Ask about symlinks**: After creating AGENTS.md, ask the user if they want symbolic links for other agent-specific files (CLAUDE.md, .cursorrules, etc.)
+- [references/lifecycle.md](./references/lifecycle.md) - Detailed create/update/migrate processes
+- [references/agent-compatibility.md](./references/agent-compatibility.md) - Tool configs, symlinks, monorepo patterns
+- [references/validation.md](./references/validation.md) - Comprehensive validation checklist
+- [examples/basic-agents-md.md](./examples/basic-agents-md.md) - Complete working example
+- [examples/migration-example.md](./examples/migration-example.md) - Before/after migration example
