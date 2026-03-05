@@ -49,7 +49,7 @@
       "name": "llm-doc",
       "source": "./plugins/llm-doc",
       "description": "Documentation standards for AI coding agents: AGENTS.md format for project context and conventional commit messages for clear git history.",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "author": {
         "name": "Christophe1997",
         "email": "hey_christophe@outlook.com"
