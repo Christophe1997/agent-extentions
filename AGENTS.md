@@ -137,6 +137,7 @@ setting2: value2
 
 Before publishing, verify:
 - [ ] `plugin.json` has required fields (name, version, description)
+- [ ] `version` fields in plugins, marketplace have updated correctly for changes
 - [ ] Skills have clear trigger phrases in description
 - [ ] Agents have "When to Use" section with examples
 - [ ] README documents any required configuration
