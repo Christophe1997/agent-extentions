@@ -84,6 +84,8 @@ allowed-tools: [Read, Write, Bash, Skill]
 
 Invoked as: `/plugin-name:command-name [args]`. Include `Skill` in allowed-tools to load skills for context.
 
+See [docs/agents/command-patterns.md](docs/agents/command-patterns.md) for detailed command structure and formatting guidelines.
+
 ### Agents (agents/*.md)
 Agents are autonomous subagents for specialized tasks.
 
