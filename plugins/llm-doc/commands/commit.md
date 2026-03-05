@@ -7,6 +7,10 @@ allowed-tools: [Bash, Read, AskUserQuestion, Skill]
 
 Generate a Conventional Commits message from staged changes and create the commit.
 
+## Core Principle
+
+**Human owns the commit.** Never add `Co-Authored-By` footer for AI assistance. The human takes full responsibility for all commits in their repository.
+
 ## Load Context
 
 First, load the `commit-message` skill to understand commit format and best practices:
@@ -18,6 +22,7 @@ This provides:
 - Conventional Commits types and usage
 - Style rules (imperative mood, no capitalization, etc.)
 - Examples of good and bad commit messages
+- Co-Authored-By guidance (never for AI)
 
 ## Process
 
@@ -59,7 +64,28 @@ This provides:
    <type>[scope]: <description>
    ```
 
-5. **Create the commit**:
+   **Important**: Do NOT add `Co-Authored-By` footer. The commit belongs to the human user.
+
+5. **Get human confirmation**:
+
+   Call the AskUserQuestion tool to get approval:
+   ```json
+   {
+     "questions": [{
+       "question": "Ready to commit with this message:\n\n<type>[scope]: <description>\n\nProceed?",
+       "header": "Confirm commit",
+       "options": [
+         {"label": "Yes, commit", "description": "Create the commit with this message"},
+         {"label": "Edit message", "description": "Provide a custom commit message instead"}
+       ]
+     }]
+   }
+   ```
+
+   - If "Yes, commit" → Proceed to step 6
+   - If "Edit message" → Ask user for custom message, then proceed to step 6
+
+6. **Create the commit**:
    ```bash
    git commit -m "<type>[scope]: <description>"
    ```
@@ -69,3 +95,4 @@ This provides:
 - When unstaged changes exist, ask user via AskUserQuestion before proceeding to step 3
 - If no changes at all (staged or unstaged), inform user and exit
 - Follow breaking change format from the skill when applicable
+- Always get human confirmation before executing `git commit`

@@ -16,6 +16,8 @@ Guidance for creating AGENTS.md files - a standardized format for providing cont
 ### commit-message
 Generate compact, clear commit messages following the Conventional Commits specification. Covers types, scopes, breaking changes, and style guidelines.
 
+**Key principle:** No `Co-Authored-By` footer for AI agents. Human takes full ownership of all commits.
+
 **Trigger phrases:**
 - "write a commit message"
 - "generate a commit"

@@ -56,6 +56,18 @@
       },
       "category": "developer-tools",
       "keywords": ["agents.md", "ai", "documentation", "commit", "conventional-commits", "coding-agents"]
+    },
+    {
+      "name": "adk-go",
+      "source": "./plugins/adk-go",
+      "description": "Build production-grade AI agents with Google's Agent Development Kit (ADK) for Go. Skills for agent creation, tool development, multi-agent patterns, and callbacks.",
+      "version": "0.1.1",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "ai-development",
+      "keywords": ["go", "golang", "ai", "agent", "adk", "google", "gemini", "mcp", "llm"]
     }
   ]
 }

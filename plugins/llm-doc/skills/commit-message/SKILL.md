@@ -136,3 +136,35 @@ update the same cache entry simultaneously.
 
 Fixes #456
 ```
+
+## Co-Authored-By Footer
+
+### Rule: No AI Attribution
+
+**Never add `Co-Authored-By` footer for AI agents** (Claude Code, GitHub Copilot, OpenAI Codex, Cursor, etc.).
+
+AI is a tool, not a co-author. The human takes full ownership of every commit in their repository.
+
+```
+feat: add user dashboard
+
+Implement dashboard with analytics widgets and real-time updates.
+```
+
+### Human Ownership
+
+All commits are attributed to the human user, regardless of AI assistance. This ensures:
+
+- Clean git history without tool attribution
+- Human maintains full responsibility for code changes
+- Simpler commit messages focused on content, not tools
+
+### When Co-Authored-By IS Appropriate
+
+Only use `Co-Authored-By` for **human collaborators**:
+
+```
+feat: add user dashboard
+
+Co-Authored-By: Jane Doe <jane@example.com>
+```
