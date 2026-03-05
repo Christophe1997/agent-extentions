@@ -1,0 +1,11 @@
+{
+  "name": "adk-go",
+  "version": "0.1.1",
+  "description": "Build production-grade AI agents with Google's Agent Development Kit (ADK) for Go. Provides skills for agent creation, tool development, multi-agent patterns, and callback systems.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "license": "MIT",
+  "keywords": ["go", "golang", "ai", "agent", "adk", "google", "gemini", "mcp", "llm"]
+}
