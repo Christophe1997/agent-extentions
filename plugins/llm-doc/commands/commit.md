@@ -58,11 +58,11 @@ This provides:
    - **Type**: Use types from the loaded skill (feat, fix, docs, etc.)
    - **Scope**: If provided via argument, use it. Otherwise infer from changed files.
    - **Description**: Follow style rules from the skill
+   - **Body**: Check change size/complexity per skill's "When to Add Body" section
 
-4. **Generate commit message** using format from the skill:
-   ```
-   <type>[scope]: <description>
-   ```
+4. **Generate commit message**:
+   - For small/simple changes: `<type>[scope]: <description>`
+   - For large/complex changes: Include body with what/why/impact
 
    **Important**: Do NOT add `Co-Authored-By` footer. The commit belongs to the human user.
 
@@ -72,7 +72,7 @@ This provides:
    ```json
    {
      "questions": [{
-       "question": "Ready to commit with this message:\n\n<type>[scope]: <description>\n\nProceed?",
+       "question": "Ready to commit with this message:\n\n<commit message>\n\nProceed?",
        "header": "Confirm commit",
        "options": [
          {"label": "Yes, commit", "description": "Create the commit with this message"},
@@ -86,9 +86,8 @@ This provides:
    - If "Edit message" → Ask user for custom message, then proceed to step 6
 
 6. **Create the commit**:
-   ```bash
-   git commit -m "<type>[scope]: <description>"
-   ```
+   - For single-line: `git commit -m "<type>[scope]: <description>"`
+   - For multi-line: `git commit -m "<type>[scope]: <description>" -m "<body line 1>" -m "<body line 2>"`
 
 ## Error Handling
 

@@ -113,15 +113,58 @@ feat(authentication-system): add oauth # Scope too long
 
 ## Multi-line Commits
 
-Use body for additional context when the change is complex:
+Use body for additional context when the change is complex.
+
+### When to Add Body
+
+**Add body when ANY of these conditions are met:**
+
+| Condition | Threshold | Example |
+|-----------|-----------|---------|
+| Large changes | >100 lines OR >5 files | Refactoring multiple modules |
+| Complex logic | Non-obvious changes | Bug fixes, algorithm changes |
+| Breaking changes | API changes, config updates | Removing deprecated endpoints |
+| Multiple concerns | More than one focus | Fix + refactor in same commit |
+
+**Keep description-only when:**
+- Single file, small changes (<50 lines)
+- Simple, self-explanatory modifications
+- Typo fixes, minor doc updates
+
+### Body Structure
+
+When adding body, include:
+
+1. **What**: Brief summary of changes
+2. **Why**: Motivation and context
+3. **Impact**: Breaking changes or migration notes (if any)
 
 ```
-feat: add batch processing endpoint
+feat(api): add rate limiting to public endpoints
 
-Add /api/batch endpoint to process multiple items in a single request.
-Includes rate limiting and progress tracking.
+Implement token bucket algorithm for all public API endpoints.
+Limit: 100 requests per minute per IP address.
 
-Closes #123
+This protects against abuse while maintaining compatibility
+with existing clients.
+```
+
+### Examples
+
+**Simple change (no body needed):**
+```
+fix: resolve typo in login error message
+```
+
+**Complex change (body required):**
+```
+fix(auth): resolve race condition in token refresh
+
+The concurrent refresh issue occurred when multiple tabs
+tried to refresh expired tokens simultaneously. Now uses
+mutex lock to serialize refresh requests.
+
+Fixes #456
 ```
 
 ## Related Commits
