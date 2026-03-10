@@ -138,7 +138,7 @@ Transform common patterns:
 - Functional components with hooks
 
 ## PR instructions
-- Use Conventional Commits (see llm-doc:commit-message skill)
+- Use Conventional Commits (see llm-doc:conventional-commits skill)
 - Run `pnpm lint && pnpm test` before pushing
 ```
 

@@ -19,7 +19,7 @@ Guidance for creating and maintaining AGENTS.md files - the standardized format 
 - "migrate to AGENTS.md"
 - "update AGENTS.md"
 
-### commit-message
+### conventional-commits
 Generate compact, clear commit messages following the Conventional Commits specification. Covers types, scopes, breaking changes, and style guidelines.
 
 **Key principle:** No `Co-Authored-By` footer for AI agents. Human takes full ownership of all commits.

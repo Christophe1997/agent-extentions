@@ -74,7 +74,7 @@ See docs/agents/testing.md for detailed guidelines.
 **Cross-skill references**: Use skill names instead of duplicating content from other domains:
 ```markdown
 ## PR instructions
-- Use Conventional Commits (see llm-doc:commit-message skill)
+- Use Conventional Commits (see llm-doc:conventional-commits skill)
 ```
 
 ## Relative Path References for Subprojects
@@ -128,7 +128,7 @@ See ../../packages/shared/components/ for shared UI components.
 2. **Dev Environment Setup**: Essential commands
 3. **Testing Instructions**: How to run and write tests
 4. **Code Style Guidelines**: Conventions and patterns
-5. **PR/Commit Guidelines**: Reference `llm-doc:commit-message` skill
+5. **PR/Commit Guidelines**: Reference `llm-doc:conventional-commits` skill
 6. **Security Considerations**: Critical security reminders
 
 See [examples/basic-agents-md.md](./examples/basic-agents-md.md) for a complete example.

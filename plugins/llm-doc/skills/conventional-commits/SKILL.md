@@ -1,5 +1,5 @@
 ---
-name: commit-message
+name: conventional-commits
 description: This skill should be used when the user asks to "write a commit message", "generate a commit", "help me commit", "create a commit message for", "commit these changes", or mentions commits format. Provides guidance for generating compact, clear commit messages following Conventional Commits specification.
 ---
 

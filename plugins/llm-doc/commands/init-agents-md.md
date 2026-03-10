@@ -17,9 +17,9 @@ Load both skills for comprehensive context:
    ```
    Provides: sections, structure, best practices
 
-2. **Commit format** - Load `commit-message` skill (for PR/Commit Guidelines section):
+2. **Commit format** - Load `conventional-commits` skill (for PR/Commit Guidelines section):
    ```
-   Use Skill tool with skill="llm-doc:commit-message"
+   Use Skill tool with skill="llm-doc:conventional-commits"
    ```
    Provides: Conventional Commits types, style rules, examples
 

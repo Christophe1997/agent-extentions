@@ -13,9 +13,9 @@ Generate a Conventional Commits message from staged changes and create the commi
 
 ## Load Context
 
-First, load the `commit-message` skill to understand commit format and best practices:
+First, load the `conventional-commits` skill to understand commit format and best practices:
 ```
-Use Skill tool with skill="llm-doc:commit-message"
+Use Skill tool with skill="llm-doc:conventional-commits"
 ```
 
 This provides:
