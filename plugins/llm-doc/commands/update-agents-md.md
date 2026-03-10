@@ -52,6 +52,8 @@ Trigger updates when:
    - Add new sections for new tools/processes
    - Remove obsolete sections
    - **Keep file compact** (target: 50-80 lines)
+   - **Use relative paths** for all references (e.g., `./docs/agents/testing.md`, `../api/AGENTS.md`)
+   - **For monorepos**: Add/update relative path references to sibling packages
 
 5. **Write updated AGENTS.md**:
    - Maintain consistent formatting

@@ -47,6 +47,8 @@ Load both skills for comprehensive context:
    - Fill in detected project-specific content
    - **Keep content concise and actionable** (target: 50-80 lines)
    - Focus on essential commands and conventions only
+   - **Use relative paths** for references (e.g., `./docs/agents/testing.md`, `../api/AGENTS.md`)
+   - For monorepos: reference sibling packages with relative paths (e.g., `../shared/utils/`)
 
 5. **Write the file** to the specified path (default: `./AGENTS.md`)
 

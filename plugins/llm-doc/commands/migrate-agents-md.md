@@ -48,6 +48,8 @@ Detect and migrate from common agent documentation files:
    - Add missing sections based on project analysis
    - **Keep core AGENTS.md lean and actionable** (target: 50-80 lines)
    - Focus on essential commands and conventions
+   - **Use relative paths** for references (e.g., `./docs/agents/testing.md`)
+   - **For monorepos**: Add relative path references to sibling packages (e.g., `../api/AGENTS.md`)
 
 5. **Create the new AGENTS.md**:
    - Write to ./AGENTS.md (or specified path)

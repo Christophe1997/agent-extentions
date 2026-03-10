@@ -77,6 +77,46 @@ See docs/agents/testing.md for detailed guidelines.
 - Use Conventional Commits (see llm-doc:commit-message skill)
 ```
 
+## Relative Path References for Subprojects
+
+**Use relative paths** when referencing files within the same repository. This makes references portable and works from any subdirectory.
+
+**Syntax**: Use paths relative to the file's location (e.g., `./relative/path/to/file.md`)
+
+**Examples**:
+```markdown
+# In packages/api/AGENTS.md
+
+## Architecture
+See ../shared/architecture.md for shared patterns.
+
+## Testing
+See ../../docs/agents/testing.md for test guidelines.
+```
+
+**Best practices**:
+- Use `./` for files in the same directory
+- Use `../` to go up one directory level
+- Use `../../` to go up two directory levels
+- Keep paths short and intuitive
+
+**Cross-subproject references**:
+```markdown
+# In packages/web/AGENTS.md
+
+## API Integration
+See ../api/AGENTS.md for API conventions and patterns.
+
+## Shared Components
+See ../../packages/shared/components/ for shared UI components.
+```
+
+**When to use**:
+- Documenting shared patterns between subprojects
+- Referencing common utilities or libraries
+- Linking to centralized documentation
+- Avoiding duplication across monorepo structure
+
 **Implementation checklist**:
 - [ ] AGENTS.md under 100 lines (ideally 50-80)
 - [ ] References folder only created if needed

@@ -62,6 +62,38 @@ my-monorepo/
 
 **Precedence**: The closest AGENTS.md to the edited file wins. Explicit user chat prompts override everything.
 
+### Relative Path References in Monorepos
+
+**Use relative paths** to reference other files within the monorepo. This makes references portable and works from any subdirectory.
+
+**Syntax**: Use paths relative to the file's location (not the project root):
+
+| From File | To File | Relative Path |
+|-----------|---------|---------------|
+| `packages/api/AGENTS.md` | `packages/shared/utils.md` | `../shared/utils.md` |
+| `packages/web/AGENTS.md` | `packages/api/AGENTS.md` | `../api/AGENTS.md` |
+| `packages/api/AGENTS.md` | `docs/agents/testing.md` | `../../docs/agents/testing.md` |
+| `AGENTS.md` (root) | `packages/api/AGENTS.md` | `./packages/api/AGENTS.md` |
+
+**Example - Cross-subproject reference**:
+```markdown
+# In packages/web/AGENTS.md
+
+## API Integration
+- All API calls follow patterns in ../api/AGENTS.md
+- Shared types are defined in ../shared/types.ts
+
+## Testing
+- Use test utilities from ../../packages/shared/testing/
+- Follow API testing patterns: ../api/AGENTS.md#testing
+```
+
+**Best practices**:
+- Always use `./`, `../`, or `../../` notation
+- Never use absolute paths like `/packages/api/AGENTS.md`
+- Keep references short but clear
+- Reference specific sections when relevant (e.g., `../api/AGENTS.md#testing`)
+
 ## Migration from Other Formats
 
 ### From AGENT.md

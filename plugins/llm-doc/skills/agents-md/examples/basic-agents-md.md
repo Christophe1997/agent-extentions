@@ -40,6 +40,11 @@ E-commerce platform built with Next.js, PostgreSQL, and Redis.
 - Run `pnpm lint && pnpm test` before pushing
 - Link issues: Fixes #123
 
+## Monorepo references
+- API patterns: See ../api/AGENTS.md for API conventions
+- Shared utilities: See ../shared/utils/ for common functions
+- Test helpers: See ../../docs/agents/testing.md for detailed testing guide
+
 ## Security
 - Never commit secrets or .env files
 - Validate all API inputs with Zod

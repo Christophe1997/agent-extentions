@@ -336,14 +336,14 @@ git push origin v1.2.3
 - Review documentation in `/docs`
 ```
 
-## After: AGENTS.md (Lean, 68 lines with progressive disclosure)
+## After: AGENTS.md (Lean, 72 lines with progressive disclosure)
 
 ```markdown
 # AGENTS.md
 
 ## Project overview
 E-commerce platform: Next.js 14, PostgreSQL, Redis, Stripe.
-See docs/agents/architecture.md for detailed system design.
+See ./docs/agents/architecture.md for detailed system design.
 
 ## Setup commands
 - Install: `pnpm install`
@@ -352,7 +352,7 @@ See docs/agents/architecture.md for detailed system design.
 - Dev server: `pnpm dev`
 - Build: `pnpm build`
 
-See docs/agents/setup.md for detailed installation steps.
+See ./docs/agents/setup.md for detailed installation steps.
 
 ## Testing instructions
 - Unit tests: `pnpm test`
@@ -360,37 +360,42 @@ See docs/agents/setup.md for detailed installation steps.
 - Coverage: `pnpm test:coverage`
 - Run specific: `pnpm vitest run -t "pattern"`
 
-See docs/agents/testing.md for detailed guidelines and conventions.
+See ./docs/agents/testing.md for detailed guidelines and conventions.
 
 ## Code style
 - TypeScript strict mode
 - Single quotes, no semicolons
 - Functional components with hooks
 
-See docs/agents/code-style.md for detailed conventions.
+See ./docs/agents/code-style.md for detailed conventions.
 
 ## PR instructions
 - Use Conventional Commits (see llm-doc:commit-message skill)
 - Run `pnpm lint && pnpm test` before pushing
 - Reference issues: Fixes #123
 
-See docs/agents/workflow.md for detailed PR process.
+See ./docs/agents/workflow.md for detailed PR process.
+
+## Monorepo references (if applicable)
+- API patterns: See ../api/AGENTS.md for API conventions
+- Shared utilities: See ../shared/utils/ for common functions
+- Cross-package testing: See ../../docs/agents/monorepo-testing.md
 
 ## Security
 - Never commit .env files
 - Validate inputs with Zod
 - Use Row Level Security in Supabase
 
-See docs/agents/security.md for detailed security guidelines.
+See ./docs/agents/security.md for detailed security guidelines.
 
 ## Deployment
 - Staging: auto-deploy on `main` push
 - Production: deploy on git tags
 
-See docs/agents/deployment.md for detailed deployment process.
+See ./docs/agents/deployment.md for detailed deployment process.
 
 ## Troubleshooting
-See docs/agents/troubleshooting.md for common issues and solutions.
+See ./docs/agents/troubleshooting.md for common issues and solutions.
 ```
 
 ## Created Reference Files

@@ -94,11 +94,35 @@ After any change, verify these critical items:
 
 - [ ] Reference directory created (default: docs/agents/)
 - [ ] All referenced files exist
-- [ ] References use relative paths
+- [ ] References use relative paths (e.g., `./path/to/file.md`, `../other/file.md`)
 - [ ] Reference content is complete (no placeholders)
 - [ ] Cross-references between files work
 
 **If no references folder**: This is the default and expected for most projects.
+
+## Relative Path References Validation
+
+When AGENTS.md references other files (in monorepos or with references folder):
+
+- [ ] All references use relative path syntax (`./`, `../`, `../../`)
+- [ ] No absolute paths used (never `/absolute/path/to/file.md`)
+- [ ] Cross-subproject references work from any subdirectory
+- [ ] Referenced files actually exist at the the specified relative path
+- [ ] Path depth is correct (count `../` to verify it reaches the intended file)
+- [ ] Section references work if used (e.g., `../api/AGENTS.md#testing`)
+
+**Examples of correct relative paths**:
+```markdown
+# From packages/web/AGENTS.md:
+- See ../api/AGENTS.md for API patterns
+- See ../../docs/agents/testing.md for test guidelines
+- See ./local-patterns.md for web-specific patterns
+```
+
+**Common mistakes to avoid**:
+- Using absolute paths: `/packages/api/AGENTS.md` (breaks in different environments)
+- Wrong depth: `../testing.md` when file is at `../../docs/testing.md`
+- Missing the `./` prefix for files in the same directory
 
 ## Post-Migration Validation
 
