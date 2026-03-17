@@ -16,366 +16,25 @@ import sys
 from pathlib import Path
 
 
-# --- Solarized Light CSS ---
-CSS = r"""
-:root {
-    /* Solarized Light palette */
-    --base03:  #002b36;
-    --base02:  #073642;
-    --base01:  #586e75;
-    --base00:  #657b83;
-    --base0:   #839496;
-    --base1:   #93a1a1;
-    --base2:   #eee8d5;
-    --base3:   #fdf6e3;
-    --yellow:  #b58900;
-    --orange:  #cb4b16;
-    --red:     #dc322f;
-    --magenta: #d33682;
-    --violet:  #6c71c4;
-    --blue:    #268bd2;
-    --cyan:    #2aa198;
-    --green:   #859900;
+# --- Template loading ---
 
-    --bg:         var(--base3);
-    --bg-alt:     var(--base2);
-    --fg:         var(--base00);
-    --fg-dim:     var(--base1);
-    --fg-emph:    var(--base01);
-    --accent:     var(--blue);
-    --border:     var(--base1);
-}
+_TMPL = Path(__file__).parent / "templates"
 
-* { box-sizing: border-box; }
+_CSS             = (_TMPL / "style.css").read_text(encoding="utf-8")
+_JS              = (_TMPL / "script.js").read_text(encoding="utf-8")
+_PAGE_TMPL       = (_TMPL / "page.html").read_text(encoding="utf-8")
+_SPLIT_PAGE_TMPL = (_TMPL / "split-page.html").read_text(encoding="utf-8")
+_INDEX_TMPL      = (_TMPL / "index.html").read_text(encoding="utf-8")
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--fg);
-    margin: 0;
-    padding: 16px;
-    line-height: 1.6;
-}
 
-.container {
-    max-width: 820px;
-    margin: 0 auto;
-}
+def _render(template: str, **kwargs) -> str:
+    """Replace {{KEY}} placeholders in a template string."""
+    for key, value in kwargs.items():
+        template = template.replace("{{" + key + "}}", str(value))
+    return template
 
-h1 {
-    font-size: 1.4rem;
-    color: var(--fg-emph);
-    border-bottom: 2px solid var(--accent);
-    padding-bottom: 8px;
-    margin-bottom: 24px;
-}
 
-.stats {
-    font-size: 0.85rem;
-    color: var(--fg-dim);
-    margin-bottom: 20px;
-}
-
-/* --- Messages --- */
-.message {
-    margin-bottom: 14px;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-}
-
-.message-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 14px;
-    background: rgba(0,0,0,0.03);
-    font-size: 0.82rem;
-}
-
-.role-label {
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-size: 0.78rem;
-}
-
-time {
-    color: var(--fg-dim);
-    font-size: 0.78rem;
-}
-
-.message-content {
-    padding: 12px 14px;
-}
-
-.message-content p { margin: 0 0 10px 0; }
-.message-content p:last-child { margin-bottom: 0; }
-
-/* User */
-.message.user {
-    background: var(--bg-alt);
-    border-left: 4px solid var(--accent);
-}
-.message.user .role-label { color: var(--accent); }
-
-/* Assistant */
-.message.assistant {
-    background: var(--bg);
-    border-left: 4px solid var(--fg-dim);
-    border: 1px solid var(--bg-alt);
-}
-.message.assistant .role-label { color: var(--fg-dim); }
-
-/* System (tool replies) */
-.message.tool-reply {
-    background: #fef9ec;
-    border-left: 4px solid var(--yellow);
-}
-.message.tool-reply .role-label { color: var(--yellow); }
-
-/* --- Thinking --- */
-.thinking {
-    background: #fef9ec;
-    border: 1px solid var(--yellow);
-    border-radius: 6px;
-    margin: 8px 0;
-    font-size: 0.88rem;
-    color: var(--fg-dim);
-}
-.thinking summary {
-    cursor: pointer;
-    padding: 8px 12px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--yellow);
-    user-select: none;
-}
-.thinking-body {
-    padding: 0 12px 10px 12px;
-}
-.thinking-body p { margin: 6px 0; }
-
-/* --- Tool Use --- */
-.tool-use {
-    background: #f3eef8;
-    border: 1px solid var(--violet);
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin: 8px 0;
-}
-.tool-header {
-    font-weight: 600;
-    color: var(--violet);
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
-}
-.tool-icon { font-size: 1rem; }
-.tool-description {
-    font-size: 0.85rem;
-    color: var(--fg-dim);
-    font-style: italic;
-    margin-bottom: 6px;
-}
-
-/* --- Tool Result --- */
-.tool-result {
-    background: #eef6ee;
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin: 8px 0;
-}
-.tool-result.tool-error {
-    background: #fdecec;
-}
-
-/* --- Code --- */
-pre {
-    background: var(--base02);
-    color: var(--base1);
-    padding: 10px 12px;
-    border-radius: 5px;
-    overflow-x: auto;
-    font-size: 0.83rem;
-    line-height: 1.5;
-    margin: 6px 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-code {
-    background: rgba(0,0,0,0.06);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.88em;
-}
-pre code { background: none; padding: 0; }
-
-/* --- File Tool (Write/Edit) --- */
-.file-tool {
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin: 8px 0;
-}
-.write-tool {
-    background: linear-gradient(135deg, #eef6ee 0%, #f0f6ec 100%);
-    border: 1px solid var(--green);
-}
-.edit-tool {
-    background: linear-gradient(135deg, #fef5ec 0%, #fdeef0 100%);
-    border: 1px solid var(--orange);
-}
-.file-tool-header {
-    font-weight: 600;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9rem;
-}
-.write-header { color: var(--green); }
-.edit-header { color: var(--orange); }
-.file-tool-path {
-    font-family: monospace;
-    background: rgba(0,0,0,0.06);
-    padding: 1px 6px;
-    border-radius: 3px;
-}
-
-.edit-section { display: flex; margin: 3px 0; border-radius: 3px; overflow: hidden; }
-.edit-label { padding: 6px 10px; font-weight: bold; font-family: monospace; display: flex; align-items: flex-start; }
-.edit-old { background: #fdeef0; }
-.edit-old .edit-label { color: var(--red); background: #f8d6da; }
-.edit-new { background: #eef6ee; }
-.edit-new .edit-label { color: var(--green); background: #c8e6c8; }
-.edit-content { margin: 0; flex: 1; background: transparent; font-size: 0.83rem; }
-
-/* --- Truncatable / Collapsible --- */
-.truncatable { position: relative; }
-.truncatable.truncated .truncatable-content {
-    max-height: 200px;
-    overflow: hidden;
-}
-.truncatable.truncated::after {
-    content: '';
-    position: absolute;
-    bottom: 30px;
-    left: 0; right: 0;
-    height: 50px;
-    background: linear-gradient(to bottom, transparent, var(--bg));
-    pointer-events: none;
-}
-.expand-btn {
-    display: none;
-    width: 100%;
-    padding: 6px 14px;
-    margin-top: 3px;
-    background: rgba(0,0,0,0.04);
-    border: 1px solid rgba(0,0,0,0.08);
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.82rem;
-    color: var(--fg-dim);
-}
-.expand-btn:hover { background: rgba(0,0,0,0.08); }
-.truncatable.truncated .expand-btn,
-.truncatable.expanded .expand-btn { display: block; }
-
-/* Gradient overrides per parent bg */
-.message.user .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, var(--bg-alt)); }
-.tool-use .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #f3eef8); }
-.tool-result .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #eef6ee); }
-.message.tool-reply .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #fef9ec); }
-
-/* --- Responsive --- */
-@media (max-width: 600px) {
-    body { padding: 8px; }
-    .message { border-radius: 6px; }
-    .message-content { padding: 10px; }
-    pre { font-size: 0.78rem; padding: 8px; }
-}
-
-/* --- Pagination --- */
-.pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 12px;
-    margin: 24px 0;
-    padding: 16px;
-    background: var(--bg-alt);
-    border-radius: 8px;
-}
-.pagination a, .pagination span {
-    padding: 8px 16px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-weight: 500;
-}
-.pagination a {
-    background: var(--accent);
-    color: white;
-}
-.pagination a:hover {
-    opacity: 0.9;
-}
-.pagination span {
-    color: var(--fg-dim);
-}
-.pagination .page-info {
-    color: var(--fg);
-    font-size: 0.9rem;
-}
-"""
-
-# --- JavaScript ---
-JS = r"""
-// Timestamps: convert UTC to local
-document.querySelectorAll('time[data-timestamp]').forEach(function(el) {
-    var ts = el.getAttribute('data-timestamp');
-    var d = new Date(ts);
-    var now = new Date();
-    var time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    if (d.toDateString() === now.toDateString()) {
-        el.textContent = time;
-    } else {
-        el.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time;
-    }
-});
-
-// Truncation
-document.querySelectorAll('.truncatable').forEach(function(w) {
-    var c = w.querySelector('.truncatable-content');
-    var b = w.querySelector('.expand-btn');
-    if (c.scrollHeight > 250) {
-        w.classList.add('truncated');
-        b.addEventListener('click', function() {
-            if (w.classList.contains('truncated')) {
-                w.classList.remove('truncated');
-                w.classList.add('expanded');
-                b.textContent = 'Show less';
-            } else {
-                w.classList.remove('expanded');
-                w.classList.add('truncated');
-                b.textContent = 'Show more';
-            }
-        });
-    }
-});
-
-// Keyboard navigation for pagination
-document.addEventListener('keydown', function(e) {
-    var prev = document.querySelector('.pagination .prev');
-    var next = document.querySelector('.pagination .next');
-    if (e.key === 'ArrowLeft' && prev) prev.click();
-    if (e.key === 'ArrowRight' && next) next.click();
-});
-"""
-
+# --- HTML helpers ---
 
 def escape(text):
     """HTML-escape a string."""
@@ -683,8 +342,7 @@ def compute_stats(messages):
 
 
 def extract_session_title(messages):
-    """Extract a meaningful title from session messages.
-    """
+    """Extract a meaningful title from session messages."""
     for msg in messages:
         role = msg.get("message", {}).get("role", "")
         content = msg.get("message", {}).get("content", "")
@@ -702,34 +360,12 @@ def generate_html(filepath, output_path):
     messages = parse_jsonl(filepath)
     user_msgs, assistant_msgs, tool_calls = compute_stats(messages)
 
-    rendered = []
-    for msg in messages:
-        h = render_message(msg)
-        if h:
-            rendered.append(h)
-
+    rendered = [h for msg in messages if (h := render_message(msg))]
     body = "\n".join(rendered)
     stats = f"{user_msgs} user messages · {assistant_msgs} assistant messages · {tool_calls} tool calls"
     title = escape(extract_session_title(messages))
 
-    page = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <style>{CSS}</style>
-</head>
-<body>
-    <div class="container">
-        <h1>{title}</h1>
-        <div class="stats">{stats}</div>
-        {body}
-    </div>
-    <script>{JS}</script>
-</body>
-</html>"""
-
+    page = _render(_PAGE_TMPL, TITLE=title, STATS=stats, BODY=body, CSS=_CSS, JS=_JS)
     Path(output_path).write_text(page, encoding="utf-8")
     return output_path
 
@@ -748,135 +384,62 @@ def generate_split_html(filepath, output_dir, page_size=50):
     title = escape(extract_session_title(messages))
     stats = f"{user_msgs} user messages · {assistant_msgs} assistant messages · {tool_calls} tool calls"
 
-    # Render all messages
-    rendered = []
-    for msg in messages:
-        h = render_message(msg)
-        if h:
-            rendered.append(h)
+    rendered = [h for msg in messages if (h := render_message(msg))]
 
-    # Split into pages
     total_messages = len(rendered)
     total_pages = (total_messages + page_size - 1) // page_size
 
-    # Create output directory
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate each page
     for page_num in range(1, total_pages + 1):
         start_idx = (page_num - 1) * page_size
         end_idx = min(start_idx + page_size, total_messages)
-        page_messages = rendered[start_idx:end_idx]
 
         # Build pagination navigation
-        pagination_parts = ['<div class="pagination">']
+        parts = ['<div class="pagination">']
         if page_num > 1:
-            pagination_parts.append(f'<a href="page-{page_num-1}.html" class="prev">← Previous</a>')
+            parts.append(f'<a href="page-{page_num-1}.html" class="prev">← Previous</a>')
         else:
-            pagination_parts.append('<span>← Previous</span>')
-
-        pagination_parts.append(f'<span class="page-info">Page {page_num} of {total_pages}</span>')
-
+            parts.append('<span>← Previous</span>')
+        parts.append(f'<span class="page-info">Page {page_num} of {total_pages}</span>')
         if page_num < total_pages:
-            pagination_parts.append(f'<a href="page-{page_num+1}.html" class="next">Next →</a>')
+            parts.append(f'<a href="page-{page_num+1}.html" class="next">Next →</a>')
         else:
-            pagination_parts.append('<span>Next →</span>')
+            parts.append('<span>Next →</span>')
+        parts.append('</div>')
+        pagination = "\n".join(parts)
 
-        pagination_parts.append('</div>')
-        pagination = "\n".join(pagination_parts)
-
-        body = "\n".join(page_messages)
-        page_title = f"{title} (Page {page_num}/{total_pages})"
-
-        page_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{page_title}</title>
-    <style>{CSS}</style>
-</head>
-<body>
-    <div class="container">
-        <h1>{title}</h1>
-        <div class="stats">{stats}</div>
-        {pagination}
-        {body}
-        {pagination}
-    </div>
-    <script>{JS}</script>
-</body>
-</html>"""
-
-        page_path = output_dir / f"page-{page_num}.html"
-        page_path.write_text(page_html, encoding="utf-8")
+        page_html = _render(
+            _SPLIT_PAGE_TMPL,
+            TITLE_TAG=f"{title} (Page {page_num}/{total_pages})",
+            TITLE=title,
+            STATS=stats,
+            PAGINATION=pagination,
+            BODY="\n".join(rendered[start_idx:end_idx]),
+            CSS=_CSS,
+            JS=_JS,
+        )
+        (output_dir / f"page-{page_num}.html").write_text(page_html, encoding="utf-8")
 
     # Generate index.html
-    index_links = []
-    for page_num in range(1, total_pages + 1):
-        start_msg = (page_num - 1) * page_size + 1
-        end_msg = min(page_num * page_size, total_messages)
-        index_links.append(
-            f'<li><a href="page-{page_num}.html">Page {page_num}</a> '
-            f'(messages {start_msg}-{end_msg})</li>'
-        )
+    index_links = [
+        f'<li><a href="page-{n}.html">Page {n}</a> '
+        f'(messages {(n-1)*page_size+1}-{min(n*page_size, total_messages)})</li>'
+        for n in range(1, total_pages + 1)
+    ]
 
-    index_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title} - Index</title>
-    <style>{CSS}</style>
-    <style>
-    .index-content {{
-        background: var(--bg-alt);
-        padding: 24px;
-        border-radius: 10px;
-        margin-top: 16px;
-    }}
-    .index-content ul {{
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }}
-    .index-content li {{
-        padding: 12px 16px;
-        margin: 8px 0;
-        background: var(--bg);
-        border-radius: 6px;
-    }}
-    .index-content a {{
-        font-weight: 600;
-        color: var(--accent);
-        text-decoration: none;
-    }}
-    .index-content a:hover {{
-        text-decoration: underline;
-    }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{title}</h1>
-        <div class="stats">{stats}</div>
-        <div class="index-content">
-            <h2>Session Contents ({total_pages} pages)</h2>
-            <ul>
-                {"".join(index_links)}
-            </ul>
-        </div>
-        <p style="text-align: center; margin-top: 20px;">
-            <a href="page-1.html" style="font-weight: 600;">Start Reading →</a>
-        </p>
-    </div>
-</body>
-</html>"""
-
+    index_html = _render(
+        _INDEX_TMPL,
+        TITLE=title,
+        STATS=stats,
+        TOTAL_PAGES=str(total_pages),
+        INDEX_LINKS="".join(index_links),
+        CSS=_CSS,
+        JS=_JS,
+    )
     index_path = output_dir / "index.html"
     index_path.write_text(index_html, encoding="utf-8")
-
     return str(index_path)
 
 
@@ -903,18 +466,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Determine output path
     if args.output:
         output_path = args.output
     else:
-        # Default: use session ID as filename in current directory
         session_id = Path(args.session_file).stem
-        if args.split:
-            output_path = f"{session_id}-pages"
-        else:
-            output_path = f"{session_id}.html"
+        output_path = f"{session_id}-pages" if args.split else f"{session_id}.html"
 
-    # Generate output
     if args.split:
         result = generate_split_html(args.session_file, output_path, args.page_size)
         print(f"Generated split HTML: {result}")

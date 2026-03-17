@@ -12,7 +12,13 @@ show-me-the-session/
 │   └── session-start.sh        # Captures session ID → $SMTS_SESSION_ID env var
 ├── scripts/
 │   ├── generate-html.py        # JSONL → HTML converter (Python 3 stdlib only)
-│   └── list-sessions.py        # List recent sessions with first-message preview (pick mode)
+│   ├── list-sessions.py        # List recent sessions with first-message preview (pick mode)
+│   └── templates/
+│       ├── style.css           # Solarized Light CSS (inlined into HTML output)
+│       ├── script.js           # Timestamp/truncation/keyboard JS (inlined)
+│       ├── page.html           # Single-page shell template
+│       ├── split-page.html     # Per-page shell template (split mode)
+│       └── index.html          # Index shell template (split mode)
 └── tests/
     ├── fixture.jsonl            # Synthetic 12-message test session
     ├── test_generate.sh         # 34 assertions: structure, theme, content blocks
@@ -96,6 +102,7 @@ bash plugins/show-me-the-session/tests/test_real_session.sh [session.jsonl]
 
 - **Single file output**: All CSS/JS inline — no external dependencies, no framework imports
 - **Python 3 stdlib only**: No pip install needed, works on any macOS/Linux (`subprocess` used in `list-sessions.py` to call `find`)
+- **Template separation**: CSS/JS/HTML shells live in `scripts/templates/`; loaded once at startup via `Path(__file__).parent / "templates"` and inlined into output — output files remain fully self-contained
 - **Simple markdown renderer**: Regex-based (bold, italic, code, links, fenced blocks) — avoids `markdown` library dependency
 - **Title extraction**: First meaningful user prompt (skips slash commands and short strings)
 - **Truncation**: Content >250px collapses with "Show more" button, gradient fade per parent background

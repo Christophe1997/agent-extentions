@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{TITLE}} - Index</title>
+    <style>{{CSS}}</style>
+    <style>
+    .index-content {
+        background: var(--bg-alt);
+        padding: 24px;
+        border-radius: 10px;
+        margin-top: 16px;
+    }
+    .index-content ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .index-content li {
+        padding: 12px 16px;
+        margin: 8px 0;
+        background: var(--bg);
+        border-radius: 6px;
+    }
+    .index-content a {
+        font-weight: 600;
+        color: var(--accent);
+        text-decoration: none;
+    }
+    .index-content a:hover {
+        text-decoration: underline;
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{TITLE}}</h1>
+        <div class="stats">{{STATS}}</div>
+        <div class="index-content">
+            <h2>Session Contents ({{TOTAL_PAGES}} pages)</h2>
+            <ul>
+                {{INDEX_LINKS}}
+            </ul>
+        </div>
+        <p style="text-align: center; margin-top: 20px;">
+            <a href="page-1.html" style="font-weight: 600;">Start Reading →</a>
+        </p>
+    </div>
+</body>
+</html>
