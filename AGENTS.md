@@ -20,10 +20,7 @@ agent-extentions/
 │   └── marketplace.json       # Central plugin registry
 ├── plugins/
 │   ├── writing-hugo-blog/     # Hugo blog post creator
-│   ├── agent-design/          # AI agent design guidelines
-│   ├── redis-dev/             # Redis development tools
 │   ├── llm-doc/               # AGENTS.md & commit message standards
-│   ├── adk-go/                # Google ADK for Go agents
 │   └── show-me-the-session/   # Session transcript HTML exporter
 └── .claude/
     └── settings.local.json    # Local Claude settings
