@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-"""Generate a single solarized-light themed HTML page from a Claude Code session JSONL file."""
+"""Generate a single solarized-light themed HTML page from a Claude Code session JSONL file.
 
+Supports:
+- Single HTML output (default)
+- Split output for large sessions (--split flag)
+- Custom page size (--page-size N, default 50 messages per page)
+"""
+
+import argparse
 import html
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -290,6 +298,38 @@ pre code { background: none; padding: 0; }
     .message-content { padding: 10px; }
     pre { font-size: 0.78rem; padding: 8px; }
 }
+
+/* --- Pagination --- */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--bg-alt);
+    border-radius: 8px;
+}
+.pagination a, .pagination span {
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+}
+.pagination a {
+    background: var(--accent);
+    color: white;
+}
+.pagination a:hover {
+    opacity: 0.9;
+}
+.pagination span {
+    color: var(--fg-dim);
+}
+.pagination .page-info {
+    color: var(--fg);
+    font-size: 0.9rem;
+}
 """
 
 # --- JavaScript ---
@@ -325,6 +365,14 @@ document.querySelectorAll('.truncatable').forEach(function(w) {
             }
         });
     }
+});
+
+// Keyboard navigation for pagination
+document.addEventListener('keydown', function(e) {
+    var prev = document.querySelector('.pagination .prev');
+    var next = document.querySelector('.pagination .next');
+    if (e.key === 'ArrowLeft' && prev) prev.click();
+    if (e.key === 'ArrowRight' && next) next.click();
 });
 """
 
@@ -511,7 +559,8 @@ def strip_system_tags(text):
     # Remove local-command tags but keep content for context
     text = re.sub(r"<local-command-caveat>.*?</local-command-caveat>", "", text, flags=re.DOTALL)
     text = re.sub(r"<local-command-stdout>.*?</local-command-stdout>", "", text, flags=re.DOTALL)
-    text = re.sub(r"<command-name>(.*?)</command-name>", r"/\1", text)
+    # Remove command-name tags entirely - the original slash command is already in the text
+    text = re.sub(r"<command-name>.*?</command-name>", "", text, flags=re.DOTALL)
     text = re.sub(r"<command-message>.*?</command-message>", "", text, flags=re.DOTALL)
     text = re.sub(r"<command-args>.*?</command-args>", "", text, flags=re.DOTALL)
     return text.strip()
@@ -685,9 +734,191 @@ def generate_html(filepath, output_path):
     return output_path
 
 
+def generate_split_html(filepath, output_dir, page_size=50):
+    """Generate split HTML files for large sessions.
+
+    Creates:
+    - index.html: Navigation page with all pages listed
+    - page-1.html, page-2.html, ...: Individual pages
+
+    Returns the path to index.html.
+    """
+    messages = parse_jsonl(filepath)
+    user_msgs, assistant_msgs, tool_calls = compute_stats(messages)
+    title = escape(extract_session_title(messages))
+    stats = f"{user_msgs} user messages · {assistant_msgs} assistant messages · {tool_calls} tool calls"
+
+    # Render all messages
+    rendered = []
+    for msg in messages:
+        h = render_message(msg)
+        if h:
+            rendered.append(h)
+
+    # Split into pages
+    total_messages = len(rendered)
+    total_pages = (total_messages + page_size - 1) // page_size
+
+    # Create output directory
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate each page
+    for page_num in range(1, total_pages + 1):
+        start_idx = (page_num - 1) * page_size
+        end_idx = min(start_idx + page_size, total_messages)
+        page_messages = rendered[start_idx:end_idx]
+
+        # Build pagination navigation
+        pagination_parts = ['<div class="pagination">']
+        if page_num > 1:
+            pagination_parts.append(f'<a href="page-{page_num-1}.html" class="prev">← Previous</a>')
+        else:
+            pagination_parts.append('<span>← Previous</span>')
+
+        pagination_parts.append(f'<span class="page-info">Page {page_num} of {total_pages}</span>')
+
+        if page_num < total_pages:
+            pagination_parts.append(f'<a href="page-{page_num+1}.html" class="next">Next →</a>')
+        else:
+            pagination_parts.append('<span>Next →</span>')
+
+        pagination_parts.append('</div>')
+        pagination = "\n".join(pagination_parts)
+
+        body = "\n".join(page_messages)
+        page_title = f"{title} (Page {page_num}/{total_pages})"
+
+        page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title}</title>
+    <style>{CSS}</style>
+</head>
+<body>
+    <div class="container">
+        <h1>{title}</h1>
+        <div class="stats">{stats}</div>
+        {pagination}
+        {body}
+        {pagination}
+    </div>
+    <script>{JS}</script>
+</body>
+</html>"""
+
+        page_path = output_dir / f"page-{page_num}.html"
+        page_path.write_text(page_html, encoding="utf-8")
+
+    # Generate index.html
+    index_links = []
+    for page_num in range(1, total_pages + 1):
+        start_msg = (page_num - 1) * page_size + 1
+        end_msg = min(page_num * page_size, total_messages)
+        index_links.append(
+            f'<li><a href="page-{page_num}.html">Page {page_num}</a> '
+            f'(messages {start_msg}-{end_msg})</li>'
+        )
+
+    index_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title} - Index</title>
+    <style>{CSS}</style>
+    <style>
+    .index-content {{
+        background: var(--bg-alt);
+        padding: 24px;
+        border-radius: 10px;
+        margin-top: 16px;
+    }}
+    .index-content ul {{
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }}
+    .index-content li {{
+        padding: 12px 16px;
+        margin: 8px 0;
+        background: var(--bg);
+        border-radius: 6px;
+    }}
+    .index-content a {{
+        font-weight: 600;
+        color: var(--accent);
+        text-decoration: none;
+    }}
+    .index-content a:hover {{
+        text-decoration: underline;
+    }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{title}</h1>
+        <div class="stats">{stats}</div>
+        <div class="index-content">
+            <h2>Session Contents ({total_pages} pages)</h2>
+            <ul>
+                {"".join(index_links)}
+            </ul>
+        </div>
+        <p style="text-align: center; margin-top: 20px;">
+            <a href="page-1.html" style="font-weight: 600;">Start Reading →</a>
+        </p>
+    </div>
+</body>
+</html>"""
+
+    index_path = output_dir / "index.html"
+    index_path.write_text(index_html, encoding="utf-8")
+
+    return str(index_path)
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <session.jsonl> <output.html>", file=sys.stderr)
-        sys.exit(1)
-    result = generate_html(sys.argv[1], sys.argv[2])
-    print(f"Generated: {result}")
+    parser = argparse.ArgumentParser(
+        description="Generate HTML from Claude Code session JSONL files"
+    )
+    parser.add_argument("session_file", help="Path to the session JSONL file")
+    parser.add_argument(
+        "-o", "--output",
+        help="Output path (file for single HTML, directory for split mode)"
+    )
+    parser.add_argument(
+        "--split",
+        action="store_true",
+        help="Split output into multiple HTML files with index"
+    )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=50,
+        help="Number of messages per page when splitting (default: 50)"
+    )
+
+    args = parser.parse_args()
+
+    # Determine output path
+    if args.output:
+        output_path = args.output
+    else:
+        # Default: use session ID as filename in current directory
+        session_id = Path(args.session_file).stem
+        if args.split:
+            output_path = f"{session_id}-pages"
+        else:
+            output_path = f"{session_id}.html"
+
+    # Generate output
+    if args.split:
+        result = generate_split_html(args.session_file, output_path, args.page_size)
+        print(f"Generated split HTML: {result}")
+        print(f"Total pages directory: {output_path}")
+    else:
+        result = generate_html(args.session_file, output_path)
+        print(f"Generated: {result}")

@@ -1,22 +1,36 @@
 # show-me-the-session
 
-Export the current Claude Code session as a single solarized-light themed HTML page.
+Export Claude Code session transcripts to solarized-light themed HTML with pagination support.
 
 ## Features
 
-- Generates a self-contained HTML file (no external dependencies)
-- Solarized Light theme for comfortable reading
-- Renders all content blocks: user messages, assistant text, thinking, tool calls, tool results
-- Collapsible sections for long content
-- Auto-detects current session or lets you pick from recent sessions
-- Opens directly in your browser
+- **Auto session detection**: Automatically finds the current session by project path
+- **Split output**: Large sessions can be split into multiple HTML pages with navigation
+- **Configurable page size**: Control how many messages per page
+- **Self-contained HTML**: All CSS/JS inline, no external dependencies
+- **Solarized Light theme**: Comfortable reading with the classic color scheme
+- **Rich content rendering**: User messages, assistant text, thinking blocks, tool calls, tool results
+- **Collapsible sections**: Long content is truncatable with "Show more" buttons
+- **Keyboard navigation**: Arrow keys navigate between pages in split mode
 
 ## Usage
 
 ```
-/show-me-the-session:export         # Export current session
-/show-me-the-session:export pick    # Choose from recent sessions
+/show-me-the-session:export                    # Export current session to doc/sessions/
+/show-me-the-session:export pick               # Choose from recent sessions
+/show-me-the-session:export -o /path/out.html  # Custom output path
+/show-me-the-session:export --split            # Split into multiple pages
+/show-me-the-session:export --split --page-size 30  # Custom page size
 ```
+
+### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `pick` | Choose from recent sessions instead of auto-detecting |
+| `-o, --output PATH` | Custom output path (file or directory for split mode) |
+| `--split` | Split large sessions into multiple HTML files with index |
+| `--page-size N` | Messages per page when splitting (default: 50) |
 
 ## Requirements
 

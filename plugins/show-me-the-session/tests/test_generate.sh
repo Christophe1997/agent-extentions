@@ -56,7 +56,7 @@ assert_regex() {
 
 # --- Generate HTML ---
 echo "=== Generating HTML from fixture ==="
-if ! python3 "$GENERATOR" "$FIXTURE" "$OUTPUT"; then
+if ! python3 "$GENERATOR" "$FIXTURE" -o "$OUTPUT"; then
     echo "FATAL: Generator script failed"
     exit 2
 fi
