@@ -7,7 +7,12 @@ Export Claude Code session JSONL transcripts to solarized-light HTML with pagina
 ```
 show-me-the-session/
 ├── commands/export.md          # /show-me-the-session:export [pick] [-o PATH] [--split]
-├── scripts/generate-html.py    # JSONL → HTML converter (Python 3 stdlib only)
+├── hooks/
+│   ├── hooks.json              # SessionStart hook registration
+│   └── session-start.sh        # Captures session ID → $SMTS_SESSION_ID env var
+├── scripts/
+│   ├── generate-html.py        # JSONL → HTML converter (Python 3 stdlib only)
+│   └── list-sessions.py        # List recent sessions with first-message preview (pick mode)
 └── tests/
     ├── fixture.jsonl            # Synthetic 12-message test session
     ├── test_generate.sh         # 34 assertions: structure, theme, content blocks
@@ -28,6 +33,25 @@ show-me-the-session/
 | `file-history-snapshot` | — | — | Skipped |
 
 System tags (`<system-reminder>`, `<local-command-caveat>`, `<command-name>`, etc.) are stripped via `strip_system_tags()`.
+
+## Session Detection
+
+### Auto-detect (default)
+
+The export command resolves the current session in two steps:
+
+1. **`$SMTS_SESSION_ID` env var** (set by the `SessionStart` hook at session start) — used to locate the exact `~/.claude/projects/<project>/<session-id>.jsonl` file.
+2. **Fallback** — if the env var is absent (first session after install, or Claude Code version without `SessionStart` support), picks the most recently modified non-agent JSONL in the project directory.
+
+### Pick mode (`pick` argument)
+
+`list-sessions.py` scans `~/.claude/projects/` for recent sessions (default: last 30 days, up to 20 results) and outputs tab-separated lines:
+
+```
+date<TAB>project-slug<TAB>first-user-message<TAB>/full/path/to/session.jsonl
+```
+
+Claude presents these as human-readable options via `AskUserQuestion` (`[date] project: first message…`) and derives both `SESSION_FILE` and `PROJECT_DIR` from the chosen entry.
 
 ## CLI Options
 
@@ -71,7 +95,7 @@ bash plugins/show-me-the-session/tests/test_real_session.sh [session.jsonl]
 ## Key Design Decisions
 
 - **Single file output**: All CSS/JS inline — no external dependencies, no framework imports
-- **Python 3 stdlib only**: No pip install needed, works on any macOS/Linux
+- **Python 3 stdlib only**: No pip install needed, works on any macOS/Linux (`subprocess` used in `list-sessions.py` to call `find`)
 - **Simple markdown renderer**: Regex-based (bold, italic, code, links, fenced blocks) — avoids `markdown` library dependency
 - **Title extraction**: First meaningful user prompt (skips slash commands and short strings)
 - **Truncation**: Content >250px collapses with "Show more" button, gradient fade per parent background

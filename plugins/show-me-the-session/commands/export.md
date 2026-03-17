@@ -27,27 +27,31 @@ Export the current Claude Code session transcript to a single self-contained HTM
 2. **Determine the session file**:
 
    If `pick` was specified:
-   - List recent JSONL sessions from `~/.claude/projects/`:
+   - Run the session lister script:
      ```bash
-     find ~/.claude/projects/ -name '*.jsonl' -not -name 'agent-*' -type f -mtime -7 | head -20
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py"
      ```
-   - Use AskUserQuestion to let the user choose from the list
+   - Each output line is tab-separated: `date \t project-slug \t first-message \t /full/path`
+   - Use AskUserQuestion to present each session as `[date] project: first message…`
+   - From the chosen entry take the last tab field as `SESSION_FILE` and the second field as `PROJECT_DIR`
 
    Otherwise (default: auto-detect current session):
-   - **Get the current session ID**:
-   - Use `/status` to get and extract current session id, which begin with `Session ID:`, use it as the `${SESSION_ID}` bellow 
+   - **Locate the session file**:
      ```bash
      # Convert cwd to the project directory slug
      # e.g., /Users/user/code/myproject -> -Users-user-code-myproject
      PROJECT_DIR=$(echo "$CWD" | sed 's|^/||; s|/|-|g' | sed 's|^|-|')
 
-     # Find the JSONL file matching the session ID
-     SESSION_FILE=$(ls ~/.claude/projects/-${PROJECT_DIR}/${SESSION_ID}.jsonl 2>/dev/null | head -1)
-     ```
+     # Try the session ID captured at session start (set by SessionStart hook)
+     SESSION_ID="${SMTS_SESSION_ID:-}"
+     if [ -n "$SESSION_ID" ]; then
+       SESSION_FILE=$(ls ~/.claude/projects/${PROJECT_DIR}/${SESSION_ID}.jsonl 2>/dev/null | head -1)
+     fi
 
-   - If session file not found, fall back to most recent file in project directory:
-     ```bash
-     ls -t ~/.claude/projects/-${PROJECT_DIR}/*.jsonl 2>/dev/null | grep -v '/agent-' | head -1
+     # Fallback: most recently modified non-agent JSONL in the project directory
+     if [ -z "${SESSION_FILE:-}" ]; then
+       SESSION_FILE=$(ls -t ~/.claude/projects/${PROJECT_DIR}/*.jsonl 2>/dev/null | grep -v '/agent-' | head -1)
+     fi
      ```
 
 3. **Determine output path**:
@@ -56,9 +60,9 @@ Export the current Claude Code session transcript to a single self-contained HTM
    - Use the provided path
 
    Otherwise:
-   - Default output directory: `doc/sessions/` (create if needed)
+   - Default output directory: `docs/sessions/` (create if needed)
    - Default filename: `<session-id>.html` (or `<session-id>-pages/` for split mode)
-   - Ask user: "Export session to `doc/sessions/<session-id>.html`? [Y/n]"
+   - Ask user: "Export session to `docs/sessions/<session-id>.html`? [Y/n]"
 
 4. **Check message count and suggest split for large sessions**:
 
@@ -89,16 +93,6 @@ Export the current Claude Code session transcript to a single self-contained HTM
    ```
 
 7. **Report to user**: Tell them the output path and that it's been opened in their browser.
-
-## Session Detection Details
-
-The session tracking files in `~/.claude/sessions/` are named by process PID and contain:
-- `sessionId`: The UUID of the current session
-- `cwd`: The current working directory
-- `pid`: The process ID
-- `startedAt`: Unix timestamp when session started
-
-The most recently modified session file corresponds to the current active session.
 
 ## Important Notes
 

@@ -73,7 +73,7 @@
       "name": "show-me-the-session",
       "source": "./plugins/show-me-the-session",
       "description": "Export the current Claude Code session as a single solarized-light themed HTML page with conversation, tool calls, and thinking blocks.",
-      "version": "0.1.0",
+      "version": "0.4.0",
       "author": {
         "name": "shendonglai"
       },
