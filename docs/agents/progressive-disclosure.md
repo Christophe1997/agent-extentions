@@ -34,7 +34,7 @@ Use Skill tool with skill="plugin-name:skill-name"
 
 ### Cross-Plugin Reference Format
 
-Always use the full format `plugin-name:skill-name` when referencing skills from other plugins.
+Avoid cross-plugin references and keep each plugin self-contained. If necessary, use the full format `plugin-name:skill-name` when referencing skills from other plugins.
 
 ## Benefits
 
