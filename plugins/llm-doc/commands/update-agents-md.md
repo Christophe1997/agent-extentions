@@ -51,30 +51,30 @@ Trigger updates when:
    - Update outdated commands
    - Add new sections for new tools/processes
    - Remove obsolete sections
-   - **Keep file compact** (target: 50-80 lines)
+   - **Target: 50-80 lines** — condense aggressively before writing
    - **Use relative paths** for all references (e.g., `./docs/agents/testing.md`, `../api/AGENTS.md`)
    - **For monorepos**: Add/update relative path references to sibling packages
 
-5. **Write updated AGENTS.md**:
-   - Maintain consistent formatting
-   - Keep file concise (under 100 lines)
-   - Ensure all commands are current and executable
+5. **Check line count before writing**:
+   - Count projected lines of updated content
+   - If over 100 lines, **first try to condense**: shorten descriptions, remove duplicated info, apply progressive disclosure
+   - If still over 100 lines after condensing, proceed to step 6 before writing
 
-6. **Ask about references folder** (only if file exceeds 80 lines after update):
+6. **If projected content exceeds 100 lines** — ask and then act:
    Use AskUserQuestion:
    ```
    questions: [
      {
-       "question": "The AGENTS.md is getting long. Would you like me to create a references folder for detailed documentation?",
+       "question": "The AGENTS.md will exceed 100 lines. Would you like me to split detailed content into a references folder?",
        "header": "References",
        "options": [
          {
            "label": "No, keep it compact",
-           "description": "Keep AGENTS.md as a single compact file. Try to condense content further."
+           "description": "Try harder to condense. Keep AGENTS.md as a single file."
          },
          {
            "label": "Yes, create docs/agents/",
-           "description": "Create references folder and move detailed content there."
+           "description": "Create docs/agents/ and move detailed sections there, leaving brief summaries with links in AGENTS.md."
          },
          {
            "label": "Yes, use custom path",
@@ -85,13 +85,23 @@ Trigger updates when:
    ]
    ```
 
-7. **Validate the updated file**:
+   **If user chooses to split**:
+   - Identify sections that are best candidates: architecture explanations, long code examples, multi-step guides
+   - For each section to move: create `docs/agents/<section-name>.md` (or user-specified path)
+   - Replace the section in AGENTS.md with a 2-3 line summary + `See docs/agents/<section-name>.md for details.`
+   - Ensure AGENTS.md stays under 100 lines after the split
+
+7. **Write updated AGENTS.md**:
+   - Maintain consistent formatting
+   - Ensure all commands are current and executable
+
+9. **Validate the updated file**:
    - Run validation checklist from skill
    - Test all commands are executable
    - Ensure no information lost
-   - Verify file is compact
+   - Verify file is under 100 lines
 
-8. **Report changes**:
+10. **Report changes**:
    Summarize what was updated:
    ```
    Updated AGENTS.md:
@@ -122,7 +132,7 @@ Trigger updates when:
 
 After update, verify:
 - [ ] All commands are current and executable
-- [ ] File is concise (under 100 lines)
+- [ ] File is concise (under 100 lines; if over, references split was applied)
 - [ ] No information lost during update
 - [ ] Format consistent with skill best practices
 - [ ] All sections relevant to current project state
@@ -145,6 +155,6 @@ Show changes in unified diff format for clarity:
 - Preserve existing voice and style where possible
 - Update incrementally - don't rewrite entire file unnecessarily
 - **Default to compact**: Keep AGENTS.md as a single file unless it gets too long
-- Only ask about references folder when file exceeds 80 lines
+- When file exceeds 100 lines: ask user AND then actually perform the split if they confirm
 - Validate before completing
 - Report all changes to user

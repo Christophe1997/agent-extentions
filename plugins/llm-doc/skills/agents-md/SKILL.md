@@ -43,7 +43,7 @@ AGENTS.md is standard Markdown with no required fields:
 **References folder** (optional): Only create `docs/agents/` when:
 - Project has complex, project-specific patterns that need detailed explanation
 - User explicitly wants separate reference files
-- Content exceeds ~80 lines and cannot be condensed
+- Content exceeds ~100 lines and cannot be condensed
 
 Commands use `AskUserQuestion` to ask about references folder when appropriate.
 
