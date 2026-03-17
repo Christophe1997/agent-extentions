@@ -68,6 +68,17 @@
       },
       "category": "ai-development",
       "keywords": ["go", "golang", "ai", "agent", "adk", "google", "gemini", "mcp", "llm"]
+    },
+    {
+      "name": "show-me-the-session",
+      "source": "./plugins/show-me-the-session",
+      "description": "Export the current Claude Code session as a single solarized-light themed HTML page with conversation, tool calls, and thinking blocks.",
+      "version": "0.1.0",
+      "author": {
+        "name": "shendonglai"
+      },
+      "category": "developer-tools",
+      "keywords": ["session", "export", "html", "transcript", "solarized"]
     }
   ]
 }

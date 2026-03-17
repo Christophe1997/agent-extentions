@@ -1,0 +1,8 @@
+{
+  "name": "show-me-the-session",
+  "version": "0.1.0",
+  "description": "Export the current Claude Code session as a single solarized-light themed HTML page. View your conversation, tool calls, and thinking blocks in a beautiful, self-contained document.",
+  "author": {
+    "name": "shendonglai"
+  }
+}

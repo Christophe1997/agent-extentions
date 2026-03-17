@@ -21,10 +21,15 @@ agent-extentions/
 ├── plugins/
 │   ├── writing-hugo-blog/     # Hugo blog post creator
 │   ├── agent-design/          # AI agent design guidelines
-│   └── redis-dev/             # Redis development tools
+│   ├── redis-dev/             # Redis development tools
+│   ├── llm-doc/               # AGENTS.md & commit message standards
+│   ├── adk-go/                # Google ADK for Go agents
+│   └── show-me-the-session/   # Session transcript HTML exporter
 └── .claude/
     └── settings.local.json    # Local Claude settings
 ```
+
+See [docs/agents/show-me-the-session.md](docs/agents/show-me-the-session.md) for the session exporter architecture.
 
 ## Plugin Architecture
 
@@ -53,87 +58,28 @@ plugin-name/
 1. Create directory under `plugins/` with the plugin name
 2. Add `plugin.json` under `.claude-plugin/`
 3. Register in `marketplace.json` with source path `./plugins/your-plugin`
-4. Create at least one skill in `skills/` directory
+4. Create at least one skill or command
 
 ## Component Patterns
 
-### Skills (SKILL.md)
-Skills provide specialized knowledge that activates on specific queries.
-
-```yaml
----
-name: skill-name
-description: Third-person description with specific trigger phrases
-trigger: Optional glob patterns for auto-activation
----
-```
-
-Keep body lean, use `references/` for details, `examples/` for code samples.
-
-### Commands (commands/*.md)
-Commands are user-initiated slash commands.
-
-```yaml
----
-name: command-name
-description: What the command does
-argument-hint: Optional argument description
-allowed-tools: [Read, Write, Bash, Skill]
----
-```
-
-Invoked as: `/plugin-name:command-name [args]`. Include `Skill` in allowed-tools to load skills for context.
-
-See [docs/agents/command-patterns.md](docs/agents/command-patterns.md) for detailed command structure and formatting guidelines.
-
-### Agents (agents/*.md)
-Agents are autonomous subagents for specialized tasks.
-
-```yaml
----
-description: When to trigger this agent (with example queries)
-tools: [Read, Grep, Glob]  # Tools the agent can use
-model: sonnet | haiku      # Model selection
-color: blue | orange | ... # UI indicator
----
-```
-
-**Key:** Include "When to Use" section with concrete example queries for triggering.
-
-### MCP Integration (.mcp.json)
-For external service integration:
-
-```json
-{
-  "mcpServers": {
-    "server-name": {
-      "command": "executable",
-      "args": ["-h", "${HOST:-localhost}", "-p", "${PORT:-6379}"],
-      "env": {
-        "HOST": "${ENV_VAR}"
-      }
-    }
-  }
-}
-```
+| Component | Location | Purpose | Key Fields |
+|-----------|----------|---------|------------|
+| Skills | `skills/*/SKILL.md` | Knowledge that activates on queries | `name`, `description` (with trigger phrases) |
+| Commands | `commands/*.md` | User slash commands (`/plugin:cmd`) | `name`, `allowed-tools`, `argument-hint` |
+| Agents | `agents/*.md` | Autonomous subagents | `description`, `tools`, `model`, `color` |
+| Hooks | `hooks/hooks.json` | Event-driven automation | `PreToolUse`, `PostToolUse`, `Stop`, etc. |
+| MCP | `.mcp.json` | External service integration | `mcpServers` with `command`, `args`, `env` |
+| Settings | `.claude/plugin.local.md` | User config | YAML frontmatter + markdown |
 
 **Patterns:**
 - Use `${CLAUDE_PLUGIN_ROOT}` for relative paths within plugin
-- Use `${VAR:-default}` for environment variables with defaults
-- Document required environment variables in README
+- Use `${VAR:-default}` for env vars with defaults
+- Skills: lean body, use `references/` for details
+- Commands: include `Skill` in `allowed-tools` to load skill context
+- Agents: include "When to Use" section with example queries
+- Settings: add `.claude/*.local.md` to `.gitignore`
 
-### Plugin Settings (.local.md)
-For user-configurable settings, use the `.claude/plugin-name.local.md` pattern:
-
-```yaml
----
-setting1: value1
-setting2: value2
----
-# Optional documentation
-```
-
-**Add to .gitignore:** `.claude/*.local.md`
+See [docs/agents/command-patterns.md](docs/agents/command-patterns.md) for command details.
 
 ## Validation
 

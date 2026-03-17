@@ -11,6 +11,7 @@ Agent extentions in Claude marketplace structure.
 | [redis-dev](./plugins/redis-dev/README.md) | Redis design patterns, best practices, and command references with MCP integration |
 | [llm-doc](./plugins/llm-doc/README.md) | Documentation standards for AI coding agents: AGENTS.md format and conventional commit messages |
 | [adk-go](./plugins/adk-go/README.md) | Build production-grade AI agents with Google's Agent Development Kit (ADK) for Go |
+| [show-me-the-session](./plugins/show-me-the-session/README.md) | Export Claude Code sessions as solarized-light HTML pages |
 
 ## Installation
 
@@ -28,6 +29,7 @@ Agent extentions in Claude marketplace structure.
 /plugin install redis-dev@agent-extentions
 /plugin install llm-doc@agent-extentions
 /plugin install adk-go@agent-extentions
+/plugin install show-me-the-session@agent-extentions
 ```
 
 ## License
