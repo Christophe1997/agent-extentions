@@ -1,6 +1,6 @@
 # show-me-the-session
 
-Export Claude Code session transcripts to solarized-light themed HTML with pagination support.
+Export Claude Code session transcripts to solarized-light themed HTML with pagination support. It's inspired by [simonw/claude-code-transcripts](https://github.com/simonw/claude-code-transcripts).
 
 ## Features
 
@@ -34,7 +34,7 @@ Export Claude Code session transcripts to solarized-light themed HTML with pagin
 
 ## Requirements
 
-- Python 3 (included with macOS)
+- Python3 in the $PATH 
 
 ## Installation
 
