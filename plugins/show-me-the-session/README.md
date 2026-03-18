@@ -22,7 +22,7 @@ See a [simple example transcripts](https://christophe1997.github.io/agent-extent
 ## Usage
 
 ```
-/show-me-the-session:export                    # Export current session to doc/sessions/
+/show-me-the-session:export                    # Export current session to docs/sessions/
 /show-me-the-session:export pick               # Choose from recent sessions
 /show-me-the-session:export -o /path/out.html  # Custom output path
 /show-me-the-session:export --split            # Split into multiple pages

@@ -27,9 +27,9 @@ Export the current Claude Code session transcript to a single self-contained HTM
 2. **Determine the session file**:
 
    If `pick` was specified:
-   - Run the session lister script:
+   - Run the session lister script scoped to the current project, showing the last 5 sessions:
      ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py"
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py" --project "$CWD" --limit 5
      ```
    - Each output line is tab-separated: `date \t first-message \t session-id(short) \t /full/path`
    - Use AskUserQuestion to present each session as `[date] session-id(short): first message…`

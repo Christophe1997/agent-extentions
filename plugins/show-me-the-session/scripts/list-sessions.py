@@ -5,7 +5,7 @@ Output (one line per session, tab-separated):
   date<TAB>first-message<TAB>session-id(short)<TAB>/full/path/to/session.jsonl
 
 Usage:
-  python3 list-sessions.py [--days N] [--limit N]
+  python3 list-sessions.py [--days N] [--limit N] [--project /abs/path]
 """
 
 import argparse
@@ -72,13 +72,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--days", type=int, default=30, help="Look back N days (default: 30)")
     parser.add_argument("--limit", type=int, default=20, help="Max sessions to list (default: 20)")
+    parser.add_argument("--project", type=str, default=None, help="Absolute path to project directory (e.g. /Users/you/code/myproject)")
     args = parser.parse_args()
 
     projects_dir = os.path.expanduser("~/.claude/projects/")
 
+    if args.project:
+        project_path = os.path.abspath(args.project)
+        project_slug = "-" + project_path.lstrip("/").replace("/", "-")
+        search_dir = os.path.join(projects_dir, project_slug)
+    else:
+        search_dir = projects_dir
+
     raw = subprocess.check_output(
         [
-            "find", projects_dir,
+            "find", search_dir,
             "-name", "*.jsonl",
             "!", "-name", "agent-*",
             "-type", "f",
@@ -94,12 +102,11 @@ def main():
     )[: args.limit]
 
     for path in files:
-        project = os.path.basename(os.path.dirname(path))
         mtime = datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M")
         msg = first_user_message(path)
-        session_id = get_session_id(path)
+        session_id_short = get_session_id(path)
         # Output: date<TAB>first-message<TAB>session-id<TAB>/full/path
-        print(f"{mtime}\t{msg}\t{session_id}\t{path}")
+        print(f"{mtime}\t{msg}\t{session_id_short}\t{path}")
 
 
 if __name__ == "__main__":
