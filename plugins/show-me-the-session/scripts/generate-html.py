@@ -245,13 +245,29 @@ def is_skill_content(text):
 
 
 def render_skill_content(text, skill_name):
-    """Render skill content as a collapsible details block."""
+    """Render skill/command content as a collapsible details block.
+
+    Uses different icons:
+    - Commands (start with /): ⚡ icon
+    - Skills: 📚 icon
+    """
     # Remove the "Base directory" line for cleaner display
     clean_text = re.sub(r"Base directory for this skill:.*?\n", "", text, count=1)
     content_html = simple_markdown(clean_text)
+
+    # Distinguish commands from skills
+    if skill_name.startswith("/"):
+        icon = "⚡"
+        label = "Command"
+        css_class = "command-content"
+    else:
+        icon = "📚"
+        label = "Skill"
+        css_class = "skill-content"
+
     return (
-        f'<details class="skill-content">'
-        f'<summary>📚 Skill: {escape(skill_name)}</summary>'
+        f'<details class="{css_class}">'
+        f'<summary>{icon} {label}: {escape(skill_name)}</summary>'
         f'<div class="skill-body">{content_html}</div>'
         f'</details>'
     )
@@ -391,10 +407,12 @@ def compute_stats(messages):
 
 
 def annotate_skill_content(messages):
-    """Preprocess messages to annotate skill content blocks.
+    """Preprocess messages to annotate skill/command content blocks.
 
-    Detects skill content that follows "Launching skill:" tool results
-    and adds _skill_name metadata to those blocks.
+    Detects skill content that follows:
+    1. "Launching skill:" tool results (knowledge skills via Skill tool)
+    2. "Base directory for this skill:" markers (knowledge skills)
+    3. <command-name> tags followed by text block (commands)
 
     Returns a new list of annotated messages.
     """
@@ -407,19 +425,25 @@ def annotate_skill_content(messages):
         role = message.get("role", "")
         content = message.get("content", "")
 
-        # Check if this is a tool_result with "Launching skill:"
+        # Pattern 1: Check if this is a tool_result with "Launching skill:"
         if role == "user" and isinstance(content, list):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
                     result_content = block.get("content", "")
                     if isinstance(result_content, str) and "Launching skill:" in result_content:
-                        # Extract skill name from "Launching skill: plugin-name:skill-name"
                         match = re.search(r"Launching skill: (\S+)", result_content)
                         if match:
                             pending_skill_name = match.group(1)
                         break
 
-        # Check if this user message contains skill content (text blocks following a skill launch)
+        # Pattern 2: Check if this is a command invocation (string with <command-name>)
+        # The NEXT message will contain the command's skill content
+        if role == "user" and isinstance(content, str) and "<command-name>" in content:
+            match = re.search(r"<command-name>(/[^<]+)</command-name>", content)
+            if match:
+                pending_skill_name = match.group(1)
+
+        # Pattern 3: Check if this user message contains skill content following a launch
         if role == "user" and pending_skill_name and isinstance(content, list):
             has_text_block = any(
                 isinstance(b, dict) and b.get("type") == "text"
@@ -431,7 +455,7 @@ def annotate_skill_content(messages):
                         block["_skill_name"] = pending_skill_name
                 pending_skill_name = None
 
-        # Also detect skill content by marker (for skills with "Base directory" header)
+        # Pattern 4: Detect skill content by "Base directory" marker
         if role == "user" and isinstance(content, list):
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
@@ -446,7 +470,7 @@ def annotate_skill_content(messages):
     return annotated
 
 
-def extract_session_title(messages, max_chars=80):
+def extract_session_title(messages, max_chars=50):
     """Extract a meaningful title from session messages."""
     for msg in messages:
         role = msg.get("message", {}).get("role", "")
