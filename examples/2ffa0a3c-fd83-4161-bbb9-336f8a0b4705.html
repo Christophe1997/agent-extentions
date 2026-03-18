@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export the current Claude Code session transcri...</title>
+    <style>:root {
+    /* Solarized Light palette */
+    --base03:  #002b36;
+    --base02:  #073642;
+    --base01:  #586e75;
+    --base00:  #657b83;
+    --base0:   #839496;
+    --base1:   #93a1a1;
+    --base2:   #eee8d5;
+    --base3:   #fdf6e3;
+    --yellow:  #b58900;
+    --orange:  #cb4b16;
+    --red:     #dc322f;
+    --magenta: #d33682;
+    --violet:  #6c71c4;
+    --blue:    #268bd2;
+    --cyan:    #2aa198;
+    --green:   #859900;
+
+    --bg:         var(--base3);
+    --bg-alt:     var(--base2);
+    --fg:         var(--base00);
+    --fg-dim:     var(--base1);
+    --fg-emph:    var(--base01);
+    --accent:     var(--blue);
+    --border:     var(--base1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    padding: 16px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 820px;
+    margin: 0 auto;
+}
+
+h1 {
+    font-size: 1.4rem;
+    color: var(--fg-emph);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    margin-bottom: 24px;
+}
+
+.stats {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    margin-bottom: 20px;
+}
+
+/* --- Messages --- */
+.message {
+    margin-bottom: 14px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 14px;
+    background: rgba(0,0,0,0.03);
+    font-size: 0.82rem;
+}
+
+.role-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.78rem;
+}
+
+time {
+    color: var(--fg-dim);
+    font-size: 0.78rem;
+}
+
+.message-content {
+    padding: 12px 14px;
+}
+
+.message-content p { margin: 0 0 10px 0; }
+.message-content p:last-child { margin-bottom: 0; }
+
+/* User */
+.message.user {
+    background: var(--bg-alt);
+    border-left: 4px solid var(--accent);
+}
+.message.user .role-label { color: var(--accent); }
+
+/* Assistant */
+.message.assistant {
+    background: var(--bg);
+    border-left: 4px solid var(--fg-dim);
+    border: 1px solid var(--bg-alt);
+}
+.message.assistant .role-label { color: var(--fg-dim); }
+
+/* System (tool replies) */
+.message.tool-reply {
+    background: #fef9ec;
+    border-left: 4px solid var(--yellow);
+}
+.message.tool-reply .role-label { color: var(--yellow); }
+
+/* --- Thinking --- */
+.thinking {
+    background: #fef9ec;
+    border: 1px solid var(--yellow);
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 0.88rem;
+    color: var(--fg-dim);
+}
+.thinking summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--yellow);
+    user-select: none;
+}
+.thinking-body {
+    padding: 0 12px 10px 12px;
+}
+.thinking-body p { margin: 6px 0; }
+
+/* --- Skill Content (collapsed) --- */
+.skill-content {
+    background: #f0f4f8;
+    border: 1px solid var(--cyan);
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 0.88rem;
+}
+.skill-content summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cyan);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.skill-content summary::-webkit-details-marker { display: none; }
+.skill-content summary::before { content: '▶'; font-size: 0.7rem; }
+.skill-content[open] summary::before { content: '▼'; }
+.skill-body {
+    padding: 0 12px 10px 12px;
+    color: var(--fg);
+    border-top: 1px solid rgba(42, 161, 152, 0.2);
+    margin-top: 6px;
+    padding-top: 10px;
+}
+.skill-body p { margin: 6px 0; }
+
+/* --- Command Content (collapsed) --- */
+.command-content {
+    background: #f8f4fc;
+    border: 1px solid var(--violet);
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 0.88rem;
+}
+.command-content summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--violet);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.command-content summary::-webkit-details-marker { display: none; }
+.command-content summary::before { content: '▶'; font-size: 0.7rem; }
+.command-content[open] summary::before { content: '▼'; }
+
+/* --- Tool Use --- */
+.tool-use {
+    background: #f3eef8;
+    border: 1px solid var(--violet);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+}
+.tool-header {
+    font-weight: 600;
+    color: var(--violet);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+.tool-icon { font-size: 1rem; }
+.tool-description {
+    font-size: 0.85rem;
+    color: var(--fg-dim);
+    font-style: italic;
+    margin-bottom: 6px;
+}
+
+/* --- Tool Result --- */
+.tool-result {
+    background: #eef6ee;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+}
+.tool-result.tool-error {
+    background: #fdecec;
+}
+
+/* --- Code --- */
+pre {
+    background: var(--base02);
+    color: var(--base1);
+    padding: 10px 12px;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-size: 0.83rem;
+    line-height: 1.5;
+    margin: 6px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.88em;
+}
+pre code { background: none; padding: 0; }
+
+/* --- File Tool (Write/Edit) --- */
+.file-tool {
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin: 8px 0;
+}
+.write-tool {
+    background: linear-gradient(135deg, #eef6ee 0%, #f0f6ec 100%);
+    border: 1px solid var(--green);
+}
+.edit-tool {
+    background: linear-gradient(135deg, #fef5ec 0%, #fdeef0 100%);
+    border: 1px solid var(--orange);
+}
+.file-tool-header {
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+}
+.write-header { color: var(--green); }
+.edit-header { color: var(--orange); }
+.file-tool-path {
+    font-family: monospace;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+
+.edit-section { display: flex; margin: 3px 0; border-radius: 3px; overflow: hidden; }
+.edit-label { padding: 6px 10px; font-weight: bold; font-family: monospace; display: flex; align-items: flex-start; }
+.edit-old { background: #fdeef0; }
+.edit-old .edit-label { color: var(--red); background: #f8d6da; }
+.edit-new { background: #eef6ee; }
+.edit-new .edit-label { color: var(--green); background: #c8e6c8; }
+.edit-content { margin: 0; flex: 1; background: transparent; font-size: 0.83rem; }
+
+/* --- Truncatable / Collapsible --- */
+.truncatable { position: relative; }
+.truncatable.truncated .truncatable-content {
+    max-height: 200px;
+    overflow: hidden;
+}
+.truncatable.truncated::after {
+    content: '';
+    position: absolute;
+    bottom: 30px;
+    left: 0; right: 0;
+    height: 50px;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    pointer-events: none;
+}
+.expand-btn {
+    display: none;
+    width: 100%;
+    padding: 6px 14px;
+    margin-top: 3px;
+    background: rgba(0,0,0,0.04);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    color: var(--fg-dim);
+}
+.expand-btn:hover { background: rgba(0,0,0,0.08); }
+.truncatable.truncated .expand-btn,
+.truncatable.expanded .expand-btn { display: block; }
+
+/* Gradient overrides per parent bg */
+.message.user .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, var(--bg-alt)); }
+.tool-use .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #f3eef8); }
+.tool-result .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #eef6ee); }
+.message.tool-reply .truncatable.truncated::after { background: linear-gradient(to bottom, transparent, #fef9ec); }
+
+/* --- Responsive --- */
+@media (max-width: 600px) {
+    body { padding: 8px; }
+    .message { border-radius: 6px; }
+    .message-content { padding: 10px; }
+    pre { font-size: 0.78rem; padding: 8px; }
+}
+
+/* --- Pagination --- */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    margin: 24px 0;
+    padding: 16px;
+    background: var(--bg-alt);
+    border-radius: 8px;
+}
+.pagination a, .pagination span {
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: 500;
+}
+.pagination a {
+    background: var(--accent);
+    color: white;
+}
+.pagination a:hover {
+    opacity: 0.9;
+}
+.pagination span {
+    color: var(--fg-dim);
+}
+.pagination .page-info {
+    color: var(--fg);
+    font-size: 0.9rem;
+}
+</style>
+    <style>
+        .page { display: none; }
+        .page.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Export the current Claude Code session transcri...</h1>
+        <div class="stats">18 user messages · 4 assistant messages · 10 tool calls</div>
+        <div id="pagination-top"></div>
+        <div id="messages"><div class="message user" id="msg-2026-03-18T06-19-08-187Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-19-08-187Z" class="timestamp-link"><time datetime="2026-03-18T06:19:08.187Z" data-timestamp="2026-03-18T06:19:08.187Z">2026-03-18T06:19:08.187Z</time></a></div><div class="message-content"><div class="user-content"><code>/model</code></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-41-32-207Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-41-32-207Z" class="timestamp-link"><time datetime="2026-03-18T06:41:32.207Z" data-timestamp="2026-03-18T06:41:32.207Z">2026-03-18T06:41:32.207Z</time></a></div><div class="message-content"><div class="user-content"><code>/plugin</code></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-42-55-810Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-42-55-810Z" class="timestamp-link"><time datetime="2026-03-18T06:42:55.810Z" data-timestamp="2026-03-18T06:42:55.810Z">2026-03-18T06:42:55.810Z</time></a></div><div class="message-content"><div class="user-content"><code>/plugin</code></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-43-01-131Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-43-01-131Z" class="timestamp-link"><time datetime="2026-03-18T06:43:01.131Z" data-timestamp="2026-03-18T06:43:01.131Z">2026-03-18T06:43:01.131Z</time></a></div><div class="message-content"><div class="user-content"><code>/reload-plugins</code></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-43-23-833Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-43-23-833Z" class="timestamp-link"><time datetime="2026-03-18T06:43:23.833Z" data-timestamp="2026-03-18T06:43:23.833Z">2026-03-18T06:43:23.833Z</time></a></div><div class="message-content"><div class="user-content"><code>/plugin</code></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-43-26-994Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-43-26-994Z" class="timestamp-link"><time datetime="2026-03-18T06:43:26.994Z" data-timestamp="2026-03-18T06:43:26.994Z">2026-03-18T06:43:26.994Z</time></a></div><div class="message-content"><div class="user-content"><code>/reload-plugins</code></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-03-732Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-03-732Z" class="timestamp-link"><time datetime="2026-03-18T06:44:03.732Z" data-timestamp="2026-03-18T06:44:03.732Z">2026-03-18T06:44:03.732Z</time></a></div><div class="message-content"><div class="assistant-text"><p>No response requested.</p></div></div></div>
+<div class="message user" id="msg-2026-03-18T06-44-12-597Z"><div class="message-header"><span class="role-label">User</span><a href="#msg-2026-03-18T06-44-12-597Z" class="timestamp-link"><time datetime="2026-03-18T06:44:12.597Z" data-timestamp="2026-03-18T06:44:12.597Z">2026-03-18T06:44:12.597Z</time></a></div><div class="message-content"><details class="command-content"><summary>⚡ Command: /show-me-the-session:export</summary><div class="skill-body"><p>Export the current Claude Code session transcript to a single self-contained HTML file with a solarized-light theme, then open it in the browser.</p>
+<p>## CLI Options</p>
+<p>| Flag | Description |<br>|------|-------------|<br>| <code>pick</code> | Choose from recent sessions instead of auto-detecting |<br>| <code>-o, --output PATH</code> | Custom output path (file or directory for split mode) |<br>| <code>--split</code> | Split large sessions into multiple HTML files with index |<br>| <code>--page-size N</code> | Messages per page when splitting (default: 50) |</p>
+<p>## Process</p>
+<p>1. <strong>Parse arguments</strong>: Extract any flags from the user&#x27;s input:<br>   - Look for <code>-o</code> or <code>--output</code> followed by a path<br>   - Look for <code>--split</code> flag<br>   - Look for <code>--page-size</code> followed by a number<br>   - Check for <code>pick</code> keyword</p>
+<p>2. <strong>Determine the session file</strong>:</p>
+<p>If <code>pick</code> was specified:<br>   - Run the session lister script:<br>     <pre><code>     python3 &quot;/Users/shendonglai/code/agent-extentions/plugins/show-me-the-session/scripts/list-sessions.py&quot;<br>     </code></pre><br>   - Each output line is tab-separated: <code>date \t first-message \t session-id(short) \t /full/path</code><br>   - Use AskUserQuestion to present each session as <code>[date] session-id(short): first message…</code><br>   - From the chosen entry:<br>     - Take the last tab field as <code>SESSION_FILE</code> (full path)<br>     - Extract the full session ID from the filename: <code>SESSION_ID=$(basename &quot;$SESSION_FILE&quot; .jsonl)</code><br>     - Extract the project directory from the path (parent directory of the session file)</p>
+<p>Otherwise (default: auto-detect current session):<br>   - <strong>Locate the session file</strong>:<br>     <pre><code>     # Convert cwd to the project directory slug<br>     # e.g., /Users/user/code/myproject -&gt; -Users-user-code-myproject<br>     PROJECT_DIR=$(echo &quot;$CWD&quot; | sed &#x27;s|^/||; s|/|-|g&#x27; | sed &#x27;s|^|-|&#x27;)</p>
+<p># Try the session ID captured at session start (set by SessionStart hook)<br>     SESSION_ID=&quot;${SMTS_SESSION_ID:-}&quot;<br>     if [ -n &quot;$SESSION_ID&quot; ]; then<br>       SESSION_FILE=$(ls ~/.claude/projects/${PROJECT_DIR}/${SESSION_ID}.jsonl 2&gt;/dev/null | head -1)<br>     fi</p>
+<p># Fallback: most recently modified non-agent JSONL in the project directory<br>     if [ -z &quot;${SESSION_FILE:-}&quot; ]; then<br>       SESSION_FILE=$(ls -t ~/.claude/projects/${PROJECT_DIR}/*.jsonl 2&gt;/dev/null | grep -v &#x27;/agent-&#x27; | head -1)<br>     fi<br>     </code></pre></p>
+<p>3. <strong>Determine output path</strong>:</p>
+<p>If <code>-o</code> was specified:<br>   - Use the provided path</p>
+<p>Otherwise:<br>   - Default output directory: <code>docs/sessions/</code> (create if needed)<br>   - Default filename: <code>&lt;full-session-id&gt;.html</code> (or <code>&lt;full-session-id&gt;-pages/</code> for split mode)<br>   - The full session ID is the complete UUID (e.g., <code>12c5520e-5003-423a-b494-15eb204b4572</code>)<br>   - Ask user: &quot;Export session to <code>docs/sessions/&lt;full-session-id&gt;.html</code>? [Y/n]&quot;</p>
+<p>4. <strong>Check message count and suggest split for large sessions</strong>:</p>
+<p>Count messages in the session:<br>   <pre><code>   wc -l &quot;$SESSION_FILE&quot;<br>   </code></pre></p>
+<p>If message count &gt; 100 and <code>--split</code> was NOT specified:<br>   - Ask user: &quot;This session has X messages. Split into multiple pages for easier viewing? [y/N]&quot;<br>   - If yes, enable split mode</p>
+<p>5. <strong>Generate the HTML</strong>:</p>
+<p>For single HTML:<br>   <pre><code>   python3 &quot;/Users/shendonglai/code/agent-extentions/plugins/show-me-the-session/scripts/generate-html.py&quot; &quot;$SESSION_FILE&quot; -o &quot;$OUTPUT_PATH&quot;<br>   </code></pre></p>
+<p>For split HTML:<br>   <pre><code>   python3 &quot;/Users/shendonglai/code/agent-extentions/plugins/show-me-the-session/scripts/generate-html.py&quot; &quot;$SESSION_FILE&quot; -o &quot;$OUTPUT_DIR&quot; --split --page-size &quot;$PAGE_SIZE&quot;<br>   </code></pre></p>
+<p>6. <strong>Open in browser</strong>:<br>   <pre><code>   open &quot;$OUTPUT_PATH&quot;  # or open &quot;$OUTPUT_DIR/index.html&quot; for split mode<br>   </code></pre></p>
+<p>7. <strong>Report to user</strong>: Tell them the output path and that it&#x27;s been opened in their browser.</p>
+<p>## Important Notes</p>
+<p>- The generated HTML is fully self-contained (inline CSS + JS, no external dependencies)<br>- Uses the Solarized Light color scheme for comfortable reading<br>- All content blocks are rendered: user messages, assistant text, thinking (collapsible), tool calls, tool results<br>- Long content sections are truncatable with &quot;Show more&quot; buttons<br>- Split mode creates keyboard navigation (arrow keys) between pages<br>- Timestamps are converted to local time via JavaScript</p></div></details></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-20-518Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-20-518Z" class="timestamp-link"><time datetime="2026-03-18T06:44:20.518Z" data-timestamp="2026-03-18T06:44:20.518Z">2026-03-18T06:44:20.518Z</time></a></div><div class="message-content"><details class="thinking"><summary>Thinking</summary><div class="thinking-body"><p>The user wants to export the current Claude Code session transcript to HTML. Let me follow the process outlined in the skill.</p>
+<p>1. First, determine the session file using auto-detect (no <code>pick</code> flag specified)<br>2. Then determine output path<br>3. Check message count<br>4. Generate HTML<br>5. Open in browser</p>
+<p>Let me start by finding the session file.</p></div></details></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-23-170Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-23-170Z" class="timestamp-link"><time datetime="2026-03-18T06:44:23.170Z" data-timestamp="2026-03-18T06:44:23.170Z">2026-03-18T06:44:23.170Z</time></a></div><div class="message-content"><div class="tool-use bash-tool" data-tool-id="toolu_bdrk_017CRLP2oLZGGyMC7NFGrKfr"><div class="tool-header"><span class="tool-icon">$</span> Bash</div><div class="tool-description">Find current session file</div><div class="truncatable"><div class="truncatable-content"><pre class="bash-command">PROJECT_DIR=$(echo &quot;/Users/shendonglai/code/agent-extentions&quot; | sed &#x27;s|^/||; s|/|-|g&#x27; | sed &#x27;s|^|-|&#x27;)
+echo &quot;Project dir slug: $PROJECT_DIR&quot;
+SESSION_ID=&quot;${SMTS_SESSION_ID:-}&quot;
+echo &quot;Session ID from env: $SESSION_ID&quot;
+if [ -n &quot;$SESSION_ID&quot; ]; then
+  SESSION_FILE=$(ls ~/.claude/projects/${PROJECT_DIR}/${SESSION_ID}.jsonl 2&gt;/dev/null | head -1)
+  echo &quot;Session file from ID: $SESSION_FILE&quot;
+fi
+if [ -z &quot;${SESSION_FILE:-}&quot; ]; then
+  SESSION_FILE=$(ls -t ~/.claude/projects/${PROJECT_DIR}/*.jsonl 2&gt;/dev/null | grep -v &#x27;/agent-&#x27; | head -1)
+  echo &quot;Session file from fallback: $SESSION_FILE&quot;
+fi</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message tool-reply" id="msg-2026-03-18T06-44-24-242Z"><div class="message-header"><span class="role-label">Tool reply</span><a href="#msg-2026-03-18T06-44-24-242Z" class="timestamp-link"><time datetime="2026-03-18T06:44:24.242Z" data-timestamp="2026-03-18T06:44:24.242Z">2026-03-18T06:44:24.242Z</time></a></div><div class="message-content"><div class="tool-result"><div class="truncatable"><div class="truncatable-content"><pre>Project dir slug: -Users-shendonglai-code-agent-extentions
+Session ID from env: 
+Session file from fallback: /Users/shendonglai/.claude/projects/-Users-shendonglai-code-agent-extentions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.jsonl</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-30-796Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-30-796Z" class="timestamp-link"><time datetime="2026-03-18T06:44:30.796Z" data-timestamp="2026-03-18T06:44:30.796Z">2026-03-18T06:44:30.796Z</time></a></div><div class="message-content"><div class="tool-use bash-tool" data-tool-id="toolu_bdrk_01NWj7eAtgEiitaGhiraNxdu"><div class="tool-header"><span class="tool-icon">$</span> Bash</div><div class="tool-description">Count messages in session</div><div class="truncatable"><div class="truncatable-content"><pre class="bash-command">wc -l &quot;/Users/shendonglai/.claude/projects/-Users-shendonglai-code-agent-extentions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.jsonl&quot;</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message tool-reply" id="msg-2026-03-18T06-44-30-850Z"><div class="message-header"><span class="role-label">Tool reply</span><a href="#msg-2026-03-18T06-44-30-850Z" class="timestamp-link"><time datetime="2026-03-18T06:44:30.850Z" data-timestamp="2026-03-18T06:44:30.850Z">2026-03-18T06:44:30.850Z</time></a></div><div class="message-content"><div class="tool-result"><div class="truncatable"><div class="truncatable-content"><pre>      32 /Users/shendonglai/.claude/projects/-Users-shendonglai-code-agent-extentions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.jsonl</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-38-029Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-38-029Z" class="timestamp-link"><time datetime="2026-03-18T06:44:38.029Z" data-timestamp="2026-03-18T06:44:38.029Z">2026-03-18T06:44:38.029Z</time></a></div><div class="message-content"><div class="assistant-text"><p>32 messages — no need to split. Exporting to <code>docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html</code>.</p></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-40-057Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-40-057Z" class="timestamp-link"><time datetime="2026-03-18T06:44:40.057Z" data-timestamp="2026-03-18T06:44:40.057Z">2026-03-18T06:44:40.057Z</time></a></div><div class="message-content"><div class="tool-use" data-tool-id="toolu_bdrk_017A61uWKwxkfXnMfZ9JbjDD"><div class="tool-header">AskUserQuestion</div><div class="truncatable"><div class="truncatable-content"><pre>{
+  &quot;questions&quot;: [
+    {
+      &quot;question&quot;: &quot;Export session to `docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html`?&quot;,
+      &quot;header&quot;: &quot;Confirm export&quot;,
+      &quot;options&quot;: [
+        {
+          &quot;label&quot;: &quot;Yes&quot;,
+          &quot;description&quot;: &quot;Export to the default path&quot;
+        },
+        {
+          &quot;label&quot;: &quot;No&quot;,
+          &quot;description&quot;: &quot;Cancel the export&quot;
+        }
+      ],
+      &quot;multiSelect&quot;: false
+    }
+  ]
+}</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message tool-reply" id="msg-2026-03-18T06-44-42-763Z"><div class="message-header"><span class="role-label">Tool reply</span><a href="#msg-2026-03-18T06-44-42-763Z" class="timestamp-link"><time datetime="2026-03-18T06:44:42.763Z" data-timestamp="2026-03-18T06:44:42.763Z">2026-03-18T06:44:42.763Z</time></a></div><div class="message-content"><div class="tool-result"><div class="truncatable"><div class="truncatable-content"><pre>User has answered your questions: &quot;Export session to `docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html`?&quot;=&quot;Yes&quot;. You can now continue with the user&#x27;s answers in mind.</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-48-780Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-48-780Z" class="timestamp-link"><time datetime="2026-03-18T06:44:48.780Z" data-timestamp="2026-03-18T06:44:48.780Z">2026-03-18T06:44:48.780Z</time></a></div><div class="message-content"><div class="tool-use bash-tool" data-tool-id="toolu_bdrk_013bKvHEGovr6Ts13VhSuqLp"><div class="tool-header"><span class="tool-icon">$</span> Bash</div><div class="tool-description">Generate session HTML</div><div class="truncatable"><div class="truncatable-content"><pre class="bash-command">mkdir -p &quot;/Users/shendonglai/code/agent-extentions/docs/sessions&quot; &amp;&amp; python3 &quot;/Users/shendonglai/code/agent-extentions/plugins/show-me-the-session/scripts/generate-html.py&quot; &quot;/Users/shendonglai/.claude/projects/-Users-shendonglai-code-agent-extentions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.jsonl&quot; -o &quot;/Users/shendonglai/code/agent-extentions/docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html&quot;</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message tool-reply" id="msg-2026-03-18T06-44-49-019Z"><div class="message-header"><span class="role-label">Tool reply</span><a href="#msg-2026-03-18T06-44-49-019Z" class="timestamp-link"><time datetime="2026-03-18T06:44:49.019Z" data-timestamp="2026-03-18T06:44:49.019Z">2026-03-18T06:44:49.019Z</time></a></div><div class="message-content"><div class="tool-result"><div class="truncatable"><div class="truncatable-content"><pre>Generated: /Users/shendonglai/code/agent-extentions/docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-54-234Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-54-234Z" class="timestamp-link"><time datetime="2026-03-18T06:44:54.234Z" data-timestamp="2026-03-18T06:44:54.234Z">2026-03-18T06:44:54.234Z</time></a></div><div class="message-content"><div class="tool-use bash-tool" data-tool-id="toolu_bdrk_01NzkipcB26SsQQPuuSczpdd"><div class="tool-header"><span class="tool-icon">$</span> Bash</div><div class="tool-description">Open HTML in browser</div><div class="truncatable"><div class="truncatable-content"><pre class="bash-command">open &quot;/Users/shendonglai/code/agent-extentions/docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html&quot;</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message tool-reply" id="msg-2026-03-18T06-44-54-659Z"><div class="message-header"><span class="role-label">Tool reply</span><a href="#msg-2026-03-18T06-44-54-659Z" class="timestamp-link"><time datetime="2026-03-18T06:44:54.659Z" data-timestamp="2026-03-18T06:44:54.659Z">2026-03-18T06:44:54.659Z</time></a></div><div class="message-content"><div class="tool-result"><div class="truncatable"><div class="truncatable-content"><pre>(Bash completed with no output)</pre></div><button class="expand-btn">Show more</button></div></div></div></div>
+<div class="message assistant" id="msg-2026-03-18T06-44-58-939Z"><div class="message-header"><span class="role-label">Assistant</span><a href="#msg-2026-03-18T06-44-58-939Z" class="timestamp-link"><time datetime="2026-03-18T06:44:58.939Z" data-timestamp="2026-03-18T06:44:58.939Z">2026-03-18T06:44:58.939Z</time></a></div><div class="message-content"><div class="assistant-text"><p>Session exported and opened: <code>docs/sessions/2ffa0a3c-fd83-4161-bbb9-336f8a0b4705.html</code></p></div></div></div></div>
+        <div id="pagination-bottom"></div>
+    </div>
+    <script>// Timestamps: convert UTC to local
+document.querySelectorAll('time[data-timestamp]').forEach(function(el) {
+    var ts = el.getAttribute('data-timestamp');
+    var d = new Date(ts);
+    var now = new Date();
+    var time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) {
+        el.textContent = time;
+    } else {
+        el.textContent = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + time;
+    }
+});
+
+// Truncation - use event delegation for resilience against DOM changes
+function initTruncation() {
+    document.querySelectorAll('.truncatable').forEach(function(w) {
+        var c = w.querySelector('.truncatable-content');
+        var b = w.querySelector('.expand-btn');
+        if (c && c.scrollHeight > 250) {
+            w.classList.add('truncated');
+        }
+    });
+}
+
+// Event delegation for expand buttons (works after DOM changes)
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('expand-btn')) {
+        var w = e.target.closest('.truncatable');
+        if (w) {
+            if (w.classList.contains('truncated')) {
+                w.classList.remove('truncated');
+                w.classList.add('expanded');
+                e.target.textContent = 'Show less';
+            } else {
+                w.classList.remove('expanded');
+                w.classList.add('truncated');
+                e.target.textContent = 'Show more';
+            }
+        }
+    }
+});
+
+// Initialize truncation on load
+initTruncation();
+
+// Keyboard navigation for pagination
+document.addEventListener('keydown', function(e) {
+    var prev = document.querySelector('.pagination .prev');
+    var next = document.querySelector('.pagination .next');
+    if (e.key === 'ArrowLeft' && prev) prev.click();
+    if (e.key === 'ArrowRight' && next) next.click();
+});
+</script>
+    <script>
+        (function() {
+            var messages = document.querySelectorAll('.message');
+            var pageSize = 50;
+            var totalMessages = messages.length;
+            var totalPages = Math.ceil(totalMessages / pageSize);
+            var currentPage = 1;
+
+            if (totalPages <= 1) return;
+
+            // Wrap messages in page divs
+            var messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+
+            for (var p = 1; p <= totalPages; p++) {
+                var pageDiv = document.createElement('div');
+                pageDiv.className = 'page' + (p === 1 ? ' active' : '');
+                pageDiv.id = 'page-' + p;
+
+                var start = (p - 1) * pageSize;
+                var end = Math.min(start + pageSize, totalMessages);
+                for (var i = start; i < end; i++) {
+                    pageDiv.appendChild(messages[i].cloneNode(true));
+                }
+                messagesContainer.appendChild(pageDiv);
+            }
+
+            function renderPagination(containerId) {
+                var container = document.getElementById(containerId);
+                if (!container) return;
+
+                var html = '<div class="pagination">';
+                if (currentPage > 1) {
+                    html += '<a href="#" onclick="window.goToPage(' + (currentPage-1) + '); return false;">← Previous</a>';
+                } else {
+                    html += '<span>← Previous</span>';
+                }
+                html += '<span class="page-info">Page ' + currentPage + ' of ' + totalPages + '</span>';
+                if (currentPage < totalPages) {
+                    html += '<a href="#" onclick="window.goToPage(' + (currentPage+1) + '); return false;">Next →</a>';
+                } else {
+                    html += '<span>Next →</span>';
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            }
+
+            window.goToPage = function(page) {
+                if (page < 1 || page > totalPages) return;
+                currentPage = page;
+
+                // Hide all pages, show current
+                var pages = document.querySelectorAll('.page');
+                pages.forEach(function(p) { p.classList.remove('active'); });
+                var activePage = document.getElementById('page-' + page);
+                if (activePage) activePage.classList.add('active');
+
+                // Update pagination
+                renderPagination('pagination-top');
+                renderPagination('pagination-bottom');
+
+                // Re-initialize truncation for the new page
+                if (typeof initTruncation === 'function') {
+                    initTruncation();
+                }
+
+                // Scroll to top
+                window.scrollTo(0, 0);
+            };
+
+            // Initial render
+            renderPagination('pagination-top');
+            renderPagination('pagination-bottom');
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft' && currentPage > 1) {
+                    goToPage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < totalPages) {
+                    goToPage(currentPage + 1);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>
