@@ -4,11 +4,6 @@
 
 Export Claude Code session transcripts to solarized-light themed HTML with pagination support. It's inspired by [simonw/claude-code-transcripts](https://github.com/simonw/claude-code-transcripts).
 
-## Example
-
-<script src="https://gist.github.com/Christophe1997/88b22b223308c99d88d2a55c8536987e.js"></script>
-
-
 ## Features
 
 - **Auto session detection**: Automatically finds the current session by project path
