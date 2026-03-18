@@ -10,9 +10,7 @@ Supports:
 import argparse
 import html
 import json
-import os
 import re
-import sys
 from pathlib import Path
 
 
@@ -36,12 +34,12 @@ def _render(template: str, **kwargs) -> str:
 
 # --- HTML helpers ---
 
-def escape(text):
+def escape(text: str) -> str:
     """HTML-escape a string."""
     return html.escape(str(text)) if text else ""
 
 
-def simple_markdown(text):
+def simple_markdown(text: str) -> str:
     """Convert a subset of markdown to HTML: bold, italic, inline code, code blocks, links, paragraphs."""
     if not text:
         return ""
@@ -80,6 +78,21 @@ def simple_markdown(text):
             result.append(f"<p>{part.replace(chr(10), '<br>')}</p>")
     return "\n".join(result)
 
+
+def render_command_invocation(cmd_name: str, args: str = "") -> str:
+    """Render a built-in CLI command invocation (e.g. /model, /plugin install-x).
+
+    These commands have no text body — only <command-name>/<command-args> tags.
+    """
+    # TODO(human): implement this function
+    # Return an HTML string for a compact command card.
+    # cmd_name: the slash command string, e.g. "/plugin" or "/model"
+    # args: the command arguments string (may be empty)
+    #
+    # Suggested style: a slim pill/badge styled like an inline code block,
+    # distinct from user messages but not as heavy as a tool card.
+    # You can look at existing CSS classes in templates/style.css for reference.
+    return f'<div class="user-content"><code>{escape(cmd_name)}{" " + escape(args) if args else ""}</code></div>'
 
 def render_tool_use(block):
     """Render a tool_use content block."""
@@ -281,6 +294,8 @@ def render_message(msg):
     msg_type = msg.get("type", "")
     if msg_type == "file-history-snapshot":
         return ""
+    if msg.get("_skip"):
+        return ""
 
     message = msg.get("message", {})
     role = message.get("role", "")
@@ -296,8 +311,22 @@ def render_message(msg):
 
     if role == "user":
         if isinstance(content, str):
+            # Extract command name before stripping — tags are the only content for CLI commands
+            cmd_match = re.search(r"<command-name>(/[^<]+)</command-name>", content)
+            cmd_args_match = re.search(r"<command-args>(.*?)</command-args>", content, re.DOTALL)
             clean = strip_system_tags(content)
             if not clean:
+                if cmd_match:
+                    cmd_name = cmd_match.group(1).strip()
+                    cmd_args = cmd_args_match.group(1).strip() if cmd_args_match else ""
+                    body = render_command_invocation(cmd_name, cmd_args)
+                    if not body:
+                        return ""
+                    return (
+                        f'<div class="message user" id="msg-{ts_id}">'
+                        f'<div class="message-header"><span class="role-label">User</span>{time_html}</div>'
+                        f'<div class="message-content">{body}</div></div>'
+                    )
                 return ""
             # Check if this is skill content
             is_skill, skill_name = is_skill_content(clean)
@@ -418,6 +447,7 @@ def annotate_skill_content(messages):
     """
     annotated = []
     pending_skill_name = None
+    pending_cmd_msg = None
 
     for msg in messages:
         msg_copy = msg.copy()
@@ -437,13 +467,16 @@ def annotate_skill_content(messages):
                         break
 
         # Pattern 2: Check if this is a command invocation (string with <command-name>)
-        # The NEXT message will contain the command's skill content
+        # The NEXT message may contain the command's skill content.
         if role == "user" and isinstance(content, str) and "<command-name>" in content:
             match = re.search(r"<command-name>(/[^<]+)</command-name>", content)
             if match:
                 pending_skill_name = match.group(1)
+                pending_cmd_msg = msg_copy  # remember so we can retroactively skip it
 
         # Pattern 3: Check if this user message contains skill content following a launch
+        # Retroactively mark the triggering command message as _skip — the <details>
+        # block that renders here already shows the command name in its summary.
         if role == "user" and pending_skill_name and isinstance(content, list):
             has_text_block = any(
                 isinstance(b, dict) and b.get("type") == "text"
@@ -453,7 +486,10 @@ def annotate_skill_content(messages):
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "text":
                         block["_skill_name"] = pending_skill_name
+                if pending_cmd_msg is not None:
+                    pending_cmd_msg["_skip"] = True
                 pending_skill_name = None
+                pending_cmd_msg = None
 
         # Pattern 4: Detect skill content by "Base directory" marker
         if role == "user" and isinstance(content, list):
