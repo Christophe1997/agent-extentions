@@ -7,10 +7,7 @@ Agent extentions in Claude marketplace structure.
 | Plugin | Description |
 |--------|-------------|
 | [writing-hugo-blog](./plugins/writing-hugo-blog/README.md) | Create and review Hugo blog posts in Chinese with proper front matter and AI content labeling |
-| [agent-design](./plugins/agent-design/README.md) | Guidelines for designing tools and action spaces for AI agents |
-| [redis-dev](./plugins/redis-dev/README.md) | Redis design patterns, best practices, and command references with MCP integration |
 | [llm-doc](./plugins/llm-doc/README.md) | Documentation standards for AI coding agents: AGENTS.md format and conventional commit messages |
-| [adk-go](./plugins/adk-go/README.md) | Build production-grade AI agents with Google's Agent Development Kit (ADK) for Go |
 | [show-me-the-session](./plugins/show-me-the-session/README.md) | Export Claude Code sessions as solarized-light HTML pages |
 
 ## Installation
@@ -25,10 +22,7 @@ Agent extentions in Claude marketplace structure.
 
 ```bash
 /plugin install writing-hugo-blog@agent-extentions
-/plugin install agent-design@agent-extentions
-/plugin install redis-dev@agent-extentions
 /plugin install llm-doc@agent-extentions
-/plugin install adk-go@agent-extentions
 /plugin install show-me-the-session@agent-extentions
 ```
 
