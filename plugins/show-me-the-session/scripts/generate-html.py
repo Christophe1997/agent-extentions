@@ -225,8 +225,43 @@ def strip_system_tags(text):
     return text.strip()
 
 
+def is_skill_content(text):
+    """Detect if text is expanded skill/command content loaded into context.
+
+    Skills are loaded with a header like:
+    'Base directory for this skill: /path/to/plugin/skills/skill-name'
+
+    Returns (is_skill, skill_name) tuple.
+    """
+    if not text:
+        return False, None
+
+    # Pattern: "Base directory for this skill: /path/plugin/skills/skill-name"
+    match = re.search(r"Base directory for this skill:.*?/skills/([^/\s]+)", text)
+    if match:
+        return True, match.group(1)
+
+    return False, None
+
+
+def render_skill_content(text, skill_name):
+    """Render skill content as a collapsible details block."""
+    # Remove the "Base directory" line for cleaner display
+    clean_text = re.sub(r"Base directory for this skill:.*?\n", "", text, count=1)
+    content_html = simple_markdown(clean_text)
+    return (
+        f'<details class="skill-content">'
+        f'<summary>📚 Skill: {escape(skill_name)}</summary>'
+        f'<div class="skill-body">{content_html}</div>'
+        f'</details>'
+    )
+
+
 def render_message(msg):
-    """Render a single JSONL message line to HTML."""
+    """Render a single JSONL message line to HTML.
+
+    Messages may have _skill_name annotation from preprocessing.
+    """
     msg_type = msg.get("type", "")
     if msg_type == "file-history-snapshot":
         return ""
@@ -248,7 +283,12 @@ def render_message(msg):
             clean = strip_system_tags(content)
             if not clean:
                 return ""
-            body = f'<div class="user-content">{simple_markdown(clean)}</div>'
+            # Check if this is skill content
+            is_skill, skill_name = is_skill_content(clean)
+            if is_skill:
+                body = render_skill_content(clean, skill_name)
+            else:
+                body = f'<div class="user-content">{simple_markdown(clean)}</div>'
         elif isinstance(content, list):
             parts = []
             for block in content:
@@ -256,9 +296,18 @@ def render_message(msg):
                 if btype == "tool_result":
                     parts.append(render_tool_result(block))
                 elif btype == "text":
-                    clean = strip_system_tags(block.get("text", ""))
+                    text = block.get("text", "")
+                    clean = strip_system_tags(text)
                     if clean:
-                        parts.append(f'<div class="user-content">{simple_markdown(clean)}</div>')
+                        # Check for skill annotation or marker
+                        skill_name = block.get("_skill_name")
+                        is_skill, detected_name = is_skill_content(clean)
+                        if skill_name:
+                            parts.append(render_skill_content(clean, skill_name))
+                        elif is_skill:
+                            parts.append(render_skill_content(clean, detected_name))
+                        else:
+                            parts.append(f'<div class="user-content">{simple_markdown(clean)}</div>')
             if not parts:
                 return ""
             body = "\n".join(parts)
@@ -341,23 +390,99 @@ def compute_stats(messages):
     return user_msgs, assistant_msgs, tool_calls
 
 
-def extract_session_title(messages):
+def annotate_skill_content(messages):
+    """Preprocess messages to annotate skill content blocks.
+
+    Detects skill content that follows "Launching skill:" tool results
+    and adds _skill_name metadata to those blocks.
+
+    Returns a new list of annotated messages.
+    """
+    annotated = []
+    pending_skill_name = None
+
+    for msg in messages:
+        msg_copy = msg.copy()
+        message = msg_copy.get("message", {})
+        role = message.get("role", "")
+        content = message.get("content", "")
+
+        # Check if this is a tool_result with "Launching skill:"
+        if role == "user" and isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    result_content = block.get("content", "")
+                    if isinstance(result_content, str) and "Launching skill:" in result_content:
+                        # Extract skill name from "Launching skill: plugin-name:skill-name"
+                        match = re.search(r"Launching skill: (\S+)", result_content)
+                        if match:
+                            pending_skill_name = match.group(1)
+                        break
+
+        # Check if this user message contains skill content (text blocks following a skill launch)
+        if role == "user" and pending_skill_name and isinstance(content, list):
+            has_text_block = any(
+                isinstance(b, dict) and b.get("type") == "text"
+                for b in content
+            )
+            if has_text_block:
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        block["_skill_name"] = pending_skill_name
+                pending_skill_name = None
+
+        # Also detect skill content by marker (for skills with "Base directory" header)
+        if role == "user" and isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text", "")
+                    if "Base directory for this skill:" in text:
+                        match = re.search(r"Base directory for this skill:.*?/skills/([^/\s]+)", text)
+                        if match:
+                            block["_skill_name"] = match.group(1)
+
+        annotated.append(msg_copy)
+
+    return annotated
+
+
+def extract_session_title(messages, max_chars=80):
     """Extract a meaningful title from session messages."""
     for msg in messages:
         role = msg.get("message", {}).get("role", "")
         content = msg.get("message", {}).get("content", "")
-        if role == "user" and isinstance(content, str):
+        if role != "user":
+            continue
+
+        # Handle string content
+        if isinstance(content, str):
             clean = strip_system_tags(content)
-            if clean and len(clean) > 3 and not clean.startswith("/"):
-                # Take the first line of the cleaned prompt as title, truncated to 80 chars
-                first_line = clean.splitlines()[0]
-                return (first_line[:77] + "...") if len(first_line) > 80 else first_line
+            if clean and len(clean) > 3:
+                # Flatten to single line by replacing newlines with spaces
+                single_line = " ".join(clean.split())
+                return (single_line[:max_chars-3] + "...") if len(single_line) > max_chars else single_line
+
+        # Handle list content (e.g., [{type: "text", text: "..."}])
+        elif isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text", "")
+                    clean = strip_system_tags(text)
+                    if clean and len(clean) > 3:
+                        # Flatten to single line by replacing newlines with spaces
+                        single_line = " ".join(clean.split())
+                        return (single_line[:max_chars-3] + "...") if len(single_line) > max_chars else single_line
+
     return "Claude Code Session"
 
 
-def generate_html(filepath, output_path):
-    """Generate a single HTML file from a JSONL session."""
+def generate_html(filepath, output_path, page_size=50):
+    """Generate a single HTML file from a JSONL session.
+
+    For sessions with many messages, includes JavaScript-based pagination.
+    """
     messages = parse_jsonl(filepath)
+    messages = annotate_skill_content(messages)
     user_msgs, assistant_msgs, tool_calls = compute_stats(messages)
 
     rendered = [h for msg in messages if (h := render_message(msg))]
@@ -365,7 +490,7 @@ def generate_html(filepath, output_path):
     stats = f"{user_msgs} user messages · {assistant_msgs} assistant messages · {tool_calls} tool calls"
     title = escape(extract_session_title(messages))
 
-    page = _render(_PAGE_TMPL, TITLE=title, STATS=stats, BODY=body, CSS=_CSS, JS=_JS)
+    page = _render(_PAGE_TMPL, TITLE=title, STATS=stats, BODY=body, CSS=_CSS, JS=_JS, PAGE_SIZE=str(page_size))
     Path(output_path).write_text(page, encoding="utf-8")
     return output_path
 
@@ -380,6 +505,7 @@ def generate_split_html(filepath, output_dir, page_size=50):
     Returns the path to index.html.
     """
     messages = parse_jsonl(filepath)
+    messages = annotate_skill_content(messages)
     user_msgs, assistant_msgs, tool_calls = compute_stats(messages)
     title = escape(extract_session_title(messages))
     stats = f"{user_msgs} user messages · {assistant_msgs} assistant messages · {tool_calls} tool calls"
@@ -477,5 +603,5 @@ if __name__ == "__main__":
         print(f"Generated split HTML: {result}")
         print(f"Total pages directory: {output_path}")
     else:
-        result = generate_html(args.session_file, output_path)
+        result = generate_html(args.session_file, output_path, args.page_size)
         print(f"Generated: {result}")

@@ -11,25 +11,37 @@ document.querySelectorAll('time[data-timestamp]').forEach(function(el) {
     }
 });
 
-// Truncation
-document.querySelectorAll('.truncatable').forEach(function(w) {
-    var c = w.querySelector('.truncatable-content');
-    var b = w.querySelector('.expand-btn');
-    if (c.scrollHeight > 250) {
-        w.classList.add('truncated');
-        b.addEventListener('click', function() {
+// Truncation - use event delegation for resilience against DOM changes
+function initTruncation() {
+    document.querySelectorAll('.truncatable').forEach(function(w) {
+        var c = w.querySelector('.truncatable-content');
+        var b = w.querySelector('.expand-btn');
+        if (c && c.scrollHeight > 250) {
+            w.classList.add('truncated');
+        }
+    });
+}
+
+// Event delegation for expand buttons (works after DOM changes)
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('expand-btn')) {
+        var w = e.target.closest('.truncatable');
+        if (w) {
             if (w.classList.contains('truncated')) {
                 w.classList.remove('truncated');
                 w.classList.add('expanded');
-                b.textContent = 'Show less';
+                e.target.textContent = 'Show less';
             } else {
                 w.classList.remove('expanded');
                 w.classList.add('truncated');
-                b.textContent = 'Show more';
+                e.target.textContent = 'Show more';
             }
-        });
+        }
     }
 });
+
+// Initialize truncation on load
+initTruncation();
 
 // Keyboard navigation for pagination
 document.addEventListener('keydown', function(e) {

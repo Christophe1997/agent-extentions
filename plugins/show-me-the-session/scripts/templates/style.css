@@ -137,6 +137,38 @@ time {
 }
 .thinking-body p { margin: 6px 0; }
 
+/* --- Skill Content (collapsed) --- */
+.skill-content {
+    background: #f0f4f8;
+    border: 1px solid var(--cyan);
+    border-radius: 6px;
+    margin: 8px 0;
+    font-size: 0.88rem;
+}
+.skill-content summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--cyan);
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.skill-content summary::-webkit-details-marker { display: none; }
+.skill-content summary::before { content: '▶'; font-size: 0.7rem; }
+.skill-content[open] summary::before { content: '▼'; }
+.skill-body {
+    padding: 0 12px 10px 12px;
+    color: var(--fg);
+    border-top: 1px solid rgba(42, 161, 152, 0.2);
+    margin-top: 6px;
+    padding-top: 10px;
+}
+.skill-body p { margin: 6px 0; }
+
 /* --- Tool Use --- */
 .tool-use {
     background: #f3eef8;

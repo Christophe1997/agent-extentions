@@ -5,13 +5,103 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{TITLE}}</title>
     <style>{{CSS}}</style>
+    <style>
+        .page { display: none; }
+        .page.active { display: block; }
+    </style>
 </head>
 <body>
     <div class="container">
         <h1>{{TITLE}}</h1>
         <div class="stats">{{STATS}}</div>
-        {{BODY}}
+        <div id="pagination-top"></div>
+        <div id="messages">{{BODY}}</div>
+        <div id="pagination-bottom"></div>
     </div>
     <script>{{JS}}</script>
+    <script>
+        (function() {
+            var messages = document.querySelectorAll('.message');
+            var pageSize = {{PAGE_SIZE}};
+            var totalMessages = messages.length;
+            var totalPages = Math.ceil(totalMessages / pageSize);
+            var currentPage = 1;
+
+            if (totalPages <= 1) return;
+
+            // Wrap messages in page divs
+            var messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+
+            for (var p = 1; p <= totalPages; p++) {
+                var pageDiv = document.createElement('div');
+                pageDiv.className = 'page' + (p === 1 ? ' active' : '');
+                pageDiv.id = 'page-' + p;
+
+                var start = (p - 1) * pageSize;
+                var end = Math.min(start + pageSize, totalMessages);
+                for (var i = start; i < end; i++) {
+                    pageDiv.appendChild(messages[i].cloneNode(true));
+                }
+                messagesContainer.appendChild(pageDiv);
+            }
+
+            function renderPagination(containerId) {
+                var container = document.getElementById(containerId);
+                if (!container) return;
+
+                var html = '<div class="pagination">';
+                if (currentPage > 1) {
+                    html += '<a href="#" onclick="window.goToPage(' + (currentPage-1) + '); return false;">← Previous</a>';
+                } else {
+                    html += '<span>← Previous</span>';
+                }
+                html += '<span class="page-info">Page ' + currentPage + ' of ' + totalPages + '</span>';
+                if (currentPage < totalPages) {
+                    html += '<a href="#" onclick="window.goToPage(' + (currentPage+1) + '); return false;">Next →</a>';
+                } else {
+                    html += '<span>Next →</span>';
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            }
+
+            window.goToPage = function(page) {
+                if (page < 1 || page > totalPages) return;
+                currentPage = page;
+
+                // Hide all pages, show current
+                var pages = document.querySelectorAll('.page');
+                pages.forEach(function(p) { p.classList.remove('active'); });
+                var activePage = document.getElementById('page-' + page);
+                if (activePage) activePage.classList.add('active');
+
+                // Update pagination
+                renderPagination('pagination-top');
+                renderPagination('pagination-bottom');
+
+                // Re-initialize truncation for the new page
+                if (typeof initTruncation === 'function') {
+                    initTruncation();
+                }
+
+                // Scroll to top
+                window.scrollTo(0, 0);
+            };
+
+            // Initial render
+            renderPagination('pagination-top');
+            renderPagination('pagination-bottom');
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowLeft' && currentPage > 1) {
+                    goToPage(currentPage - 1);
+                } else if (e.key === 'ArrowRight' && currentPage < totalPages) {
+                    goToPage(currentPage + 1);
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

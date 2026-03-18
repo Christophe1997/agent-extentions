@@ -31,9 +31,12 @@ Export the current Claude Code session transcript to a single self-contained HTM
      ```bash
      python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py"
      ```
-   - Each output line is tab-separated: `date \t project-slug \t first-message \t /full/path`
-   - Use AskUserQuestion to present each session as `[date] project: first message…`
-   - From the chosen entry take the last tab field as `SESSION_FILE` and the second field as `PROJECT_DIR`
+   - Each output line is tab-separated: `date \t first-message \t session-id(short) \t /full/path`
+   - Use AskUserQuestion to present each session as `[date] session-id(short): first message…`
+   - From the chosen entry:
+     - Take the last tab field as `SESSION_FILE` (full path)
+     - Extract the full session ID from the filename: `SESSION_ID=$(basename "$SESSION_FILE" .jsonl)`
+     - Extract the project directory from the path (parent directory of the session file)
 
    Otherwise (default: auto-detect current session):
    - **Locate the session file**:
@@ -61,8 +64,9 @@ Export the current Claude Code session transcript to a single self-contained HTM
 
    Otherwise:
    - Default output directory: `docs/sessions/` (create if needed)
-   - Default filename: `<session-id>.html` (or `<session-id>-pages/` for split mode)
-   - Ask user: "Export session to `docs/sessions/<session-id>.html`? [Y/n]"
+   - Default filename: `<full-session-id>.html` (or `<full-session-id>-pages/` for split mode)
+   - The full session ID is the complete UUID (e.g., `12c5520e-5003-423a-b494-15eb204b4572`)
+   - Ask user: "Export session to `docs/sessions/<full-session-id>.html`? [Y/n]"
 
 4. **Check message count and suggest split for large sessions**:
 

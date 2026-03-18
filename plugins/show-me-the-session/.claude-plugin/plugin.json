@@ -1,6 +1,6 @@
 {
   "name": "show-me-the-session",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Export Claude Code session transcripts to solarized-light HTML with pagination support. Features: auto session detection, split output for large sessions, configurable page size.",
   "author": {
     "name": "shendonglai"
