@@ -12,11 +12,9 @@ See a [simple example transcripts](https://christophe1997.github.io/agent-extent
 
 - **Auto session detection**: Automatically finds the current session by project path
 - **Split output**: Large sessions can be split into multiple HTML pages with navigation
-- **Configurable page size**: Control how many messages per page
 - **Self-contained HTML**: All CSS/JS inline, no external dependencies
 - **Solarized Light theme**: Comfortable reading with the classic color scheme
 - **Rich content rendering**: User messages, assistant text, thinking blocks, tool calls, tool results
-- **Collapsible sections**: Long content is truncatable with "Show more" buttons
 - **Keyboard navigation**: Arrow keys navigate between pages in split mode
 
 ## Usage

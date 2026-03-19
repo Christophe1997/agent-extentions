@@ -10,6 +10,6 @@ session_id=$(echo "$input" | jq -r '.session_id // empty')
 project_dir=$(echo "$input" | jq -r '.cwd // empty')
 
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  [ -n "$session_id" ] && printf 'export SMTS_SESSION_ID=%q\n' "$session_id" >> "$CLAUDE_ENV_FILE"
-  [ -n "$project_dir" ] && printf 'export SMTS_PROJECT_DIR=%q\n' "$project_dir" >> "$CLAUDE_ENV_FILE"
+  [ -n "$session_id" ] && echo "export SMTS_SESSION_ID='$session_id'" >> "$CLAUDE_ENV_FILE"
+  [ -n "$project_dir" ] && echo "export SMTS_PROJECT_DIR='$project_dir'" >> "$CLAUDE_ENV_FILE"
 fi
