@@ -7,7 +7,9 @@ set -euo pipefail
 
 input=$(cat)
 session_id=$(echo "$input" | jq -r '.session_id // empty')
+project_dir=$(echo "$input" | jq -r '.cwd // empty')
 
-if [ -n "$session_id" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  echo "export SMTS_SESSION_ID='$session_id'" >> "$CLAUDE_ENV_FILE"
+if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  [ -n "$session_id" ] && printf 'export SMTS_SESSION_ID=%q\n' "$session_id" >> "$CLAUDE_ENV_FILE"
+  [ -n "$project_dir" ] && printf 'export SMTS_PROJECT_DIR=%q\n' "$project_dir" >> "$CLAUDE_ENV_FILE"
 fi

@@ -1,5 +1,5 @@
 {
-  "description": "Capture session ID at session start for use by the export command",
+  "description": "Capture session ID and project directory at session start for use by the export command",
   "hooks": {
     "SessionStart": [
       {

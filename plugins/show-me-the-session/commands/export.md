@@ -29,7 +29,7 @@ Export the current Claude Code session transcript to a single self-contained HTM
    If `pick` was specified:
    - Run the session lister script scoped to the current project, showing the last 5 sessions:
      ```bash
-     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py" --project "$CWD" --limit 5
+     python3 "${CLAUDE_PLUGIN_ROOT}/scripts/list-sessions.py" --project "${SMTS_PROJECT_DIR:-$(pwd)}" --limit 5
      ```
    - Each output line is tab-separated: `date \t first-message \t session-id(short) \t /full/path`
    - Use AskUserQuestion to present each session as `[date] session-id(short): first message…`
@@ -43,7 +43,7 @@ Export the current Claude Code session transcript to a single self-contained HTM
      ```bash
      # Convert cwd to the project directory slug
      # e.g., /Users/user/code/myproject -> -Users-user-code-myproject
-     PROJECT_DIR=$(echo "$CWD" | sed 's|^/||; s|/|-|g' | sed 's|^|-|')
+     PROJECT_DIR=$(echo "${SMTS_PROJECT_DIR:-$(pwd)}" | sed 's|^/||; s|/|-|g' | sed 's|^|-|')
 
      # Try the session ID captured at session start (set by SessionStart hook)
      SESSION_ID="${SMTS_SESSION_ID:-}"
