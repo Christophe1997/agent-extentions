@@ -207,7 +207,11 @@ def render_content_blocks(blocks):
     for block in blocks:
         btype = block.get("type", "")
         if btype == "thinking":
-            thinking_html = simple_markdown(block.get("thinking", ""))
+            thinking_text = block.get("thinking", "")
+            if not thinking_text or not thinking_text.strip():
+                thinking_html = "<p><em>empty</em></p>"
+            else:
+                thinking_html = simple_markdown(thinking_text)
             parts.append(
                 f'<details class="thinking">'
                 f'<summary>Thinking</summary>'
