@@ -43,6 +43,17 @@
       },
       "category": "developer-tools",
       "keywords": ["session", "export", "html", "transcript", "solarized"]
+    },
+    {
+      "name": "permission-notification",
+      "source": "./plugins/permission-notification",
+      "description": "macOS notifications when Claude Code needs permission to execute commands. Shows the command being requested.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Claude Code User"
+      },
+      "category": "productivity",
+      "keywords": ["notification", "permission", "macos", "alert"]
     }
   ]
 }

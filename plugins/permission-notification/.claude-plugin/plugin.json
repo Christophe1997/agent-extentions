@@ -1,0 +1,8 @@
+{
+  "name": "permission-notification",
+  "version": "0.1.0",
+  "description": "Sends macOS notifications when Claude Code needs permission to execute commands",
+  "author": {
+    "name": "Claude Code User"
+  }
+}
