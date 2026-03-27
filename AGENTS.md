@@ -78,6 +78,18 @@ plugin-name/
 
 See [docs/agents/command-patterns.md](docs/agents/command-patterns.md) for command details.
 
+## Plugin README Structure
+
+All plugin READMEs follow this unified structure:
+
+1. **Features** - List what's included (Commands, Skills, Hooks, MCP, Agents as tables)
+2. **Examples** - Code samples (optional)
+3. **Installation** - Requirements + `/plugin install ${plugin-name}@agent-extentions`
+4. **Usage** - How to use the plugin
+5. **License** - MIT
+
+See [docs/agents/readme-template.md](docs/agents/readme-template.md) for the full template.
+
 ## Validation
 
 Before publishing, verify:
@@ -85,5 +97,5 @@ Before publishing, verify:
 - [ ] `version` field in related `plugin.json`, `marketplace.json` have updated correctly for changes
 - [ ] Skills have clear trigger phrases in description
 - [ ] Agents have "When to Use" section with examples
-- [ ] README documents any required configuration
+- [ ] README follows unified structure (Features, Examples, Installation, Usage, License)
 - [ ] MCP plugins document environment variables
