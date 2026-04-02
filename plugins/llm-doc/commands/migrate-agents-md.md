@@ -95,12 +95,46 @@ Detect and migrate from common agent documentation files:
    - Verify file is compact (under 100 lines)
 
 9. **Handle original file**:
-   - Ask user: "Should I create a symlink from the original file to AGENTS.md?"
-   - If yes: `ln -sf AGENTS.md <original-file>`
-   - If no: Ask if user wants to delete or keep original
+
+   Call AskUserQuestion:
+   ```json
+   {
+     "questions": [{
+       "question": "What should I do with the original source file?",
+       "header": "Original file",
+       "options": [
+         {"label": "Create symlink", "description": "Run ln -sf AGENTS.md <original-file> so it points to the new AGENTS.md."},
+         {"label": "Keep as-is", "description": "Leave the original file unchanged alongside AGENTS.md."},
+         {"label": "Delete original", "description": "Remove the original file after migration is complete."}
+       ]
+     }]
+   }
+   ```
+
+   - "Create symlink" → `ln -sf AGENTS.md <original-file>`
+   - "Keep as-is" → no action
+   - "Delete original" → `rm <original-file>`
 
 10. **Ask about additional symlinks**:
-    "Would you like me to create symlinks for other AI agents? (CLAUDE.md, .cursorrules, .windsurfrules)"
+
+    Call AskUserQuestion:
+    ```json
+    {
+      "questions": [{
+        "question": "Would you like me to create symlinks for other AI agents?",
+        "header": "Symlinks",
+        "options": [
+          {"label": "No symlinks", "description": "Keep AGENTS.md as the only file."},
+          {"label": "Create CLAUDE.md", "description": "Symlink CLAUDE.md → AGENTS.md for Claude Code compatibility."},
+          {"label": "Create all symlinks", "description": "Create CLAUDE.md, .cursorrules, and .windsurfrules all pointing to AGENTS.md."}
+        ]
+      }]
+    }
+    ```
+
+    - "No symlinks" → Done
+    - "Create CLAUDE.md" → `ln -sf AGENTS.md CLAUDE.md`
+    - "Create all symlinks" → `ln -sf AGENTS.md CLAUDE.md && ln -sf AGENTS.md .cursorrules && ln -sf AGENTS.md .windsurfrules`
 
 ## Content Mapping
 

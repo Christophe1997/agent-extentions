@@ -72,7 +72,25 @@ Load both skills for comprehensive context:
    - Generated AGENTS.md exceeds 80 lines
 
 8. **Ask about symlinks** (from skill best practices):
-   "Would you like me to create symlinks for other AI agents? (CLAUDE.md, .cursorrules, .windsurfrules)"
+
+   Call AskUserQuestion:
+   ```json
+   {
+     "questions": [{
+       "question": "Would you like me to create symlinks for other AI agents?",
+       "header": "Symlinks",
+       "options": [
+         {"label": "No symlinks", "description": "Keep AGENTS.md as the only file."},
+         {"label": "Create CLAUDE.md", "description": "Symlink CLAUDE.md → AGENTS.md for Claude Code compatibility."},
+         {"label": "Create all symlinks", "description": "Create CLAUDE.md, .cursorrules, and .windsurfrules all pointing to AGENTS.md."}
+       ]
+     }]
+   }
+   ```
+
+   - "No symlinks" → Done
+   - "Create CLAUDE.md" → Run `ln -sf AGENTS.md CLAUDE.md`
+   - "Create all symlinks" → Run `ln -sf AGENTS.md CLAUDE.md && ln -sf AGENTS.md .cursorrules && ln -sf AGENTS.md .windsurfrules`
 
 ## Template Detection
 
