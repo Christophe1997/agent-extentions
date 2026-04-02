@@ -1,6 +1,7 @@
 ---
 name: commit
 description: Generate a commit message from staged changes and create the commit
+disable-model-invocation: true
 argument-hint: optional scope (e.g., "api", "ui", "docs")
 allowed-tools: [Bash, Read, AskUserQuestion, Skill]
 ---

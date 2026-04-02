@@ -1,6 +1,7 @@
 ---
 name: export
 description: Export the current Claude Code session as a solarized-light themed HTML page
+disable-model-invocation: true
 argument-hint: "[pick] [-o PATH] [--split] [--page-size N]"
 allowed-tools: [Bash, Read, Glob, AskUserQuestion]
 ---

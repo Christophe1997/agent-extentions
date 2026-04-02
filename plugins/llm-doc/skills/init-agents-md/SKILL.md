@@ -1,6 +1,7 @@
 ---
 name: init-agents-md
 description: Scaffold a compact AGENTS.md file with project-specific content. Defaults to simple single-file approach.
+disable-model-invocation: true
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---

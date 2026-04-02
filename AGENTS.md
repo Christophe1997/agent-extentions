@@ -73,6 +73,7 @@ plugin-name/
 - Use `${VAR:-default}` for env vars with defaults
 - Skills: lean body, use `references/` for details
 - Commands: include `Skill` in `allowed-tools` to load skill context
+- Commands: use `AskUserQuestion` for all interactive prompts — avoid plain-text "ask user" instructions
 - Agents: include "When to Use" section with example queries
 - Settings: add `.claude/*.local.md` to `.gitignore`
 

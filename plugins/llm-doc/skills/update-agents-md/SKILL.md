@@ -1,6 +1,7 @@
 ---
 name: update-agents-md
 description: Update existing AGENTS.md with current project changes. Keep it compact by default.
+disable-model-invocation: true
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---

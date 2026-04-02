@@ -1,6 +1,7 @@
 ---
 name: migrate-agents-md
 description: Migrate existing agent documentation (AGENT.md, .cursorrules, etc.) to compact AGENTS.md format
+disable-model-invocation: true
 argument-hint: optional source file path (auto-detects AGENT.md, .cursorrules, etc.)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---
