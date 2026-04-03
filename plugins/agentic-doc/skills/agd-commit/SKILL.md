@@ -1,5 +1,5 @@
 ---
-name: commit
+name: agd:commit
 description: Generate a commit message from staged changes and create the commit
 disable-model-invocation: true
 argument-hint: optional scope (e.g., "api", "ui", "docs")
@@ -16,7 +16,7 @@ Generate a Conventional Commits message from staged changes and create the commi
 
 First, load the `conventional-commits` skill to understand commit format and best practices:
 ```
-Use Skill tool with skill="llm-doc:conventional-commits"
+Use Skill tool with skill="agd:conventional-commits"
 ```
 
 This provides:

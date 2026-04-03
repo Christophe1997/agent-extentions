@@ -19,9 +19,10 @@ agent-extentions/
 ├── .claude-plugin/
 │   └── marketplace.json       # Central plugin registry
 ├── plugins/
-│   ├── writing-hugo-blog/     # Hugo blog post creator
-│   ├── llm-doc/               # AGENTS.md & commit message standards
-│   └── show-me-the-session/   # Session transcript HTML exporter
+│   ├── agentic-doc/           # AGENTS.md & commit message standards
+│   ├── review-blog/           # Chinese blog post style reviewer
+│   ├── show-me-the-session/   # Session transcript HTML exporter
+│   └── permission-notification/ # macOS permission notifications
 └── .claude/
     └── settings.local.json    # Local Claude settings
 ```

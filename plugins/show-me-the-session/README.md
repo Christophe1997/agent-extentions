@@ -6,7 +6,7 @@ Export Claude Code session transcripts to solarized-light themed HTML with pagin
 
 ## Features
 
-### SKills 
+### Skills
 
 | Skill | Description |
 |---------|-------------|

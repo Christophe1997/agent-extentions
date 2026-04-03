@@ -36,7 +36,7 @@ E-commerce platform built with Next.js, PostgreSQL, and Redis.
 - Colocate tests: `Component.test.tsx` next to `Component.tsx`
 
 ## PR instructions
-- Use Conventional Commits (reference llm-doc:conventional-commits skill for format)
+- Use Conventional Commits (reference agd:conventional-commits skill for format)
 - Run `pnpm lint && pnpm test` before pushing
 - Link issues: Fixes #123
 

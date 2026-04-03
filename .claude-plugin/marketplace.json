@@ -22,16 +22,16 @@
       "keywords": ["blog", "review", "chinese", "writing-style", "markdown"]
     },
     {
-      "name": "llm-doc",
-      "source": "./plugins/llm-doc",
-      "description": "Documentation standards for AI coding agents: AGENTS.md format and conventional commit messages",
-      "version": "0.5.0",
+      "name": "agentic-doc",
+      "source": "./plugins/agentic-doc",
+      "description": "Documentation standards for agentic programming: AGENTS.md lifecycle management and conventional commit messages.",
+      "version": "0.6.0",
       "author": {
         "name": "Christophe1997",
         "email": "hey_christophe@outlook.com"
       },
       "category": "developer-tools",
-      "keywords": ["agents.md", "ai", "documentation", "commit", "conventional-commits", "coding-agents"]
+      "keywords": ["agentic", "agents.md", "documentation", "commit", "conventional-commits"]
     },
     {
       "name": "show-me-the-session",

@@ -1,5 +1,5 @@
 ---
-name: agents-md
+name: agd:agents-md
 description: This skill should be used when the user asks to "create an AGENTS.md", "write AGENTS.md", "set up AGENTS.md", "what is AGENTS.md", "configure AI agent instructions", "migrate AGENT.md", "update AGENTS.md", or mentions AGENTS.md format. Provides guidance for creating and maintaining AGENTS.md files - a standardized format for AI coding agent context.
 ---
 
@@ -74,7 +74,7 @@ See docs/agents/testing.md for detailed guidelines.
 **Cross-skill references**: Use skill names instead of duplicating content from other domains:
 ```markdown
 ## PR instructions
-- Use Conventional Commits (see llm-doc:conventional-commits skill)
+- Use Conventional Commits (see agd:conventional-commits skill)
 ```
 
 ## Relative Path References for Subprojects
@@ -128,7 +128,7 @@ See ../../packages/shared/components/ for shared UI components.
 2. **Dev Environment Setup**: Essential commands
 3. **Testing Instructions**: How to run and write tests
 4. **Code Style Guidelines**: Conventions and patterns
-5. **PR/Commit Guidelines**: Reference `llm-doc:conventional-commits` skill
+5. **PR/Commit Guidelines**: Reference `agd:conventional-commits` skill
 6. **Security Considerations**: Critical security reminders
 
 See [examples/basic-agents-md.md](./examples/basic-agents-md.md) for a complete example.
@@ -139,9 +139,9 @@ See [examples/basic-agents-md.md](./examples/basic-agents-md.md) for a complete 
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/llm-doc:init-agents-md` | Create new from scratch | New project, no existing docs |
-| `/llm-doc:migrate-agents-md` | Convert from other format | Have AGENT.md, .cursorrules, etc. |
-| `/llm-doc:update-agents-md` | Update existing AGENTS.md | File exists but outdated |
+| `/agd:init-agents-md` | Create new from scratch | New project, no existing docs |
+| `/agd:migrate-agents-md` | Convert from other format | Have AGENT.md, .cursorrules, etc. |
+| `/agd:update-agents-md` | Update existing AGENTS.md | File exists but outdated |
 
 ### Decision Tree
 
@@ -178,7 +178,7 @@ See [references/agent-compatibility.md](./references/agent-compatibility.md) for
 ## Migration
 
 ### Automated
-Use `/llm-doc:migrate-agents-md [source-file]` to auto-detect and convert AGENT.md, .cursorrules, etc.
+Use `/agd:migrate-agents-md [source-file]` to auto-detect and convert AGENT.md, .cursorrules, etc.
 
 ### Manual
 ```bash

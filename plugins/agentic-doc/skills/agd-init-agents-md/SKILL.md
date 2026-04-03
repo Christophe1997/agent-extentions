@@ -1,5 +1,5 @@
 ---
-name: init-agents-md
+name: agd:init-agents-md
 description: "Scaffold a compact AGENTS.md file with project-specific content. Use when the user wants to create, set up, add, or generate an AGENTS.md for their project. Also triggers on 'set up agent docs', 'create AGENTS.md', 'add AGENTS.md', 'scaffold AGENTS.md'."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
@@ -13,13 +13,13 @@ Load both skills for comprehensive context:
 
 1. **AGENTS.md format** - Load `agents-md` skill:
    ```
-   Use Skill tool with skill="llm-doc:agents-md"
+   Use Skill tool with skill="agd:agents-md"
    ```
    Provides: sections, structure, best practices
 
 2. **Commit format** - Load `conventional-commits` skill (for PR/Commit Guidelines section):
    ```
-   Use Skill tool with skill="llm-doc:conventional-commits"
+   Use Skill tool with skill="agd:conventional-commits"
    ```
    Provides: Conventional Commits types, style rules, examples
 

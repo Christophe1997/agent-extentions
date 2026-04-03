@@ -1,5 +1,5 @@
 ---
-name: update-agents-md
+name: agd:update-agents-md
 description: "Update an existing AGENTS.md to reflect current project state. Use when the user says their AGENTS.md is outdated, stale, or needs refreshing. Also triggers on 'update AGENTS.md', 'refresh AGENTS.md', 'AGENTS.md is out of date', 'sync AGENTS.md with project'."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
@@ -11,7 +11,7 @@ Update an existing AGENTS.md file to reflect current project state. Default to k
 
 Load the agents-md skill for format guidance:
 ```
-Use Skill tool with skill="llm-doc:agents-md"
+Use Skill tool with skill="agd:agents-md"
 ```
 Provides: sections, structure, validation checklist, best practices
 

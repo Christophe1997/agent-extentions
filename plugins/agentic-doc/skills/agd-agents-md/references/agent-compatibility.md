@@ -119,7 +119,7 @@ fi
 
 ### Automated Migration
 
-Use the `/llm-doc:migrate-agents-md` command for automated migration from:
+Use the `/agd:migrate-agents-md` command for automated migration from:
 - AGENT.md
 - .cursorrules
 - .windsurfrules
