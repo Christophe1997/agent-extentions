@@ -1,7 +1,6 @@
 ---
 name: init-agents-md
-description: Scaffold a compact AGENTS.md file with project-specific content. Defaults to simple single-file approach.
-disable-model-invocation: true
+description: "Scaffold a compact AGENTS.md file with project-specific content. Use when the user wants to create, set up, add, or generate an AGENTS.md for their project. Also triggers on 'set up agent docs', 'create AGENTS.md', 'add AGENTS.md', 'scaffold AGENTS.md'."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---

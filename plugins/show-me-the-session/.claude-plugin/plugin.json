@@ -3,6 +3,7 @@
   "version": "0.8.0",
   "description": "Export Claude Code session transcripts to solarized-light HTML with pagination support. Features: auto session detection, split output for large sessions, configurable page size.",
   "author": {
-    "name": "Christophe1997"
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
   }
 }

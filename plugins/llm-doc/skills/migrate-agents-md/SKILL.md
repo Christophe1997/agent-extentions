@@ -1,7 +1,6 @@
 ---
 name: migrate-agents-md
-description: Migrate existing agent documentation (AGENT.md, .cursorrules, etc.) to compact AGENTS.md format
-disable-model-invocation: true
+description: "Migrate existing agent documentation to the standardized AGENTS.md format. Use when the user wants to convert, migrate, or port from AGENT.md, .cursorrules, .windsurfrules, CLAUDE.md, or contributing.md. Also triggers on 'convert .cursorrules to AGENTS.md', 'migrate agent docs', 'switch to AGENTS.md format'."
 argument-hint: optional source file path (auto-detects AGENT.md, .cursorrules, etc.)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---

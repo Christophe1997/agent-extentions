@@ -1,7 +1,6 @@
 ---
 name: update-agents-md
-description: Update existing AGENTS.md with current project changes. Keep it compact by default.
-disable-model-invocation: true
+description: "Update an existing AGENTS.md to reflect current project state. Use when the user says their AGENTS.md is outdated, stale, or needs refreshing. Also triggers on 'update AGENTS.md', 'refresh AGENTS.md', 'AGENTS.md is out of date', 'sync AGENTS.md with project'."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---
@@ -96,13 +95,13 @@ Trigger updates when:
    - Maintain consistent formatting
    - Ensure all commands are current and executable
 
-9. **Validate the updated file**:
+8. **Validate the updated file**:
    - Run validation checklist from skill
    - Test all commands are executable
    - Ensure no information lost
    - Verify file is under 100 lines
 
-10. **Report changes**:
+9. **Report changes**:
    Summarize what was updated:
    ```
    Updated AGENTS.md:

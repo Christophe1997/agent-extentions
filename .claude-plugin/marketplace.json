@@ -10,21 +10,21 @@
   },
   "plugins": [
     {
-      "name": "writing-hugo-blog",
-      "source": "./plugins/writing-hugo-blog",
-      "description": "Create Hugo blog posts in Chinese with proper front matter, formatting, and AI content labeling.",
-      "version": "1.0.2",
+      "name": "review-blog",
+      "source": "./plugins/review-blog",
+      "description": "Review Chinese blog posts for writing style, punctuation, and formatting issues.",
+      "version": "1.0.0",
       "author": {
         "name": "Christophe1997",
         "email": "hey_christophe@outlook.com"
       },
       "category": "content-creation",
-      "keywords": ["hugo", "blog", "writing", "chinese", "markdown"]
+      "keywords": ["blog", "review", "chinese", "writing-style", "markdown"]
     },
     {
       "name": "llm-doc",
       "source": "./plugins/llm-doc",
-      "description": "Documentation standards for AI coding agents: AGENTS.md format for project context and conventional commit messages for clear git history.",
+      "description": "Documentation standards for AI coding agents: AGENTS.md format and conventional commit messages",
       "version": "0.5.0",
       "author": {
         "name": "Christophe1997",
@@ -36,10 +36,11 @@
     {
       "name": "show-me-the-session",
       "source": "./plugins/show-me-the-session",
-      "description": "Export the current Claude Code session as a single solarized-light themed HTML page with conversation, tool calls, and thinking blocks.",
-      "version": "0.7.0",
+      "description": "Export Claude Code session transcripts to solarized-light HTML with pagination support. Features: auto session detection, split output for large sessions, configurable page size.",
+      "version": "0.8.0",
       "author": {
-        "name": "Christophe1997"
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
       },
       "category": "developer-tools",
       "keywords": ["session", "export", "html", "transcript", "solarized"]
@@ -47,10 +48,11 @@
     {
       "name": "permission-notification",
       "source": "./plugins/permission-notification",
-      "description": "macOS notifications when Claude Code needs permission to execute commands. Shows the command being requested.",
+      "description": "Sends macOS notifications when Claude Code needs permission to execute commands",
       "version": "0.1.0",
       "author": {
-        "name": "Claude Code User"
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
       },
       "category": "productivity",
       "keywords": ["notification", "permission", "macos", "alert"]

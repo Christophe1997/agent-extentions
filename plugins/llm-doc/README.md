@@ -6,17 +6,14 @@ Documentation standards for AI coding agents. Provides comprehensive tooling for
 
 ### Skills
 
-- **agents-md** - Guidance for creating and maintaining AGENTS.md files. Includes structure, sections, best practices, and symlink patterns for multi-agent compatibility.
-- **conventional-commits** - Generate compact, clear commit messages following Conventional Commits specification. No `Co-Authored-By` footer for AI agents.
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `/llm-doc:commit` | Generate commit message from staged changes and create the commit |
-| `/llm-doc:init-agents-md [path]` | Scaffold AGENTS.md by analyzing project configuration |
-| `/llm-doc:migrate-agents-md [source]` | Migrate AGENT.md, .cursorrules, .windsurfrules to AGENTS.md format |
-| `/llm-doc:update-agents-md [path]` | Update existing AGENTS.md to reflect current project state |
+| Skill | Description |
+|-------|-------------|
+| `agents-md` | Knowledge base for AGENTS.md format, structure, best practices, and multi-agent compatibility |
+| `conventional-commits` | Conventional Commits specification with AI-specific rules (no `Co-Authored-By`) |
+| `init-agents-md` | Scaffold AGENTS.md by analyzing project configuration |
+| `migrate-agents-md` | Migrate AGENT.md, .cursorrules, .windsurfrules to AGENTS.md format |
+| `update-agents-md` | Update existing AGENTS.md to reflect current project state |
+| `commit` | Generate commit message from staged changes and create the commit |
 
 ## Examples
 
