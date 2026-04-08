@@ -1,6 +1,6 @@
 ---
 name: agd:conventional-commits
-description: This skill should be used when the user asks to "write a commit message", "generate a commit", "help me commit", "create a commit message for", "commit these changes", or mentions commits format. Provides guidance for generating compact, clear commit messages following Conventional Commits specification.
+description: This skill should be used when the user asks about "commit message format", "conventional commits", "how to write a commit message", "commit style rules", "what commit type to use", or mentions commit message conventions. Provides guidance for generating compact, clear commit messages following the Conventional Commits specification.
 ---
 
 # Commit Messages

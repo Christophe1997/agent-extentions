@@ -1,7 +1,6 @@
 ---
 name: agd:commit
-description: Generate a commit message from staged changes and create the commit
-disable-model-invocation: true
+description: This skill should be used when the user asks to "commit these changes", "create a commit", "commit this", "make a commit", or when the agent has completed a task and has uncommitted changes ready to commit. Generates a Conventional Commits message from staged changes and creates the commit after human confirmation.
 argument-hint: optional scope (e.g., "api", "ui", "docs")
 allowed-tools: [Bash, Read, AskUserQuestion, Skill]
 ---
