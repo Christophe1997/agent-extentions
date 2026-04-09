@@ -68,6 +68,18 @@
       },
       "category": "developer-tools",
       "keywords": ["tdd", "testing", "red-green-refactor", "kent-beck", "test-driven-development", "patterns"]
+    },
+    {
+      "name": "a2a",
+      "source": "./plugins/a2a",
+      "description": "A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias. Supports blocking and background tasks, auth params, agent aliases, and session task tracking.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "developer-tools",
+      "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"]
     }
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "name": "a2a",
+  "version": "0.1.0",
+  "description": "A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias",
+  "author": {
+    "name": "Christophe1997"
+  },
+  "license": "MIT",
+  "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"]
+}
