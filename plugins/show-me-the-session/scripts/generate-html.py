@@ -84,14 +84,6 @@ def render_command_invocation(cmd_name: str, args: str = "") -> str:
 
     These commands have no text body — only <command-name>/<command-args> tags.
     """
-    # TODO(human): implement this function
-    # Return an HTML string for a compact command card.
-    # cmd_name: the slash command string, e.g. "/plugin" or "/model"
-    # args: the command arguments string (may be empty)
-    #
-    # Suggested style: a slim pill/badge styled like an inline code block,
-    # distinct from user messages but not as heavy as a tool card.
-    # You can look at existing CSS classes in templates/style.css for reference.
     return f'<div class="user-content"><code>{escape(cmd_name)}{" " + escape(args) if args else ""}</code></div>'
 
 def render_tool_use(block):

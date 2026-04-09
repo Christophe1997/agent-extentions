@@ -56,6 +56,18 @@
       },
       "category": "productivity",
       "keywords": ["notification", "permission", "macos", "alert"]
+    },
+    {
+      "name": "tdd",
+      "source": "./plugins/tdd",
+      "description": "Test-Driven Development guidance based on Kent Beck's 'Test Driven Development: By Example'. Provides the Red/Green/Refactor workflow, 40+ named TDD patterns, and autonomous test quality review.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Christophe1997",
+        "email": "hey_christophe@outlook.com"
+      },
+      "category": "developer-tools",
+      "keywords": ["tdd", "testing", "red-green-refactor", "kent-beck", "test-driven-development", "patterns"]
     }
   ]
 }

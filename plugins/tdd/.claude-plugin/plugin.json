@@ -1,0 +1,9 @@
+{
+  "name": "tdd",
+  "version": "0.1.0",
+  "description": "Test-Driven Development guidance based on Kent Beck's 'Test Driven Development: By Example'. Provides the Red/Green/Refactor workflow, 40+ TDD patterns, and code review for TDD compliance.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  }
+}
