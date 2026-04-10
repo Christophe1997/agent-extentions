@@ -83,7 +83,7 @@ def get_settings() -> dict:
 
 def _session_path() -> Path:
     session_id = os.environ.get("CLAUDE_SESSION_ID", "default")
-    h = hashlib.md5(session_id.encode()).hexdigest()[:10]
+    h = hashlib.sha256(session_id.encode()).hexdigest()[:10]
     return Path(tempfile.gettempdir()) / f"a2a-session-{h}.json"
 
 
@@ -134,8 +134,12 @@ def cmd_auth(args: list[str]) -> None:
         return
     entries = auth[best_pattern]
     params: list[str] = entries if isinstance(entries, list) else [entries]
+    # Output one token per line so callers can safely build an array:
+    #   while IFS= read -r line; do AUTH_ARGS+=("$line"); done < <(a2a-helper.py auth "$URL")
+    # This preserves values that contain spaces (e.g. "Authorization=Bearer my token").
     for p in params:
-        print(f"--svc-param {p}")
+        print("--svc-param")
+        print(p)
 
 
 def cmd_session(args: list[str]) -> None:
@@ -197,11 +201,16 @@ def cmd_session(args: list[str]) -> None:
             sys.exit(1)
         task_id, status = args[1], args[2]
         data = _load_session()
+        found = False
         for t in data["tasks"]:
             if t["id"] == task_id:
                 t["status"] = status
                 t["updated"] = datetime.now(timezone.utc).isoformat()
+                found = True
                 break
+        if not found:
+            print(f"error: task '{task_id}' not found in session", file=sys.stderr)
+            sys.exit(1)
         _save_session(data)
         print(f"updated {task_id} -> {status}")
 
