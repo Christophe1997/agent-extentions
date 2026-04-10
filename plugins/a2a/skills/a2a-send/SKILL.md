@@ -1,46 +1,18 @@
 ---
 name: a2a:send
-description: Sends a message to an A2A-compliant agent at a URL or alias. Supports blocking (default) and background (--background) modes. Resolves aliases, auth params, and timeout from settings. Tracks tasks in session.
+description: Sends a message to an A2A-compliant agent at a URL or alias. Always runs in blocking mode. Pass --background to return immediately with a task ID instead. Resolves aliases, auth params, and timeout from settings. Tracks tasks in session.
 argument-hint: <url-or-alias> [--background] [--stream] [--timeout <duration>] [--task <id>] [--context <id>] <message>
-allowed-tools: Bash, AskUserQuestion
+allowed-tools: Bash
 ---
 
 Parse `$ARGUMENTS` into:
 - `URL_OR_ALIAS`: first non-flag token
 - `MESSAGE`: all remaining non-flag tokens joined as the message string
-- `BACKGROUND`: true if `--background` present
+- `BACKGROUND`: true if `--background` present, false otherwise
 - `STREAM`: true if `--stream` present
 - `TIMEOUT`: value after `--timeout` if present (e.g. `60s`, `2m`)
 - `TASK_ID`: value after `--task` if present
 - `CONTEXT_ID`: value after `--context` if present
-
-## Background mode prompt
-
-If `BACKGROUND` is not set (user did not pass `--background`), use `AskUserQuestion` with:
-
-```json
-{
-  "questions": [
-    {
-      "question": "How should this message be sent?",
-      "header": "Run mode",
-      "multiSelect": false,
-      "options": [
-        {
-          "label": "Blocking (Recommended)",
-          "description": "Wait for the full response before continuing."
-        },
-        {
-          "label": "Background",
-          "description": "Return immediately with a task ID — poll for results later."
-        }
-      ]
-    }
-  ]
-}
-```
-
-If the user selects **Background**, set `BACKGROUND` to true.
 
 ## Execution
 
@@ -60,8 +32,12 @@ AUTH_ARGS=()
 while IFS= read -r line; do
   AUTH_ARGS+=("$line")
 done < <(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" auth "$URL")
-TIMEOUT_VAL="${TIMEOUT:-$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" timeout "$URL")}"
+SETTINGS_TIMEOUT=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" timeout "$URL")
+TIMEOUT_VAL="${TIMEOUT:-${SETTINGS_TIMEOUT:-120s}}"
 ```
+
+Inform the user of the effective timeout before sending:
+> Timeout: `<TIMEOUT_VAL>` (from: `--timeout` flag / settings / default 120s)
 
 Build flags array:
 - If `BACKGROUND`: add `--immediate`
@@ -91,7 +67,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" session add "$TASK_ID" "$U
 - **Background**: show the task ID and status. Inform the user they can check progress with the status skill.
 - **Streaming**: relay output as it arrives.
 
-If the task fails with a timeout error, suggest retrying with `--timeout 120s` or setting a default in `.claude/a2a.local.md`.
+If the task fails with a timeout error, suggest retrying with a longer value (e.g. `--timeout 300s`) or increasing `timeout:` in `.claude/a2a.local.md`.
 
 If the task status is `input-required`, prompt the user for the required input and offer to continue
 the task by running send again with `--task <task-id>`.

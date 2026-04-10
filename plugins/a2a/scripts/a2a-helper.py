@@ -164,7 +164,7 @@ def cmd_find_settings(args: list[str]) -> None:
         if p.exists():
             print(f"found:{p}")
             return
-    print(f"missing:{Path.home() / '.claude' / 'a2a.local.md'}")
+    print(f"missing:{Path.cwd() / '.claude' / 'a2a.local.md'}")
 
 
 def _resolve_timeout(url: str, settings: dict) -> str:

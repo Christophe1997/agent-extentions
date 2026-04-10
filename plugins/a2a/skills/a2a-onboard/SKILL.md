@@ -17,15 +17,37 @@ Before anything else, verify the `a2a` binary is installed:
 command -v a2a &>/dev/null && echo "ok" || echo "missing"
 ```
 
-If missing, tell the user:
+If missing, use `AskUserQuestion`:
 
-> The `a2a` CLI is required. Install it with:
-> ```bash
-> go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
-> ```
-> Then re-run `/a2a:onboard`.
+```json
+{
+  "questions": [
+    {
+      "question": "The `a2a` CLI is not installed. Install it now with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main`?",
+      "header": "Install a2a CLI",
+      "multiSelect": false,
+      "options": [
+        {
+          "label": "Yes — install now",
+          "description": "Run the install command automatically and continue onboarding."
+        },
+        {
+          "label": "No — exit",
+          "description": "Stop here. You can install manually and re-run /a2a:onboard later."
+        }
+      ]
+    }
+  ]
+}
+```
 
-Stop here if binary is missing.
+- If **Yes**, run:
+  ```bash
+  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+  ```
+  Then verify `command -v a2a` succeeds before continuing. If install fails, report the error and stop.
+- If **No**, stop here with:
+  > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main` and re-run `/a2a:onboard`.
 
 ## Step 2: Locate settings file
 
@@ -50,24 +72,26 @@ a2a discover "$URL" ${EXTENDED:+--extended} "${AUTH_ARGS[@]}"
 
 Display the agent card output clearly.
 
+After displaying, extract `SUGGESTED_ALIAS` from the agent name in the card: lowercase, spaces replaced with hyphens, non-alphanumeric characters removed (e.g. "Change Agent" → `change-agent`).
+
 ## Step 4: Save alias
 
-Use `AskUserQuestion` to offer saving the alias:
+Use `AskUserQuestion` with `SUGGESTED_ALIAS` as a pre-filled option:
 
 ```json
 {
   "questions": [
     {
-      "question": "Save this agent as an alias for future use?",
-      "header": "Save alias",
+      "question": "Save this agent as an alias? Select the suggested name or type your own:",
+      "header": "Alias name",
       "multiSelect": false,
       "options": [
         {
-          "label": "Yes — save alias",
-          "description": "Add a short name so you can use it instead of the full URL."
+          "label": "<SUGGESTED_ALIAS>",
+          "description": "Derived from the agent's name. Select to use this."
         },
         {
-          "label": "No — skip",
+          "label": "Skip — no alias",
           "description": "Continue without saving. You can always add it manually later."
         }
       ]
@@ -76,46 +100,31 @@ Use `AskUserQuestion` to offer saving the alias:
 }
 ```
 
-If **Yes**, ask for the alias name:
-
-```json
-{
-  "questions": [
-    {
-      "question": "Enter a short alias name (e.g. \"my-agent\", \"staging\", \"billing\"):",
-      "header": "Alias name",
-      "multiSelect": false,
-      "options": [
-        { "label": "Enter custom name", "description": "Type your preferred alias in the Other field." }
-      ]
-    }
-  ]
-}
-```
-
-Store the chosen alias as `ALIAS`.
+- If the user selects `<SUGGESTED_ALIAS>`: store it as `ALIAS`.
+- If the user types a custom name in the **Other** field: store it as `ALIAS`.
+- If the user selects **Skip — no alias**: leave `ALIAS` empty.
 
 ## Step 5: Auth capture
 
 Only ask if auth was **not already present** in AUTH_ARGS (i.e. the auth step returned nothing):
 
-Use `AskUserQuestion`:
+Use `AskUserQuestion` to ask for the token in one step:
 
 ```json
 {
   "questions": [
     {
-      "question": "Does this agent require authentication?",
-      "header": "Auth",
+      "question": "Paste your Bearer token (e.g. \"Bearer eyJhbGci...\" or just \"eyJhbGci...\"). The Bearer prefix is added automatically if omitted.",
+      "header": "Auth token",
       "multiSelect": false,
       "options": [
         {
-          "label": "Yes — add auth token",
-          "description": "Store a Bearer token or custom header for this agent's URL."
+          "label": "Skip — no auth needed",
+          "description": "Agent is public or auth is handled elsewhere."
         },
         {
-          "label": "No auth needed",
-          "description": "Agent is public or auth is handled elsewhere."
+          "label": "Bearer <token>",
+          "description": "Type or paste your token in the Type something field — Bearer prefix is optional."
         }
       ]
     }
@@ -123,28 +132,20 @@ Use `AskUserQuestion`:
 }
 ```
 
-If **Yes**, ask for the auth value:
-
-```json
-{
-  "questions": [
-    {
-      "question": "Enter auth as key=value (e.g. \"Authorization=Bearer eyJhbGci...\", \"X-API-Key=abc123\"):",
-      "header": "Auth value",
-      "multiSelect": false,
-      "options": [
-        { "label": "Enter auth value", "description": "Paste your auth param in the Other field." }
-      ]
-    }
-  ]
-}
-```
-
-Store as `AUTH_ENTRY` (a single `k=v` string). If the user pastes a raw token without a key prefix, wrap it: `Authorization=Bearer <token>`.
+- If the user types a token in the **Other** field: normalise into `AUTH_ENTRY`:
+  - Starts with `Bearer ` (case-insensitive): `AUTH_ENTRY=Authorization=<input>`
+  - Otherwise: `AUTH_ENTRY=Authorization=Bearer <input>`
+- If the user selects **Skip — no auth needed**: leave `AUTH_ENTRY` empty.
 
 ## Step 6: Write settings file
 
-Now write the gathered config. There are three cases:
+Now write the gathered config. Settings are always preferred in this order:
+1. **Local** — `.claude/a2a.local.md` in the current project directory (project-scoped, git-ignored)
+2. **Global** — `~/.claude/a2a.local.md` (user-wide fallback)
+
+`find-settings` already returns the local path as the preferred creation target when no file exists.
+
+There are three cases:
 
 ### Case A: No settings file exists (`SETTINGS_STATUS` = `missing`) and user saved alias or auth
 
@@ -158,6 +159,8 @@ agents:
 auth:
   "<URL-prefix>":
     - "<AUTH_ENTRY>"
+
+timeout: "120s"
 ---
 
 # A2A Client Settings
@@ -166,6 +169,7 @@ Configure your A2A agent connections here.
 
 - Omit the `agents:` block if no alias was saved.
 - Omit the `auth:` block if no auth was captured.
+- Always include `timeout: "120s"` — the CLI default (30s) is too short for most agents.
 - Use the URL **without trailing path segments beyond the base** as the auth key prefix (e.g. for `https://api.example.com/a2a/v1`, use `https://api.example.com` as the key).
 
 ### Case B: Settings file exists (`SETTINGS_STATUS` = `found`) and user saved alias or auth
@@ -183,6 +187,11 @@ Read `SETTINGS_PATH`, then show the user exactly what YAML to add:
 > ```yaml
 >   "<URL-prefix>":
 >     - "<AUTH_ENTRY>"
+> ```
+>
+> If no `timeout:` key exists yet, add:
+> ```yaml
+> timeout: "120s"
 > ```
 
 Do **not** auto-write to an existing settings file — the user's existing config may have formatting or comments to preserve.
