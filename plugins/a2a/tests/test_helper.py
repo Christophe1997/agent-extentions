@@ -107,17 +107,8 @@ agents:
 
 class TestAuthLongestPrefix(unittest.TestCase):
 
-    def _auth_output(self, url, settings_text):
-        settings = helper._parse_frontmatter(settings_text)
-        auth = settings.get("auth", {})
-        best_pattern = ""
-        for pattern in auth:
-            if url.startswith(pattern) and len(pattern) > len(best_pattern):
-                best_pattern = pattern
-        if not best_pattern:
-            return []
-        entries = auth[best_pattern]
-        return entries if isinstance(entries, list) else [entries]
+    def _auth(self, url, settings_text):
+        return helper._resolve_auth(url, helper._parse_frontmatter(settings_text))
 
     def test_exact_prefix_match(self):
         text = """---
@@ -125,7 +116,7 @@ auth:
   "http://localhost:8000":
     - "Authorization=Bearer abcd"
 ---"""
-        result = self._auth_output("http://localhost:8000/change-agent/api/v1", text)
+        result = self._auth("http://localhost:8000/api/v1", text)
         self.assertEqual(result, ["Authorization=Bearer abcd"])
 
     def test_longest_prefix_wins(self):
@@ -136,7 +127,7 @@ auth:
   "https://api.example.com/v2":
     - "Authorization=Bearer long"
 ---"""
-        result = self._auth_output("https://api.example.com/v2/resource", text)
+        result = self._auth("https://api.example.com/v2/resource", text)
         self.assertEqual(result, ["Authorization=Bearer long"])
 
     def test_no_match_returns_empty(self):
@@ -145,7 +136,7 @@ auth:
   "http://other.example.com":
     - "Authorization=Bearer nope"
 ---"""
-        result = self._auth_output("http://localhost:9999", text)
+        result = self._auth("http://localhost:9999", text)
         self.assertEqual(result, [])
 
 
@@ -153,20 +144,12 @@ auth:
 
 class TestTimeoutCommand(unittest.TestCase):
 
-    def _get_timeout(self, url, settings_text):
-        settings = helper._parse_frontmatter(settings_text)
-        timeouts = settings.get("timeouts", {})
-        best_pattern, best_val = "", ""
-        for pattern, val in timeouts.items():
-            if url.startswith(pattern) and len(pattern) > len(best_pattern):
-                best_pattern, best_val = pattern, val
-        if best_val:
-            return best_val
-        return settings.get("timeout", "")
+    def _timeout(self, url, settings_text):
+        return helper._resolve_timeout(url, helper._parse_frontmatter(settings_text))
 
     def test_global_timeout(self):
         text = "---\ntimeout: \"60s\"\n---"
-        self.assertEqual(self._get_timeout("http://any.example.com", text), "60s")
+        self.assertEqual(self._timeout("http://any.example.com", text), "60s")
 
     def test_per_url_overrides_global(self):
         text = """---
@@ -174,12 +157,93 @@ timeout: "30s"
 timeouts:
   "http://slow.example.com": "120s"
 ---"""
-        self.assertEqual(self._get_timeout("http://slow.example.com/api", text), "120s")
-        self.assertEqual(self._get_timeout("http://other.example.com", text), "30s")
+        self.assertEqual(self._timeout("http://slow.example.com/api", text), "120s")
+        self.assertEqual(self._timeout("http://other.example.com", text), "30s")
 
     def test_no_timeout_returns_empty(self):
         text = "---\nagents:\n  foo: \"http://foo\"\n---"
-        self.assertEqual(self._get_timeout("http://foo", text), "")
+        self.assertEqual(self._timeout("http://foo", text), "")
+
+
+# ── find-settings ────────────────────────────────────────────────────────────
+
+class TestFindSettings(unittest.TestCase):
+    """find-settings returns 'found:<path>' or 'missing:<preferred-path>'."""
+
+    _HELPER = Path(__file__).parent.parent / "scripts" / "a2a-helper.py"
+
+    def _run_cli(self, env=None):
+        return self._run_cli_in(cwd=None, env=env)
+
+    def _run_cli_in(self, cwd=None, env=None):
+        result = subprocess.run(
+            [sys.executable, str(self._HELPER), "find-settings"],
+            capture_output=True, text=True, env=env, cwd=cwd,
+        )
+        return result.returncode, result.stdout.strip()
+
+    def test_found_in_home(self):
+        """Settings file at ~/.claude/a2a.local.md is reported as found."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as home_dir:
+            settings = Path(home_dir) / ".claude" / "a2a.local.md"
+            settings.parent.mkdir(parents=True)
+            settings.write_text("---\nagents: {}\n---\n")
+
+            # Point HOME at the temp dir so Path.home() resolves there;
+            # also set a non-existent CWD so home is the only match.
+            env = os.environ.copy()
+            env["HOME"] = home_dir
+            env["PWD"] = home_dir  # cwd check uses Path.cwd() which reads PWD on some platforms
+
+            rc, out = self._run_cli(env=env)
+            self.assertEqual(rc, 0)
+            self.assertTrue(out.startswith("found:"), f"Expected 'found:...', got: {out!r}")
+            self.assertIn(".claude/a2a.local.md", out)
+
+    def test_cwd_takes_priority_over_home(self):
+        """CWD-local settings file takes priority over ~/.claude/a2a.local.md."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as home_dir, \
+             tempfile.TemporaryDirectory() as cwd_dir:
+            for d in [home_dir, cwd_dir]:
+                settings = Path(d) / ".claude" / "a2a.local.md"
+                settings.parent.mkdir(parents=True)
+                settings.write_text("---\nagents: {}\n---\n")
+
+            env = os.environ.copy()
+            env["HOME"] = home_dir
+
+            rc, out = self._run_cli_in(cwd=cwd_dir, env=env)
+            self.assertEqual(rc, 0)
+            self.assertTrue(out.startswith("found:"), f"Expected 'found:...', got: {out!r}")
+            self.assertIn(cwd_dir, out)
+            self.assertNotIn(home_dir, out)
+
+    def test_missing_returns_preferred_path(self):
+        """When no settings file exists, output is 'missing:<home>/.claude/a2a.local.md'."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as home_dir:
+            env = os.environ.copy()
+            env["HOME"] = home_dir
+
+            rc, out = self._run_cli(env=env)
+            self.assertEqual(rc, 0)
+            self.assertTrue(out.startswith("missing:"), f"Expected 'missing:...', got: {out!r}")
+            self.assertIn(home_dir, out)
+            self.assertIn(".claude/a2a.local.md", out)
+
+    def test_output_is_parseable_prefix_colon_path(self):
+        """Output always follows '<status>:<path>' — no extra whitespace or newlines."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as home_dir:
+            env = os.environ.copy()
+            env["HOME"] = home_dir
+            _, out = self._run_cli(env=env)
+            status, _, path = out.partition(":")
+            self.assertIn(status, ("found", "missing"))
+            self.assertTrue(path, "Path portion must not be empty")
+            self.assertFalse(path.startswith(" "), "Path must not have leading space")
 
 
 # ── Integration test: a2a serve --echo ────────────────────────────────────────

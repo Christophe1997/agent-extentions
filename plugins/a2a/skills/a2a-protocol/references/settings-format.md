@@ -55,6 +55,9 @@ Configure your A2A agent connections here.
   `http://localhost:8000`. Unquoted URL keys will be misparsed.
 - Each auth entry is a `k=v` string passed verbatim as `--svc-param k=v`. Multiple entries
   for one prefix are all passed (repeatable `--svc-param`).
+- **Do NOT use HTTP header syntax** (`--header "Authorization: Bearer ..."`) — the `a2a` CLI
+  uses `--svc-param`, not `--header`. The correct format is always `Key=Value`, e.g.
+  `Authorization=Bearer eyJhbGci...` (no space after the `=`, key is the header name).
 - `--auth <creds>` is shorthand only for the `Authorization` header. Any other header
   (e.g. `X-Tenant-ID`) must be specified as a full `k=v` auth entry.
 - **`timeout`**: global default timeout for all `a2a send` calls. Accepts Go duration strings

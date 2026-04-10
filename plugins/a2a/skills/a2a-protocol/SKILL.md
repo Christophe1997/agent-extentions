@@ -8,6 +8,24 @@ description: This skill provides the foundational A2A protocol knowledge Claude 
 The `a2a` CLI communicates with any A2A-compliant agent. All operations resolve agent aliases and
 auth parameters via the settings file (see `references/settings-format.md`).
 
+## Prerequisites
+
+**Check binary before any operation:**
+
+```bash
+command -v a2a &>/dev/null || {
+  echo "Error: 'a2a' CLI not found. Install with:"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  exit 1
+}
+```
+
+If the binary is missing, show the install command and stop. Do not attempt any `a2a` subcommands.
+
+**First-time setup:** If no `~/.claude/a2a.local.md` exists, suggest running `/a2a:onboard <url>`
+instead of constructing raw CLI calls — it handles binary check, discovery, alias saving, and auth
+configuration in one flow.
+
 ## Helper Script
 
 All operations use the helper script at `${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py`:

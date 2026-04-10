@@ -9,7 +9,7 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | `a2a-protocol` | Auto | Core A2A knowledge — activates when talking about remote agents, A2A URLs, or agent communication |
-| `a2a-discover` | `/a2a:discover` | Fetch and display an agent's capabilities (Agent Card) |
+| `a2a-onboard` | `/a2a:onboard` | Onboard a new agent — binary check, discover, save alias, configure auth |
 | `a2a-send` | `/a2a:send` | Send a message to an agent (blocking, background, or streaming) |
 | `a2a-status` | `/a2a:status` | Show session tasks or get live status of a specific task |
 | `a2a-cancel` | `/a2a:cancel` | Cancel an active task |
@@ -17,8 +17,8 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 ## Examples
 
 ```bash
-# Discover what an agent can do
-/a2a:discover https://demo.a2a-protocol.org
+# Onboard a new agent (discover + save alias + configure auth)
+/a2a:onboard https://demo.a2a-protocol.org
 
 # Send a message (blocking — waits for response)
 /a2a:send https://demo.a2a-protocol.org "Summarize the latest news about AI"

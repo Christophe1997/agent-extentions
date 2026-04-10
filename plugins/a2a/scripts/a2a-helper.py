@@ -6,6 +6,7 @@ Usage:
   a2a-helper.py resolve <url-or-alias>
   a2a-helper.py auth <url>
   a2a-helper.py timeout <url>
+  a2a-helper.py find-settings
   a2a-helper.py session add <task-id> <url> [--alias <alias>] [--message <msg>]
   a2a-helper.py session list
   a2a-helper.py session update <task-id> <status>
@@ -120,27 +121,30 @@ def cmd_resolve(args: list[str]) -> None:
     print(agents.get(alias, alias))
 
 
-def cmd_auth(args: list[str]) -> None:
-    """Print --svc-param flags for a URL, one per line.
+def _resolve_auth(url: str, settings: dict) -> list[str]:
+    """Pure function: return list of k=v auth entries for url via longest-prefix matching.
 
-    Uses longest-prefix matching: only the single longest matching URL prefix
-    in the auth config is applied, preventing accidental multi-match injection.
+    Only the single longest matching URL prefix in the auth config is applied,
+    preventing accidental multi-match injection.
     """
-    if not args:
-        print("error: missing url", file=sys.stderr)
-        sys.exit(1)
-    url = args[0]
-    settings = get_settings()
     auth = settings.get("auth", {})
-    # Longest-prefix match only
     best_pattern = ""
     for pattern in auth:
         if url.startswith(pattern) and len(pattern) > len(best_pattern):
             best_pattern = pattern
     if not best_pattern:
-        return
+        return []
     entries = auth[best_pattern]
-    params: list[str] = entries if isinstance(entries, list) else [entries]
+    return entries if isinstance(entries, list) else [entries]
+
+
+def cmd_auth(args: list[str]) -> None:
+    """Print --svc-param flags for a URL, one per line."""
+    if not args:
+        print("error: missing url", file=sys.stderr)
+        sys.exit(1)
+    url = args[0]
+    params = _resolve_auth(url, get_settings())
     # Output one token per line so callers can safely build an array:
     #   while IFS= read -r line; do AUTH_ARGS+=("$line"); done < <(a2a-helper.py auth "$URL")
     # This preserves values that contain spaces (e.g. "Authorization=Bearer my token").
@@ -149,30 +153,45 @@ def cmd_auth(args: list[str]) -> None:
         print(p)
 
 
-def cmd_timeout(args: list[str]) -> None:
-    """Print the configured --timeout value for a URL, or empty string if not set.
+def cmd_find_settings(args: list[str]) -> None:
+    """Print the settings file path.
 
-    Reads `timeout` from settings (global or per URL-prefix via `timeouts` map).
-    Callers use the result as: ${TIMEOUT:+--timeout $TIMEOUT}
+    Prints 'found:<path>' if the settings file exists, or 'missing:<preferred-path>'
+    if no settings file is found. Preferred creation path is ~/.claude/a2a.local.md.
     """
-    if not args:
-        print("error: missing url", file=sys.stderr)
-        sys.exit(1)
-    url = args[0]
-    settings = get_settings()
-    # Per-URL timeout: longest-prefix match in `timeouts` map
+    for base in [Path.cwd(), Path.home()]:
+        p = base / ".claude" / "a2a.local.md"
+        if p.exists():
+            print(f"found:{p}")
+            return
+    print(f"missing:{Path.home() / '.claude' / 'a2a.local.md'}")
+
+
+def _resolve_timeout(url: str, settings: dict) -> str:
+    """Pure function: return timeout string for url, or '' if not configured.
+
+    Checks per-URL `timeouts` map first (longest-prefix match), then falls
+    back to the global `timeout` key. Callers use: ${TIMEOUT:+--timeout $TIMEOUT}
+    """
     timeouts = settings.get("timeouts", {})
     best_pattern, best_val = "", ""
     for pattern, val in timeouts.items():
         if url.startswith(pattern) and len(pattern) > len(best_pattern):
             best_pattern, best_val = pattern, val
     if best_val:
-        print(best_val)
-        return
-    # Global default timeout
-    global_timeout = settings.get("timeout", "")
-    if global_timeout:
-        print(global_timeout)
+        return best_val
+    return settings.get("timeout", "")
+
+
+def cmd_timeout(args: list[str]) -> None:
+    """Print the configured --timeout value for a URL, or empty string if not set."""
+    if not args:
+        print("error: missing url", file=sys.stderr)
+        sys.exit(1)
+    url = args[0]
+    val = _resolve_timeout(url, get_settings())
+    if val:
+        print(val)
 
 
 def cmd_session(args: list[str]) -> None:
@@ -258,6 +277,7 @@ USAGE = """Usage:
   a2a-helper.py resolve <url-or-alias>
   a2a-helper.py auth <url>
   a2a-helper.py timeout <url>
+  a2a-helper.py find-settings
   a2a-helper.py session add <task-id> <url> [--alias <alias>] [--message <msg>]
   a2a-helper.py session list
   a2a-helper.py session update <task-id> <status>
@@ -276,6 +296,8 @@ def main() -> None:
         cmd_auth(rest)
     elif cmd == "timeout":
         cmd_timeout(rest)
+    elif cmd == "find-settings":
+        cmd_find_settings(rest)
     elif cmd == "session":
         cmd_session(rest)
     else:
