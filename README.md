@@ -10,6 +10,8 @@ Agent extentions in Claude marketplace structure.
 | [agentic-doc](./plugins/agentic-doc/README.md) | Documentation standards for agentic programming: AGENTS.md lifecycle & conventional commits |
 | [show-me-the-session](./plugins/show-me-the-session/README.md) | Export Claude Code sessions as solarized-light HTML pages |
 | [permission-notification](./plugins/permission-notification/README.md) | macOS notifications when Claude Code needs permission |
+| [tdd](./plugins/tdd/README.md) | Test-Driven Development guidance based on Kent Beck's Red/Green/Refactor workflow |
+| [a2a](./plugins/a2a/README.md) | A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias |
 
 ## Installation
 
@@ -26,6 +28,8 @@ Agent extentions in Claude marketplace structure.
 /plugin install agentic-doc@agent-extentions
 /plugin install show-me-the-session@agent-extentions
 /plugin install permission-notification@agent-extentions
+/plugin install tdd@agent-extentions
+/plugin install a2a@agent-extentions
 ```
 
 ## License
