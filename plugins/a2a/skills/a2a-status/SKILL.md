@@ -5,13 +5,23 @@ argument-hint: [<url-or-alias> <task-id>] [--watch]
 allowed-tools: Bash
 ---
 
+Check that `a2a` is installed before proceeding:
+
+```bash
+if ! command -v a2a &>/dev/null; then
+  echo "Error: 'a2a' CLI not found. Install with:"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  exit 1
+fi
+```
+
 ## No arguments — list all session tasks
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" session list
 ```
 
-Render the output as a compact Markdown table with columns: Task ID, Status, Alias, Message.
+Render the output as a compact Markdown table with columns: Task ID, Status, Agent (show alias if available), Message, Commands (follow-up commands).
 Do not add prose outside the table.
 
 ## With `<url-or-alias> <task-id>` — fetch live task state

@@ -14,6 +14,16 @@ If either is missing, output:
 Usage: /a2a:cancel <url-or-alias> <task-id>
 ```
 
+Check that `a2a` is installed before proceeding:
+
+```bash
+if ! command -v a2a &>/dev/null; then
+  echo "Error: 'a2a' CLI not found. Install with:"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  exit 1
+fi
+```
+
 ```bash
 URL=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" resolve "$URL_OR_ALIAS")
 AUTH_ARGS=()

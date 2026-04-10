@@ -5,6 +5,7 @@ A2A client helper — settings resolution, auth params, session tracking.
 Usage:
   a2a-helper.py resolve <url-or-alias>
   a2a-helper.py auth <url>
+  a2a-helper.py timeout <url>
   a2a-helper.py session add <task-id> <url> [--alias <alias>] [--message <msg>]
   a2a-helper.py session list
   a2a-helper.py session update <task-id> <status>
@@ -41,8 +42,14 @@ def _parse_frontmatter(text: str) -> dict:
             if current_list is not None:
                 current_list.append(line.strip()[2:].strip().strip('"'))
             continue
-        # Key-value
-        m = re.match(r'^(\s{0,2})(\S[^:]*)\s*:\s*(.*)', line)
+        # Key-value — try in order of specificity:
+        # 1. Quoted key (double or single) — handles URLs, spaces, any chars
+        # 2. Unquoted URL key  (http(s)://host[:port][/path])
+        # 3. Plain key (no colons allowed — standard YAML simple key)
+        m = (re.match(r'^(\s{0,2})"([^"]+)"\s*:\s*(.*)', line) or
+             re.match(r"^(\s{0,2})'([^']+)'\s*:\s*(.*)", line) or
+             re.match(r'^(\s{0,2})(https?://[^:\s]+(?::\d+)?(?:/[^\s]*)?)\s*:\s*(.*)', line) or
+             re.match(r'^(\s{0,2})(\S[^:]*)\s*:\s*(.*)', line))
         if not m:
             continue
         indent, key, val = m.group(1), m.group(2).strip(), m.group(3).strip()
@@ -142,6 +149,32 @@ def cmd_auth(args: list[str]) -> None:
         print(p)
 
 
+def cmd_timeout(args: list[str]) -> None:
+    """Print the configured --timeout value for a URL, or empty string if not set.
+
+    Reads `timeout` from settings (global or per URL-prefix via `timeouts` map).
+    Callers use the result as: ${TIMEOUT:+--timeout $TIMEOUT}
+    """
+    if not args:
+        print("error: missing url", file=sys.stderr)
+        sys.exit(1)
+    url = args[0]
+    settings = get_settings()
+    # Per-URL timeout: longest-prefix match in `timeouts` map
+    timeouts = settings.get("timeouts", {})
+    best_pattern, best_val = "", ""
+    for pattern, val in timeouts.items():
+        if url.startswith(pattern) and len(pattern) > len(best_pattern):
+            best_pattern, best_val = pattern, val
+    if best_val:
+        print(best_val)
+        return
+    # Global default timeout
+    global_timeout = settings.get("timeout", "")
+    if global_timeout:
+        print(global_timeout)
+
+
 def cmd_session(args: list[str]) -> None:
     if not args:
         print("error: missing subcommand (add|list|update)", file=sys.stderr)
@@ -224,6 +257,7 @@ def cmd_session(args: list[str]) -> None:
 USAGE = """Usage:
   a2a-helper.py resolve <url-or-alias>
   a2a-helper.py auth <url>
+  a2a-helper.py timeout <url>
   a2a-helper.py session add <task-id> <url> [--alias <alias>] [--message <msg>]
   a2a-helper.py session list
   a2a-helper.py session update <task-id> <status>
@@ -240,6 +274,8 @@ def main() -> None:
         cmd_resolve(rest)
     elif cmd == "auth":
         cmd_auth(rest)
+    elif cmd == "timeout":
+        cmd_timeout(rest)
     elif cmd == "session":
         cmd_session(rest)
     else:

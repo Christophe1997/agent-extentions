@@ -9,10 +9,10 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | `a2a-protocol` | Auto | Core A2A knowledge — activates when talking about remote agents, A2A URLs, or agent communication |
-| `/a2a:discover` | User | Fetch and display an agent's capabilities (Agent Card) |
-| `/a2a:send` | User | Send a message to an agent (blocking or background) |
-| `/a2a:status` | User | Show session tasks or get live status of a specific task |
-| `/a2a:cancel` | User | Cancel an active task |
+| `a2a-discover` | `/a2a:discover` | Fetch and display an agent's capabilities (Agent Card) |
+| `a2a-send` | `/a2a:send` | Send a message to an agent (blocking, background, or streaming) |
+| `a2a-status` | `/a2a:status` | Show session tasks or get live status of a specific task |
+| `a2a-cancel` | `/a2a:cancel` | Cancel an active task |
 
 ## Examples
 
@@ -41,7 +41,11 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 
 ## Installation
 
-**Requirements:** `a2a` CLI installed (`brew install a2a` or see [a2aproject/A2A](https://github.com/a2aproject/A2A)), Python 3.
+**Requirements:** `a2a` CLI installed, Python 3.
+
+```bash
+go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+```
 
 ```bash
 /plugin install a2a@agent-extentions

@@ -9,6 +9,16 @@ Parse `$ARGUMENTS`:
 - `URL_OR_ALIAS`: the first non-flag token
 - `EXTENDED`: true if `--extended` is present (add `--extended` flag to the command)
 
+Check that `a2a` is installed before proceeding:
+
+```bash
+if ! command -v a2a &>/dev/null; then
+  echo "Error: 'a2a' CLI not found. Install with:"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  exit 1
+fi
+```
+
 Resolve the URL and fetch the agent card:
 
 ```bash

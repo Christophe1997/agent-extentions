@@ -1,7 +1,6 @@
 ---
 name: a2a-protocol
 description: This skill provides the foundational A2A protocol knowledge Claude needs whenever a user wants to communicate with an A2A-compliant agent, call a remote agent by URL or alias, understand how agent cards work, integrate an agent-to-agent connection, construct an `a2a` CLI command, list or poll task status, cancel a running task, or subscribe to task updates. Relevant when the user mentions "A2A protocol", "agent card", "remote agent", "agent endpoint", "agent-to-agent", "a2a CLI", "use an agent", "call an agent", "ping an agent", or needs to understand task lifecycle states.
-allowed-tools: Bash
 ---
 
 # A2A Protocol Client
@@ -45,7 +44,9 @@ a2a <subcommand> "$URL" <args> "${AUTH_ARGS[@]}"
 ```
 
 If the `a2a` binary is not installed, direct the user to install it:
-`brew install a2a` or see https://github.com/a2aproject/A2A.
+```bash
+go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+```
 
 ## Core Operations
 
