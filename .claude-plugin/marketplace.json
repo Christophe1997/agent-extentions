@@ -13,73 +13,49 @@
       "name": "review-blog",
       "source": "./plugins/review-blog",
       "description": "Review Chinese blog posts for writing style, punctuation, and formatting issues.",
-      "version": "1.0.0",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "content-creation",
-      "keywords": ["blog", "review", "chinese", "writing-style", "markdown"]
+      "keywords": ["blog", "review", "chinese", "writing-style", "markdown"],
+      "tags": ["blog review"]
     },
     {
       "name": "agentic-doc",
       "source": "./plugins/agentic-doc",
       "description": "Documentation standards for agentic programming: AGENTS.md lifecycle management and conventional commit messages.",
-      "version": "0.6.1",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "developer-tools",
-      "keywords": ["agentic", "agents.md", "documentation", "commit", "conventional-commits"]
+      "keywords": ["agentic", "agents.md", "documentation", "commit", "conventional-commits"],
+      "tags": ["agentic documentation"]
     },
     {
       "name": "show-me-the-session",
       "source": "./plugins/show-me-the-session",
       "description": "Export Claude Code session transcripts to solarized-light HTML with pagination support. Features: auto session detection, split output for large sessions, configurable page size.",
-      "version": "0.8.0",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "developer-tools",
-      "keywords": ["session", "export", "html", "transcript", "solarized"]
+      "keywords": ["session", "export", "html", "transcript", "solarized"],
+      "tags": ["session export"]
     },
     {
       "name": "permission-notification",
       "source": "./plugins/permission-notification",
       "description": "Sends macOS notifications when Claude Code needs permission to execute commands",
-      "version": "0.1.0",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "productivity",
-      "keywords": ["notification", "permission", "macos", "alert"]
+      "keywords": ["notification", "permission", "macos", "alert"],
+      "tags": ["permission notification"]
     },
     {
       "name": "tdd",
       "source": "./plugins/tdd",
       "description": "Test-Driven Development guidance based on Kent Beck's 'Test Driven Development: By Example'. Provides the Red/Green/Refactor workflow, 40+ named TDD patterns, and autonomous test quality review.",
-      "version": "0.1.0",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "developer-tools",
-      "keywords": ["tdd", "testing", "red-green-refactor", "kent-beck", "test-driven-development", "patterns"]
+      "keywords": ["tdd", "testing", "red-green-refactor", "kent-beck", "test-driven-development", "patterns"],
+      "tags": ["Red-Green-Refactor", "TDD patterns"]
     },
     {
       "name": "a2a",
       "source": "./plugins/a2a",
       "description": "A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias. Supports blocking and background tasks, auth params, agent aliases, and session task tracking.",
-      "version": "0.1.0",
-      "author": {
-        "name": "Christophe1997",
-        "email": "hey_christophe@outlook.com"
-      },
       "category": "developer-tools",
-      "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"]
+      "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"],
+      "tags": ["A2A protocol"]
     }
   ]
 }

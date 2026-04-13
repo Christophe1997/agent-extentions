@@ -1,10 +1,9 @@
 {
   "name": "permission-notification",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Sends macOS notifications when Claude Code needs permission to execute commands",
   "author": {
     "name": "Christophe1997",
     "email": "hey_christophe@outlook.com"
-  },
-  "keywords": ["notification", "permission", "macos", "alert"]
+  }
 }
