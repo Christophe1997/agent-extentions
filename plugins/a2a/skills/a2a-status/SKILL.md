@@ -10,7 +10,7 @@ Check that `a2a` is installed before proceeding:
 ```bash
 if ! command -v a2a &>/dev/null; then
   echo "Error: 'a2a' CLI not found. Install with:"
-  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest"
   exit 1
 fi
 ```

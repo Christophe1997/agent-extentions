@@ -44,7 +44,7 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 **Requirements:** `a2a` CLI installed, Python 3.
 
 ```bash
-go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest
 ```
 
 ```bash

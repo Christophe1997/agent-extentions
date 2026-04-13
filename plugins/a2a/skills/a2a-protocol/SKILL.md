@@ -15,7 +15,7 @@ auth parameters via the settings file (see `references/settings-format.md`).
 ```bash
 command -v a2a &>/dev/null || {
   echo "Error: 'a2a' CLI not found. Install with:"
-  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main"
+  echo "  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest"
   exit 1
 }
 ```
@@ -63,7 +63,7 @@ a2a <subcommand> "$URL" <args> "${AUTH_ARGS[@]}"
 
 If the `a2a` binary is not installed, direct the user to install it:
 ```bash
-go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest
 ```
 
 ## Core Operations

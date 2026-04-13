@@ -23,7 +23,7 @@ If missing, use `AskUserQuestion`:
 {
   "questions": [
     {
-      "question": "The `a2a` CLI is not installed. Install it now with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main`?",
+      "question": "The `a2a` CLI is not installed. Install it now with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest`?",
       "header": "Install a2a CLI",
       "multiSelect": false,
       "options": [
@@ -43,11 +43,11 @@ If missing, use `AskUserQuestion`:
 
 - If **Yes**, run:
   ```bash
-  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main
+  go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest
   ```
   Then verify `command -v a2a` succeeds before continuing. If install fails, report the error and stop.
 - If **No**, stop here with:
-  > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@main` and re-run `/a2a:onboard`.
+  > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest` and re-run `/a2a:onboard`.
 
 ## Step 2: Locate settings file
 
