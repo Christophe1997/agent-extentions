@@ -6,7 +6,7 @@ Export Claude Code session JSONL transcripts to solarized-light HTML with pagina
 
 ```
 show-me-the-session/
-├── commands/export.md          # /show-me-the-session:export [pick] [-o PATH] [--split]
+├── skills/smts-export/SKILL.md  # /smts:export [pick] [-o PATH] [--split]
 ├── hooks/
 │   ├── hooks.json              # SessionStart hook registration
 │   └── session-start.sh        # Captures session ID → $SMTS_SESSION_ID env var

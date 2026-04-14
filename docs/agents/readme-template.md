@@ -4,7 +4,7 @@ All plugin READMEs in this repository follow a unified structure for consistency
 
 ## Structure
 
-1. **Features** - List what's included (Commands, Skills, Hooks, MCP, Agents as tables)
+1. **Features** - List what's included (Skills, Hooks, MCP, Agents as tables)
 2. **Examples** - Code samples (optional, if applicable)
 3. **Installation** - Requirements + `/plugin install ${plugin-name}@agent-extentions`
 4. **Usage** - How to use the plugin
@@ -18,12 +18,6 @@ All plugin READMEs in this repository follow a unified structure for consistency
 Brief description of what the plugin does.
 
 ## Features
-
-### Commands
-| Command | Description |
-|---------|-------------|
-| `/plugin:cmd` | What it does |
-| `/plugin:another` | Another command |
 
 ### Skills
 - **skill-name** - Brief description of the skill
@@ -65,14 +59,7 @@ MIT
 
 ## Component Tables
 
-Use tables for Commands and Hooks, bullet lists for Skills:
-
-**Commands table:**
-```markdown
-| Command | Description |
-|---------|-------------|
-| `/plugin:cmd` | Description |
-```
+Use tables for Hooks, bullet lists for Skills:
 
 **Hooks table:**
 ```markdown

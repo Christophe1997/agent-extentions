@@ -18,9 +18,9 @@ Reference the `agd:conventional-commits` skill for Conventional Commits format.
 When generating this section, load the `commit-message` skill for details.
 ```
 
-### Commands Loading Skills
+### Skills Loading Skills
 
-Commands should load skills for context rather than duplicating content:
+Skills should load other skills for context rather than duplicating content:
 
 ```yaml
 ---
@@ -48,4 +48,4 @@ Avoid cross-plugin references and keep each plugin self-contained. If necessary,
 - [ ] Skill bodies under 2,000 words
 - [ ] Detailed content in `references/` or `examples/`
 - [ ] Cross-domain knowledge referenced via skill names
-- [ ] Commands include `Skill` in `allowed-tools` when loading skills
+- [ ] Skills include `Skill` in `allowed-tools` when loading other skills

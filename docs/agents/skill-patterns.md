@@ -1,29 +1,30 @@
-# Command Patterns
+# Skill Patterns
 
-Guidelines for writing Claude Code slash commands with consistent structure and formatting.
+Guidelines for writing Claude Code skills with consistent structure and formatting.
 
-## Command Structure
+## Skill Structure
 
-Every command file should follow this structure:
+Every skill file (SKILL.md) should follow this structure:
 
 ```yaml
 ---
-name: command-name
-description: What the command does (shown in /help)
+name: plugin:skill-name
+description: "Trigger phrases that activate this skill. Use when user says X, Y, or Z."
 argument-hint: optional argument description
 allowed-tools: [Read, Write, Bash, Skill, AskUserQuestion]
+disable-model-invocation: true  # optional: for script-like skills invoked by human only
 ---
 
 # Title
 
-Brief one-line description of what the command accomplishes.
+Brief one-line description of what the skill accomplishes.
 
 ## Load Context (Optional)
 
-If the command needs knowledge from a skill:
+If the skill needs knowledge from another skill:
 
 ```
-Use Skill tool with skill="plugin-name:skill-name"
+Use Skill tool with skill="plugin-name:other-skill"
 ```
 
 This provides:
@@ -34,10 +35,9 @@ This provides:
 
 1. **Action Label**: Description of what to do in this step.
    - Sub-detail or example if needed
-   - Another sub-detail
 
 2. **Next Action Label**: Continue with clear actions.
-   - For interactive steps, specify the tool:
+   - For interactive steps, use AskUserQuestion:
 
    Call the AskUserQuestion tool:
    ```json
@@ -59,20 +59,19 @@ This provides:
 
 - What to do when things go wrong
 - Edge cases to handle
-- User communication for failures
 
 ## Example Usage
 
 ```
-/plugin-name:command-name argument
-/plugin-name:command-name --option value
+/plugin-name:skill-name argument
+/plugin-name:skill-name --option value
 ```
 
 ## Tips (Optional)
 
 - Helpful hints for users
 - Common pitfalls to avoid
-- Related commands or workflows
+- Related skills or workflows
 ```
 
 ## Process Section Guidelines
@@ -109,7 +108,7 @@ This provides:
 
 ### When to Use Sub-sections
 
-For very complex commands with distinct phases, you can use `###` headers within Process:
+For complex skills with distinct phases, use `###` headers within Process:
 
 ```markdown
 ## Process
@@ -118,16 +117,14 @@ For very complex commands with distinct phases, you can use `###` headers within
 
 1. **Initialize**: First step...
 
-2. **Configure**: Second step...
-
 ### Phase 2: Execution
 
-3. **Run**: Third step...
+2. **Run**: Second step...
 ```
 
-However, prefer flat numbered steps when possible. Only use phases when the command has clearly separate stages.
+Prefer flat numbered steps when possible. Only use phases when the skill has clearly separate stages.
 
-## Tool Usage in Commands
+## Tool Usage in Skills
 
 ### AskUserQuestion Pattern
 
@@ -165,7 +162,7 @@ git status --short
 
 ### Skill Loading
 
-Reference skills at the start when needed:
+Reference other skills at the start when needed:
 
 ```markdown
 ## Load Context
@@ -177,14 +174,14 @@ Use Skill tool with skill="plugin-name:skill-name"
 
 This provides:
 - Key information the skill contains
-- Why it's needed for this command
+- Why it's needed for this skill
 ```
 
 ## Common Sections
 
 | Section | Required? | Purpose |
 |---------|-----------|---------|
-| `## Load Context` | Optional | Load skills for knowledge |
+| `## Load Context` | Optional | Load other skills for knowledge |
 | `## Process` | Required | Main workflow steps |
 | `## Error Handling` | Optional | Edge cases and failures |
 | `## Example Usage` | Recommended | Show how to invoke |
@@ -199,3 +196,4 @@ This provides:
 - [ ] Includes `## Example Usage`
 - [ ] Has `## Error Handling` if edge cases exist
 - [ ] Loads skills via `## Load Context` when needed
+- [ ] Uses `disable-model-invocation: true` if no LLM reasoning needed

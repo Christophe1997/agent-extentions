@@ -1,6 +1,6 @@
 ---
 name: agd:update-agents-md
-description: "Update an existing AGENTS.md to reflect current project state. Use when the user says their AGENTS.md is outdated, stale, or needs refreshing. Also triggers on 'update AGENTS.md', 'refresh AGENTS.md', 'AGENTS.md is out of date', 'sync AGENTS.md with project'."
+description: "This skill should be used when the user says their AGENTS.md is outdated, stale, or needs refreshing, or when they say 'update AGENTS.md', 'refresh AGENTS.md', 'AGENTS.md is out of date', or 'sync AGENTS.md with project'. Provides a step-by-step process to update an existing AGENTS.md to reflect current project state."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
 ---
@@ -35,18 +35,40 @@ Trigger updates when:
    - Identify current sections and content
    - Note current line count
 
-2. **Analyze project for changes**:
+2. **Freshness check** — determine what has changed since AGENTS.md was last updated:
+   ```bash
+   # When was AGENTS.md last committed?
+   git log -1 --format="%ar" -- AGENTS.md
+
+   # What files changed since then? (guard against untracked/never-committed case)
+   AGENTS_COMMIT=$(git log -1 --format="%H" -- AGENTS.md)
+   [ -n "$AGENTS_COMMIT" ] && git diff --name-only "$AGENTS_COMMIT" HEAD || git status --short
+   ```
+   - If AGENTS.md is untracked or was never committed, `$AGENTS_COMMIT` will be empty and the command falls back to `git status --short` automatically
+   - If the subshell returns empty without the guard, `git diff --name-only HEAD` silently diffs the working tree instead — always use the guarded form
+   - Scan the diff output for staleness signals:
+     - New/removed directories (`plugins/`, `src/`, `packages/`) → structure drift
+     - Changes to `package.json`, `Makefile`, or build configs → commands may be outdated
+     - New CI workflow files (`.github/workflows/`) → undocumented pipeline steps
+     - New linter/formatter configs (`.eslintrc`, `vitest.config.ts`) → style section stale
+   - Use signals to pre-classify the update scope before deeper analysis:
+     - **Fresh** (0-1 signals AND committed <1 month ago): expect a minor 1-2 section edit
+     - **Moderate** (2-3 signals): focus step 3 analysis on flagged areas only
+     - **Stale** (4+ signals, OR last commit >3 months ago regardless of signal count): full pass required
+   - This is a predictive pre-classification to scope step 3 effort. The final update scope is confirmed in step 4 after analysis and may differ.
+
+3. **Analyze project for changes**:
    - Check package.json scripts vs documented commands
    - Compare linter/formatter config with documented style
    - Review CI/CD workflows for new steps
    - Detect new tools or dependencies
 
-3. **Identify update scope**:
+4. **Identify update scope**:
    - **Minor update**: 1-2 sections need changes
    - **Moderate update**: 3-4 sections or new sections needed
    - **Major update**: Significant restructure required
 
-4. **Update sections incrementally**:
+5. **Update sections incrementally**:
    - Preserve existing structure and style
    - Update outdated commands
    - Add new sections for new tools/processes
@@ -55,12 +77,12 @@ Trigger updates when:
    - **Use relative paths** for all references (e.g., `./docs/agents/testing.md`, `../api/AGENTS.md`)
    - **For monorepos**: Add/update relative path references to sibling packages
 
-5. **Check line count before writing**:
+6. **Check line count before writing**:
    - Count projected lines of updated content
    - If over 100 lines, **first try to condense**: shorten descriptions, remove duplicated info, apply progressive disclosure
-   - If still over 100 lines after condensing, proceed to step 6 before writing
+   - If still over 100 lines after condensing, proceed to step 7 before writing
 
-6. **If projected content exceeds 100 lines** — ask and then act:
+7. **If projected content exceeds 100 lines** — ask and then act:
    Use AskUserQuestion:
    ```
    questions: [
@@ -91,17 +113,17 @@ Trigger updates when:
    - Replace the section in AGENTS.md with a 2-3 line summary + `See docs/agents/<section-name>.md for details.`
    - Ensure AGENTS.md stays under 100 lines after the split
 
-7. **Write updated AGENTS.md**:
+8. **Write updated AGENTS.md**:
    - Maintain consistent formatting
    - Ensure all commands are current and executable
 
-8. **Validate the updated file**:
+9. **Validate the updated file**:
    - Run validation checklist from skill
    - Test all commands are executable
    - Ensure no information lost
    - Verify file is under 100 lines
 
-9. **Report changes**:
+10. **Report changes**:
    Summarize what was updated:
    ```
    Updated AGENTS.md:
