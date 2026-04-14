@@ -76,6 +76,7 @@ Trigger updates when:
    - **Target: 50-80 lines** — condense aggressively before writing
    - **Use relative paths** for all references (e.g., `./docs/agents/testing.md`, `../api/AGENTS.md`)
    - **For monorepos**: Add/update relative path references to sibling packages
+   - **Update linked reference docs**: if AGENTS.md links to files in `docs/agents/` or similar, check those files for stale content (outdated architecture trees, removed components, renamed paths) and update them in the same pass
 
 6. **Check line count before writing**:
    - Count projected lines of updated content
