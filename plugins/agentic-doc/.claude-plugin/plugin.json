@@ -1,6 +1,6 @@
 {
   "name": "agentic-doc",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Documentation standards for agentic programming: AGENTS.md lifecycle management and conventional commit messages.",
   "author": {
     "name": "Christophe1997",
