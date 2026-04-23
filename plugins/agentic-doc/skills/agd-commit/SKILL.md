@@ -68,22 +68,47 @@ This provides:
 
 5. **Get human confirmation**:
 
-   Call the AskUserQuestion tool to get approval:
+   Call the AskUserQuestion tool with the commit message in `preview` so it
+   renders in the side-by-side monospace pane (preserving alignment, blank
+   lines, and any trailers). Keep the question short — the preview carries
+   the content.
+
    ```json
    {
      "questions": [{
-       "question": "Ready to commit with this message:\n\n<commit message>\n\nProceed?",
+       "question": "Ready to commit with this message?",
        "header": "Confirm commit",
+       "multiSelect": false,
        "options": [
-         {"label": "Yes, commit", "description": "Create the commit with this message"},
-         {"label": "Edit message", "description": "Provide a custom commit message instead"}
+         {
+           "label": "Yes, commit",
+           "description": "Create the commit with this message",
+           "preview": "<full commit message — subject + blank line + body>"
+         },
+         {
+           "label": "Edit message",
+           "description": "Provide a custom commit message instead"
+         }
        ]
      }]
    }
    ```
 
+   Notes on the `preview` field:
+   - Required only on the "Yes, commit" option — its presence triggers the
+     split layout. Leaving "Edit message" without a preview is intentional;
+     the focus pane is empty for that option.
+   - Pass the **complete** commit message including any trailers. Newlines
+     inside the JSON string become real line breaks in the rendered box.
+   - Previews require `multiSelect: false` — they are not supported in
+     multi-select questions.
+
+   Decision handling:
    - If "Yes, commit" → Proceed to step 6
    - If "Edit message" → Ask user for custom message, then proceed to step 6
+   - If the user attached free-text via the Notes input (returned in the
+     `annotations` field keyed by question text), treat it as an amendment
+     request: incorporate the note into the message and re-confirm.
 
 6. **Create the commit**:
    - For single-line: `git commit -m "<type>[scope]: <description>"`
