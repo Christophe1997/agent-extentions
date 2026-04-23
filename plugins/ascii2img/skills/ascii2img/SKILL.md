@@ -51,7 +51,36 @@ characters, since svgbob parses a rigid cell grid.
   parser is column-sensitive and even a stripped trailing space can change
   the rendered shape.
 
-### Step 2 — invoke the render script
+### Step 2 — detect the script and pick a font family
+
+`svgbob`'s default `monospace` font has no glyphs for CJK, Cyrillic, Arabic, or
+other non-Latin scripts, so those characters render as `□` ("tofu"). Before
+invoking the render script:
+
+1. Scan the diagram contents for the dominant non-Latin script. Look at
+   *labels and text inside boxes*, not the box-drawing glyphs themselves.
+   Common cases:
+   - **CJK** — Han ideographs (中文), Hiragana/Katakana (ひらがな・カタカナ), Hangul (한글)
+   - **Cyrillic** — Russian, Ukrainian, Bulgarian, etc. (Привет)
+   - **Arabic** — Arabic, Persian, Urdu (مرحبا)
+   - **Latin only** — no non-ASCII letters → skip the flag
+2. Detect the host OS with `uname -s` (`Darwin` vs `Linux` matters because
+   pre-installed fonts differ).
+3. Pick a font family CSS string from the table below and pass it to the
+   render script with `--font-family`.
+
+| Script   | Darwin (macOS) | Linux | Other |
+|----------|----------------|-------|-------|
+| cjk      | `"PingFang SC, Hiragino Sans, Apple SD Gothic Neo, monospace"` | `"Noto Sans CJK SC, Noto Sans CJK JP, WenQuanYi Micro Hei, monospace"` | `"Noto Sans CJK SC, monospace"` |
+| cyrillic | `"Menlo, Helvetica, monospace"` | `"DejaVu Sans Mono, Liberation Mono, monospace"` | `"DejaVu Sans Mono, monospace"` |
+| arabic   | `"Geeza Pro, Apple Symbols, monospace"` | `"Noto Sans Arabic, DejaVu Sans, monospace"` | `"Noto Sans Arabic, monospace"` |
+| latin    | *(omit flag)*  | *(omit flag)* | *(omit flag)* |
+
+Each cell should be a CSS `font-family` value with fallbacks, e.g.
+`"PreferredFont, FallbackFont, monospace"`. Always end with `monospace` so
+svgbob still produces a usable diagram if no preferred font is installed.
+
+### Step 3 — invoke the render script
 
 Run via `Bash`:
 
@@ -59,19 +88,28 @@ Run via `Bash`:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/ascii2img/scripts/render.sh <input.bob>
 ```
 
+With a font family selected from Step 2:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/skills/ascii2img/scripts/render.sh \
+  --font-family "PingFang SC, monospace" <input.bob>
+```
+
 The script:
 
 - Prints the absolute PNG path on stdout on success.
 - Writes output next to the input file (e.g., `diagram.bob` → `diagram.png`).
 - Applies zoom factor 2 (`rsvg-convert -z 2`) for crisp results.
+- Forwards `--font-family` to svgbob when provided; otherwise svgbob's
+  built-in `monospace` default is used.
 
-Optionally override output path and zoom:
+Optionally override output path and zoom (positional, after any flags):
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/ascii2img/scripts/render.sh in.bob out.png 3
 ```
 
-### Step 3 — handle missing dependencies
+### Step 4 — handle missing dependencies
 
 The script uses distinct exit codes to signal dependency issues. Read stderr
 for the install command, then use `AskUserQuestion` to ask the user whether
@@ -96,7 +134,7 @@ Options:
 
 Never install dependencies silently. Always confirm first.
 
-### Step 4 — report the result
+### Step 5 — report the result
 
 On success, tell the user the PNG path. Use `AskUserQuestion` to offer opening
 it (`open <path>` on macOS, `xdg-open` on Linux). Do not auto-open and do not

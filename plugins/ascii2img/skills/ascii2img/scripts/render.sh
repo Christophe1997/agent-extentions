@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # render.sh — convert an ASCII-art diagram file to PNG via svgbob + SVG→PNG converter.
 #
-# Usage: render.sh <input.bob> [output.png] [zoom]
+# Usage: render.sh [--font-family "Family, fallback, monospace"] <input.bob> [output.png] [zoom]
 #
 # Exit codes:
 #   0   success (prints absolute PNG path on stdout)
@@ -14,9 +14,29 @@
 set -euo pipefail
 
 usage() {
-  echo "Usage: $0 <input.bob> [output.png] [zoom]" >&2
+  echo "Usage: $0 [--font-family \"Family, fallback\"] <input.bob> [output.png] [zoom]" >&2
   exit 2
 }
+
+font_family=""
+positional=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --font-family)
+      [[ -n "${2:-}" ]] || { echo "ERROR: --font-family requires a value" >&2; usage; }
+      font_family="$2"
+      shift 2
+      ;;
+    --font-family=*)
+      font_family="${1#--font-family=}"
+      shift
+      ;;
+    --) shift; positional+=("$@"); break ;;
+    -*) echo "ERROR: unknown option: $1" >&2; usage ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+set -- "${positional[@]}"
 
 [[ $# -ge 1 ]] || usage
 
@@ -71,7 +91,10 @@ fi
 tmp_svg="$(mktemp -t ascii2img.XXXXXX.svg)"
 trap 'rm -f "$tmp_svg"' EXIT
 
-if ! svgbob "$input" -o "$tmp_svg" 2>/dev/null; then
+svgbob_args=("$input" -o "$tmp_svg")
+[[ -n "$font_family" ]] && svgbob_args+=(--font-family "$font_family")
+
+if ! svgbob "${svgbob_args[@]}" 2>/dev/null; then
   echo "ERROR: svgbob failed to render $input" >&2
   exit 20
 fi
