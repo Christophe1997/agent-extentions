@@ -1,0 +1,9 @@
+{
+  "name": "ascii2img",
+  "version": "0.1.0",
+  "description": "Render ASCII-art diagrams to PNG images using svgbob and rsvg-convert.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  }
+}

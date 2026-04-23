@@ -56,6 +56,14 @@
       "category": "developer-tools",
       "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"],
       "tags": ["A2A protocol"]
+    },
+    {
+      "name": "ascii2img",
+      "source": "./plugins/ascii2img",
+      "description": "Render ASCII-art diagrams to PNG images via svgbob and rsvg-convert. Auto-activates on pasted or generated diagrams with interactive dependency install.",
+      "category": "developer-tools",
+      "keywords": ["ascii", "diagram", "svgbob", "render", "image", "png"],
+      "tags": ["ascii-art rendering"]
     }
   ]
 }
