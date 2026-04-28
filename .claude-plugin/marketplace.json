@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.0.1"
+    "version": "1.1.0"
   },
   "plugins": [
     {
@@ -56,6 +56,14 @@
       "category": "developer-tools",
       "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"],
       "tags": ["A2A protocol"]
+    },
+    {
+      "name": "yapermission",
+      "source": "./plugins/yapermission",
+      "description": "Yet Another Permission — auto-approve or block Claude Code tool calls via a YAML ruleset, with project-overrides-global config and decision logging.",
+      "category": "productivity",
+      "keywords": ["permission", "hook", "yaml", "auto-approve", "policy", "audit"],
+      "tags": ["permission policy"]
     }
   ]
 }

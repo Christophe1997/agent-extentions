@@ -1,0 +1,17 @@
+{
+  "description": "yapermission PreToolUse policy gate — evaluates every tool call against the active YAML ruleset",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py hook",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

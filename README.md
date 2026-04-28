@@ -12,6 +12,7 @@ Agent extentions in Claude marketplace structure.
 | [permission-notification](./plugins/permission-notification/README.md) | macOS notifications when Claude Code needs permission |
 | [tdd](./plugins/tdd/README.md) | Test-Driven Development guidance based on Kent Beck's Red/Green/Refactor workflow |
 | [a2a](./plugins/a2a/README.md) | A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias |
+| [yapermission](./plugins/yapermission/README.md) | Auto-approve or block tool calls via a YAML ruleset, with project-overrides-global config and decision logging |
 
 ## Installation
 
@@ -30,6 +31,7 @@ Agent extentions in Claude marketplace structure.
 /plugin install permission-notification@agent-extentions
 /plugin install tdd@agent-extentions
 /plugin install a2a@agent-extentions
+/plugin install yapermission@agent-extentions
 ```
 
 ## License
