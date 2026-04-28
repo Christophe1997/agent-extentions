@@ -1,25 +1,42 @@
 ---
 name: yap-rule-syntax
-description: Reference for the yapermission YAML rule schema and evaluation order. Trigger when the user asks how to write a yapermission rule, the yapermission yaml format or schema, how to auto-approve git commands or shell utilities, how to block rm -rf or other dangerous commands, what the deny/approve/default fields mean, or how project and global yapermission configs interact.
+description: Reference for the yapermission YAML rule schema and evaluation order. Trigger when the user asks how to write a yapermission rule, the yapermission yaml format or schema, how to auto-allow git commands or shell utilities, how to force a prompt for force-push or other commands, how to block rm -rf or other dangerous commands, or how project and global yapermission configs interact.
 ---
 
 # yapermission rule syntax
 
-A yapermission policy is a single YAML file with up to three top-level keys: `default`, `deny`, `approve`.
+A yapermission policy is a single YAML file with up to five top-level keys: `default`, `deny`, `ask`, `allow`, `defer`.
 
 ## Top-level shape
 
 ```yaml
-default: ask              # approve | block | ask  (ask = pass-through to normal prompt)
+default: ask              # allow | deny | ask | defer  (fallback when no rule matches)
 
-deny:                     # list of rules; first match wins; evaluated FIRST
+deny:                     # evaluated 1st; matched rule emits permissionDecision "deny"
   - { ... rule ... }
 
-approve:                  # list of rules; first match wins; evaluated SECOND
+ask:                      # evaluated 2nd; matched rule emits permissionDecision "ask"
+  - { ... rule ... }      # forces the prompt even when an `allow:` rule below matches
+
+allow:                    # evaluated 3rd; matched rule emits permissionDecision "allow"
   - { ... rule ... }
+
+defer:                    # evaluated 4th; matched rule emits permissionDecision "defer"
+  - { ... rule ... }      # hands the decision to the next PreToolUse hook
 ```
 
-If neither a `deny` rule nor an `approve` rule matches, `default` applies. Missing `default` means `ask`.
+If no rule matches, the top-level `default:` value is emitted. Missing `default` means `ask`.
+
+Each rule-list key directly mirrors Claude Code's `permissionDecision` field — there are no aliases:
+
+| Decision | Behavior |
+|---|---|
+| `allow` | Skip the permission prompt and run the tool |
+| `deny` | Block the tool call (engine attaches `permissionDecisionReason`) |
+| `ask` | Force the permission prompt (rule's `reason:` is shown to the user) |
+| `defer` | Hand the decision to the next hook in the chain |
+
+The `default:` field accepts only those four values; anything else falls back to `ask`.
 
 ## Rule shape
 
@@ -29,7 +46,7 @@ If neither a `deny` rule nor an `approve` rule matches, `default` applies. Missi
   matches:                            # list of input-pattern entries (REQUIRED)
     - command: '^git (status|log)\b'  # all fields in this entry must match (AND)
     - command: '^ls\b'                # any entry that matches makes the rule fire (OR)
-  reason: "Read-only operations"      # shown to Claude on deny; logged on approve
+  reason: "Read-only operations"      # shown to the user on deny/ask; logged on allow/defer
 ```
 
 ## Matching semantics
@@ -49,7 +66,17 @@ If neither a `deny` rule nor an `approve` rule matches, `default` applies. Missi
         │ no match
         ▼
    ┌──────────┐    matched    ┌──────────────┐
-   │ approve  │ ─────────────►│ return allow │
+   │   ask    │ ─────────────►│  return ask  │
+   └────┬─────┘                └──────────────┘
+        │ no match
+        ▼
+   ┌──────────┐    matched    ┌──────────────┐
+   │  allow   │ ─────────────►│ return allow │
+   └────┬─────┘                └──────────────┘
+        │ no match
+        ▼
+   ┌──────────┐    matched    ┌──────────────┐
+   │  defer   │ ─────────────►│ return defer │
    └────┬─────┘                └──────────────┘
         │ no match
         ▼
@@ -57,6 +84,8 @@ If neither a `deny` rule nor an `approve` rule matches, `default` applies. Missi
    │ default  │
    └──────────┘
 ```
+
+The order encodes "more restrictive intent wins": `deny` is absolute, `ask` forces a manual confirm even when a broader `allow:` rule below would auto-approve, and `defer` only fires when nothing earlier had an opinion.
 
 ## Config resolution
 
@@ -67,13 +96,31 @@ If neither a `deny` rule nor an `approve` rule matches, `default` applies. Missi
 
 ## Cookbook
 
-**Auto-approve read-only git:**
+**Auto-allow read-only git:**
 ```yaml
-approve:
+allow:
   - name: safe-git-reads
     tool: Bash
     matches:
       - command: '^git (status|log|diff|branch|show|remote)\b'
+```
+
+**Force a prompt for destructive git, even though `git-all` below would auto-allow:**
+```yaml
+ask:
+  - name: destructive-git
+    tool: Bash
+    matches:
+      - command: 'git push.*--force\b'
+      - command: 'git reset\s+--hard\b'
+      - command: 'git branch\s+-D\b'
+    reason: "Destructive git operation — confirm before running"
+
+allow:
+  - name: git-all
+    tool: Bash
+    matches:
+      - command: '^git\b'
 ```
 
 **Block destructive commands:**
@@ -100,11 +147,21 @@ deny:
 
 **Allow a whole MCP namespace:**
 ```yaml
-approve:
+allow:
   - name: github-reads
     tool: '^mcp__github__(get_|list_|search_)'
     matches:
       - {}                                  # no input constraints
+```
+
+**Defer to a downstream policy hook for sensitive paths:**
+```yaml
+defer:
+  - name: sensitive-area
+    tool: 'Write|Edit'
+    matches:
+      - file_path: '^/Users/me/sensitive-area/'
+    reason: "Hand off to the policy-enforcement hook"
 ```
 
 For deeper coverage (regex tips, debugging via the audit log, advanced patterns), see [`references/schema.md`](references/schema.md).

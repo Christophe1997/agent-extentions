@@ -15,11 +15,22 @@ The hook reads from the cwd of the tool call. Switching directories switches pol
 
 | Key | Type | Required | Default | Notes |
 |---|---|---|---|---|
-| `default` | string | no | `ask` | One of `approve`, `block`, `ask`. `approve` and `allow` are aliases; `block` and `deny` are aliases. |
-| `deny` | list | no | `[]` | Rules evaluated first. First match wins. |
-| `approve` | list | no | `[]` | Rules evaluated after `deny`. First match wins. |
+| `default` | string | no | `ask` | One of `allow`, `deny`, `ask`, `defer` — exactly mirroring Claude Code's `permissionDecision` field. Any other value falls back to `ask`. |
+| `deny`  | list | no | `[]` | Rules evaluated 1st. First match emits `permissionDecision: "deny"`. |
+| `ask`   | list | no | `[]` | Rules evaluated 2nd. First match emits `permissionDecision: "ask"`. Forces the prompt even when an `allow:` rule below would match. |
+| `allow` | list | no | `[]` | Rules evaluated 3rd. First match emits `permissionDecision: "allow"`. |
+| `defer` | list | no | `[]` | Rules evaluated 4th. First match emits `permissionDecision: "defer"`. Hands the decision to the next PreToolUse hook in the chain. |
 
 Any other top-level keys are ignored.
+
+### permissionDecision values
+
+| Value | Hook behavior |
+|---|---|
+| `allow` | Tool runs without a prompt |
+| `deny` | Tool call is blocked; `permissionDecisionReason` is sent back to Claude |
+| `ask` | Forces Claude Code's permission prompt; the rule's `reason` is shown to the user |
+| `defer` | Hands the decision to the next hook in the chain |
 
 ## Rule fields
 
@@ -28,7 +39,7 @@ Any other top-level keys are ignored.
 | `name` | string | recommended | Used in audit log and `--verbose` traces. Use a short, unique identifier. |
 | `tool` | regex | no | `re.search`-matched against `tool_name`. Missing means "any tool". |
 | `matches` | list of dict | yes (to fire) | OR-of-ANDs. Empty or missing = rule never fires. Use `- {}` for "any input". |
-| `reason` | string | no | Shown to Claude on `deny`; recorded in the log on either decision. |
+| `reason` | string | no | Shown to the user on `deny` and `ask` (via `permissionDecisionReason`); recorded in the audit log for every decision. |
 
 ## Pattern matching
 

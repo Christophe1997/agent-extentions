@@ -28,7 +28,10 @@ LOG_PATH = Path.home() / ".yapermission.log"
 
 @dataclass
 class Decision:
-    permission: str  # "allow" | "deny" | "ask"
+    # Mirrors Claude Code's PreToolUse `permissionDecision` field exactly:
+    # "allow" skips the prompt, "deny" blocks the call, "ask" prompts the user,
+    # "defer" hands the decision to a later hook in the chain.
+    permission: str  # "allow" | "deny" | "ask" | "defer"
     rule_name: Optional[str] = None
     reason: Optional[str] = None
     trace: list[str] = field(default_factory=list)
@@ -106,45 +109,50 @@ def rule_matches(rule: dict, tool_name: str, tool_input: dict) -> bool:
     return False
 
 
+# Rule groups in evaluation order. Each entry is (yaml_key, permissionDecision).
+# More restrictive intent comes first: an absolute block beats a "make me think"
+# beats an "auto-approve" beats a "pass to next hook". Reordering this list
+# changes the policy semantics — every group beats every group below it.
+_RULE_GROUPS = (
+    ("deny", "deny"),
+    ("ask", "ask"),
+    ("allow", "allow"),
+    ("defer", "defer"),
+)
+
+
 def decide(config: dict, tool_name: str, tool_input: dict) -> Decision:
-    """Evaluate deny → approve → default order; return the resulting Decision."""
+    """Evaluate rule groups in `_RULE_GROUPS` order; return the resulting Decision."""
     trace: list[str] = []
 
-    for rule in config.get("deny") or []:
-        name = rule.get("name", "<unnamed>")
-        if rule_matches(rule, tool_name, tool_input):
-            trace.append(f"deny rule '{name}' matched")
-            return Decision(
-                permission="deny",
-                rule_name=rule.get("name"),
-                reason=rule.get("reason", "Denied by yapermission policy"),
-                trace=trace,
-            )
-        trace.append(f"deny rule '{name}' skipped")
-
-    for rule in config.get("approve") or []:
-        name = rule.get("name", "<unnamed>")
-        if rule_matches(rule, tool_name, tool_input):
-            trace.append(f"approve rule '{name}' matched")
-            return Decision(
-                permission="allow",
-                rule_name=rule.get("name"),
-                reason=rule.get("reason"),
-                trace=trace,
-            )
-        trace.append(f"approve rule '{name}' skipped")
+    for group_key, decision_value in _RULE_GROUPS:
+        for rule in config.get(group_key) or []:
+            name = rule.get("name", "<unnamed>")
+            if rule_matches(rule, tool_name, tool_input):
+                trace.append(f"{group_key} rule '{name}' matched")
+                reason = rule.get("reason")
+                if decision_value == "deny" and not reason:
+                    reason = "Denied by yapermission policy"
+                return Decision(
+                    permission=decision_value,
+                    rule_name=rule.get("name"),
+                    reason=reason,
+                    trace=trace,
+                )
+            trace.append(f"{group_key} rule '{name}' skipped")
 
     default = (config.get("default") or "ask").lower()
     trace.append(f"no rule matched — default: {default}")
     return Decision(permission=_normalize_default(default), trace=trace)
 
 
+# The four valid `default:` values, mirroring Claude Code's permissionDecision field.
+_VALID_DEFAULTS = {"allow", "deny", "ask", "defer"}
+
+
 def _normalize_default(value: str) -> str:
-    if value in ("approve", "allow"):
-        return "allow"
-    if value in ("block", "deny"):
-        return "deny"
-    return "ask"
+    """Validate the configured default; unknown values fall back to `ask` (fail-open)."""
+    return value if value in _VALID_DEFAULTS else "ask"
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +196,9 @@ def emit_hook_output(decision: Decision) -> None:
             "permissionDecision": decision.permission,
         }
     }
-    if decision.permission == "deny" and decision.reason:
+    # Per Claude Code spec, permissionDecisionReason is shown to the user on
+    # `deny` and `ask` decisions; on `allow` and `defer` it would be ignored.
+    if decision.permission in ("deny", "ask") and decision.reason:
         out["hookSpecificOutput"]["permissionDecisionReason"] = decision.reason
     json.dump(out, sys.stdout)
 

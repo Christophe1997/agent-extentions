@@ -1,28 +1,28 @@
 # yapermission
 
-Yet Another Permission — declarative auto-approve / block rules for Claude Code tool calls.
+Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls.
 
-A `PreToolUse` hook evaluates every tool call against a YAML policy. Matching `deny` rules block, matching `approve` rules skip the permission prompt, and unmatched calls fall through to Claude Code's normal permission flow.
+A `PreToolUse` hook evaluates every tool call against a YAML policy and emits the matching `permissionDecision` value: `allow` skips the prompt, `deny` blocks, `ask` forces a prompt with a reason, `defer` hands off to the next hook. Unmatched calls fall through to the top-level `default:`.
 
 ## Features
 
 | Capability | Description |
 |---|---|
-| **PreToolUse hook** | Intercepts every tool call (Bash, Edit, Write, Read, MCP, …) and returns `allow` / `deny` / pass-through |
-| **YAML policy** | Group rules under `deny:` / `approve:` blocks. Each rule has `tool`, `matches[]`, optional `reason` |
+| **PreToolUse hook** | Intercepts every tool call (Bash, Edit, Write, Read, MCP, …) and emits one of the four `permissionDecision` values: `allow`, `deny`, `ask`, `defer` |
+| **YAML policy** | Group rules under `deny:`, `ask:`, `allow:`, or `defer:` blocks — each key directly mirrors the decision it emits. Every rule takes `tool`, `matches[]`, optional `reason` |
 | **Config hierarchy** | `./.yapermission.yaml` (project) overrides `~/.yapermission.yaml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
 | **Onboarding** | `/yapermission:yap-onboard` writes a heavily-commented starter config to `~/.yapermission.yaml` |
 | **Dry-run debugger** | `/yapermission:yap-explain Bash "git push"` shows which rule matched and why |
-| **Knowledge skill** | Ask "how do I auto-approve git commands?" — auto-loads schema docs |
+| **Knowledge skill** | Ask "how do I auto-allow git commands?" — auto-loads schema docs |
 
 ## Examples
 
 ```yaml
 # ~/.yapermission.yaml
-default: ask              # approve | block | ask (pass-through)
+default: ask              # allow | deny | ask | defer
 
-deny:                     # evaluated first; first match wins
+deny:                     # evaluated 1st; first match wins
   - name: dangerous-deletes
     tool: Bash
     matches:
@@ -30,7 +30,15 @@ deny:                     # evaluated first; first match wins
       - command: 'dd\s+.*of=/dev/'
     reason: "Destructive command — manual approval required"
 
-approve:                  # evaluated second; first match wins
+ask:                      # evaluated 2nd; forces a prompt even when `allow:` matches
+  - name: destructive-git
+    tool: Bash
+    matches:
+      - command: 'git push.*--force\b'
+      - command: 'git reset\s+--hard\b'
+    reason: "Destructive git operation — confirm before running"
+
+allow:                    # evaluated 3rd; first match wins
   - name: safe-git-reads
     tool: Bash
     matches:
@@ -45,9 +53,16 @@ approve:                  # evaluated second; first match wins
     tool: '^mcp__github__(get_|list_|search_)'
     matches:
       - {}                # no input constraints — match any input
+
+defer:                    # evaluated 4th; passes to next hook in the chain
+  - name: sensitive-area
+    tool: 'Write|Edit'
+    matches:
+      - file_path: '^/Users/me/sensitive/'
+    reason: "Hand off to the policy-enforcement hook"
 ```
 
-**Evaluation order:** `deny` rules → `approve` rules → top-level `default`.
+**Evaluation order:** `deny` → `ask` → `allow` → `defer` → top-level `default`.
 
 ## Installation
 
@@ -83,7 +98,7 @@ Once installed and configured, the hook runs on every tool call automatically. T
 Decisions are appended to `~/.yapermission.log`:
 
 ```json
-{"ts":"2026-04-28T10:23:11Z","tool":"Bash","decision":"approve","rule":"safe-git-reads","input":{"command":"git status"},"cwd":"/Users/me/proj"}
+{"ts":"2026-04-28T10:23:11Z","tool":"Bash","decision":"allow","rule":"safe-git-reads","input":{"command":"git status"},"cwd":"/Users/me/proj"}
 {"ts":"2026-04-28T10:23:14Z","tool":"Bash","decision":"deny","rule":"dangerous-deletes","reason":"Destructive command — manual approval required","input":{"command":"rm -rf /tmp/x"},"cwd":"/Users/me/proj"}
 {"ts":"2026-04-28T10:23:18Z","tool":"Edit","decision":"ask","rule":null,"input":{"file_path":"/etc/hosts"},"cwd":"/Users/me/proj"}
 ```

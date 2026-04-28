@@ -111,12 +111,12 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.permission, "ask")
         self.assertIsNone(decision.rule_name)
 
-    def test_default_approve_returns_allow_when_no_rules_match(self):
-        decision = yp.decide({"default": "approve"}, "Bash", {"command": "x"})
+    def test_default_allow_returns_allow_when_no_rules_match(self):
+        decision = yp.decide({"default": "allow"}, "Bash", {"command": "x"})
         self.assertEqual(decision.permission, "allow")
 
-    def test_default_block_returns_deny_when_no_rules_match(self):
-        decision = yp.decide({"default": "block"}, "Bash", {"command": "x"})
+    def test_default_deny_returns_deny_when_no_rules_match(self):
+        decision = yp.decide({"default": "deny"}, "Bash", {"command": "x"})
         self.assertEqual(decision.permission, "deny")
 
     def test_default_unknown_falls_back_to_ask(self):
@@ -145,9 +145,9 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.permission, "deny")
         self.assertIn("yapermission", decision.reason.lower())
 
-    def test_approve_rule_match_returns_allow(self):
+    def test_allow_rule_match_returns_allow(self):
         config = {
-            "approve": [
+            "allow": [
                 {"name": "ok", "tool": "Bash", "matches": [{"command": "^git"}]}
             ]
         }
@@ -155,18 +155,61 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.permission, "allow")
         self.assertEqual(decision.rule_name, "ok")
 
-    def test_deny_wins_when_both_deny_and_approve_match(self):
+    def test_ask_rule_match_returns_ask_with_reason(self):
+        config = {
+            "ask": [
+                {
+                    "name": "force-push-prompt",
+                    "tool": "Bash",
+                    "matches": [{"command": "push.*--force"}],
+                    "reason": "Force-push deserves a manual confirm",
+                }
+            ]
+        }
+        decision = yp.decide(config, "Bash", {"command": "git push --force"})
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.reason, "Force-push deserves a manual confirm")
+
+    def test_defer_rule_match_returns_defer(self):
+        config = {
+            "defer": [
+                {"name": "let-next-hook-decide", "tool": "Bash", "matches": [{}]}
+            ]
+        }
+        decision = yp.decide(config, "Bash", {"command": "anything"})
+        self.assertEqual(decision.permission, "defer")
+        self.assertEqual(decision.rule_name, "let-next-hook-decide")
+
+    def test_eval_order_deny_beats_ask(self):
         config = {
             "deny": [{"name": "blocked", "tool": "Bash", "matches": [{}]}],
-            "approve": [{"name": "allowed", "tool": "Bash", "matches": [{}]}],
+            "ask": [{"name": "would-prompt", "tool": "Bash", "matches": [{}]}],
         }
-        decision = yp.decide(config, "Bash", {"command": "git status"})
+        decision = yp.decide(config, "Bash", {"command": "x"})
         self.assertEqual(decision.permission, "deny")
         self.assertEqual(decision.rule_name, "blocked")
 
+    def test_eval_order_ask_beats_allow(self):
+        config = {
+            "ask": [{"name": "prompt-me", "tool": "Bash", "matches": [{}]}],
+            "allow": [{"name": "auto-allow", "tool": "Bash", "matches": [{}]}],
+        }
+        decision = yp.decide(config, "Bash", {"command": "x"})
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "prompt-me")
+
+    def test_eval_order_allow_beats_defer(self):
+        config = {
+            "allow": [{"name": "auto-allow", "tool": "Bash", "matches": [{}]}],
+            "defer": [{"name": "next-hook", "tool": "Bash", "matches": [{}]}],
+        }
+        decision = yp.decide(config, "Bash", {"command": "x"})
+        self.assertEqual(decision.permission, "allow")
+        self.assertEqual(decision.rule_name, "auto-allow")
+
     def test_first_matching_rule_wins_within_group(self):
         config = {
-            "approve": [
+            "allow": [
                 {"name": "first", "tool": "Bash", "matches": [{"command": "^git"}]},
                 {"name": "second", "tool": "Bash", "matches": [{"command": "^git"}]},
             ]
@@ -176,8 +219,8 @@ class TestDecide(unittest.TestCase):
 
     def test_falls_through_to_default_when_no_rule_matches(self):
         config = {
-            "default": "block",
-            "approve": [{"name": "nope", "tool": "Edit", "matches": [{}]}],
+            "default": "deny",
+            "allow": [{"name": "nope", "tool": "Edit", "matches": [{}]}],
         }
         decision = yp.decide(config, "Bash", {"command": "x"})
         self.assertEqual(decision.permission, "deny")
@@ -186,17 +229,27 @@ class TestDecide(unittest.TestCase):
 class TestNormalizeDefault(unittest.TestCase):
     def test_normalization_table(self):
         cases = {
-            "approve": "allow",
+            # The four valid permissionDecision values pass through unchanged.
             "allow": "allow",
-            "block": "deny",
             "deny": "deny",
             "ask": "ask",
+            "defer": "defer",
+            # Anything else falls back to ask (fail-open).
+            "approve": "ask",
+            "block": "ask",
             "nonsense": "ask",
             "": "ask",
         }
         for raw, expected in cases.items():
             with self.subTest(raw=raw):
                 self.assertEqual(yp._normalize_default(raw), expected)
+
+
+class TestDeferDefault(unittest.TestCase):
+    def test_default_defer_returns_defer_when_no_rules_match(self):
+        decision = yp.decide({"default": "defer"}, "Bash", {"command": "x"})
+        self.assertEqual(decision.permission, "defer")
+        self.assertIsNone(decision.rule_name)
 
 
 class TestActiveConfigPath(unittest.TestCase):
@@ -215,10 +268,10 @@ class TestActiveConfigPath(unittest.TestCase):
         project_dir = self.tmp / "project"
         project_dir.mkdir()
         project_cfg = project_dir / yp.PROJECT_CONFIG_NAME
-        project_cfg.write_text("default: approve\n")
+        project_cfg.write_text("default: allow\n")
 
         yp.GLOBAL_CONFIG.parent.mkdir()
-        yp.GLOBAL_CONFIG.write_text("default: block\n")
+        yp.GLOBAL_CONFIG.write_text("default: deny\n")
 
         self.assertEqual(yp.active_config_path(str(project_dir)), project_cfg)
 

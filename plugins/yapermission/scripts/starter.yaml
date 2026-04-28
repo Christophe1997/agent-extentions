@@ -1,10 +1,13 @@
 # yapermission policy — global config at ~/.yapermission.yaml
 # A project-level ./.yapermission.yaml replaces this file wholesale (no merge).
 #
-# Evaluation order: deny rules → approve rules → default
-# - First matching deny rule wins (returns "deny" with its reason)
-# - Otherwise, first matching approve rule wins (returns "allow")
-# - Otherwise, the top-level `default:` is used
+# Evaluation order: deny → ask → allow → defer → default
+# Each rule group emits the matching permissionDecision value:
+#   deny  — block the call with a reason          (rule list: `deny:`)
+#   ask   — force the prompt with an optional reason (rule list: `ask:`)
+#   allow — skip the prompt                       (rule list: `allow:`)
+#   defer — hand off to the next hook in the chain (rule list: `defer:`)
+# If no rule matches, the top-level `default:` value is emitted.
 #
 # Rule shape:
 #   - name:    short identifier (shows up in the audit log)
@@ -12,9 +15,9 @@
 #     matches: list of input patterns. ANY entry that matches makes the rule fire.
 #              Within an entry, ALL field regexes must match (AND).
 #              Use `- {}` to match any input.
-#     reason:  human-readable explanation (shown to Claude on deny)
+#     reason:  human-readable explanation (shown to the user on deny/ask)
 
-default: ask                  # approve | block | ask  (ask = pass through to normal prompt)
+default: ask                  # allow | deny | ask | defer
 
 deny:
   - name: dangerous-deletes
@@ -33,7 +36,19 @@ deny:
       - file_path: '^/System/'
     reason: "Writes outside user space require manual approval"
 
-approve:
+# `ask:` rules force a prompt even when an `allow:` rule below would auto-approve.
+# Useful for "broad allow with a few hand-on-shoulder moments" — e.g. force-push.
+ask:
+  - name: destructive-git
+    tool: Bash
+    matches:
+      - command: 'git push.*--force\b'
+      - command: 'git reset\s+--hard\b'
+      - command: 'git clean\s+-[a-z]*f'
+      - command: 'git branch\s+-D\b'
+    reason: "Destructive git operation — confirm before running"
+
+allow:
   - name: safe-git-reads
     tool: Bash
     matches:
@@ -46,15 +61,23 @@ approve:
       - command: '^(ls|pwd|whoami|date|cat|head|tail|wc|file|which)\b'
     reason: "Read-only shell utilities"
 
-  # Example: auto-approve reads inside your project tree.
+  # Example: auto-allow reads inside your project tree.
   # Uncomment and edit the path to match your setup.
   # - name: project-reads
   #   tool: Read
   #   matches:
   #     - file_path: '^/Users/me/code/'
 
-  # Example: auto-approve all read-only MCP calls from a specific server.
+  # Example: auto-allow all read-only MCP calls from a specific server.
   # - name: mcp-github-reads
   #   tool: '^mcp__github__(get_|list_|search_)'
   #   matches:
   #     - {}
+
+# `defer:` rules pass the decision to the next PreToolUse hook in the chain.
+# Only useful when another hook is configured downstream of yapermission.
+# defer:
+#   - name: defer-to-policy-hook
+#     tool: 'Write|Edit'
+#     matches:
+#       - file_path: '^/Users/me/sensitive-area/'
