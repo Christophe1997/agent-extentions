@@ -1,6 +1,6 @@
 ---
-name: yap-onboard
-description: Scaffold the global yapermission config at ~/.yapermission.yaml from the bundled starter template. Trigger when the user runs /yapermission:yap-onboard or asks to set up yapermission, initialize the policy file, or create a starter yapermission config.
+name: yap:onboard
+description: Scaffold the global yapermission config at ~/.yapermission.yaml from the bundled starter template. Trigger when the user asks to set up yapermission, initialize the policy file, or create a starter yapermission config.
 allowed-tools: Bash, Read, Write
 ---
 
