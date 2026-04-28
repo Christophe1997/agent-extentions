@@ -26,7 +26,7 @@ deny:
       - command: '\brm\s+-rf\b'
       - command: 'sudo\s+rm\b'
       - command: 'dd\s+.*of=/dev/'
-    reason: "Destructive command — manual approval required"
+    reason: "Destructive command — execute manually"
 
   - name: write-system-paths
     tool: 'Write|Edit'
@@ -34,7 +34,7 @@ deny:
       - file_path: '^/etc/'
       - file_path: '^/usr/'
       - file_path: '^/System/'
-    reason: "Writes outside user space require manual approval"
+    reason: "Writes outside user space — execute manually"
 
 # `ask:` rules force a prompt even when an `allow:` rule below would auto-approve.
 # Useful for "broad allow with a few hand-on-shoulder moments" — e.g. force-push.

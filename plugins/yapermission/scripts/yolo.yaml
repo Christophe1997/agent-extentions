@@ -33,7 +33,7 @@ deny:
       - command: '\brm\s+-rf\b'
       - command: 'sudo\s+rm\b'
       - command: 'dd\s+.*of=/dev/'
-    reason: "Destructive command — manual approval required"
+    reason: "Destructive command — execute manually"
 
   - name: write-system-paths
     tool: 'Write|Edit|NotebookEdit'
@@ -43,7 +43,7 @@ deny:
       - file_path: '^/System/'
       - file_path: '^/Library/'
       - file_path: '^/private/etc/'
-    reason: "Writes outside user space require manual approval"
+    reason: "Writes outside user space — execute manually"
 
   - name: write-credential-stores
     tool: 'Write|Edit'
@@ -56,7 +56,7 @@ deny:
       - file_path: '/\.config/gh/hosts\.yml$'
       - file_path: '/\.kube/config$'
       - file_path: '/\.docker/config\.json$'
-    reason: "Credential file write — manual approval required"
+    reason: "Credential file write — execute manually"
 
   # ---- Privilege escalation ----
 
@@ -66,7 +66,7 @@ deny:
       - command: '^sudo\b'
       - command: '^su\s'
       - command: '^doas\b'
-    reason: "Privilege escalation — manual approval required"
+    reason: "Privilege escalation — execute manually"
 
   # ---- Untrusted code execution from network ----
 
@@ -75,7 +75,7 @@ deny:
     matches:
       - command: '(curl|wget|fetch)\s.*\|\s*(sh|bash|zsh|fish|ksh)\b'
       - command: '(curl|wget)\s.*\|\s*sudo\b'
-    reason: "Piping network output to a shell — manual approval required"
+    reason: "Piping network output to a shell — execute manually"
 
   # ---- Permission and ownership damage ----
 
@@ -85,7 +85,7 @@ deny:
       - command: 'chmod\s+-R\b'
       - command: 'chown\s+-R\b'
       - command: 'chmod\s+(0?7\d\d|7\d\d)\s+/'
-    reason: "Recursive permission/ownership change — manual approval required"
+    reason: "Recursive permission/ownership change — execute manually"
 
   # ---- Persistent or externally-visible side effects (Claude Code tools) ----
 
@@ -93,7 +93,7 @@ deny:
     tool: '^(CronCreate|CronDelete|PushNotification|RemoteTrigger)$'
     matches:
       - {}
-    reason: "Persistent/external action — manual approval required"
+    reason: "Persistent/external action — execute manually"
 
   # ---- Git history rewriting ----
 
@@ -103,7 +103,7 @@ deny:
       - command: 'git filter-(branch|repo)\b'
       - command: 'git update-ref\s+-d\b'
       - command: 'git push\s+.*--mirror\b'
-    reason: "Git history rewrite or mirror push — manual approval required"
+    reason: "Git history rewrite or mirror push — execute manually"
 
 ask:
   # Borderline-dangerous git operations: prompt rather than block.
