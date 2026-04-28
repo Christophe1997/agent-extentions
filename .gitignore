@@ -1,5 +1,6 @@
 # Local settings (may contain credentials)
 .claude/*.local.*
+.yapermission.yaml
 
 # OS files
 .DS_Store

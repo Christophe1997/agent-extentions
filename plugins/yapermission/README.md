@@ -12,7 +12,7 @@ A `PreToolUse` hook evaluates every tool call against a YAML policy and emits th
 | **YAML policy** | Group rules under `deny:`, `ask:`, `allow:`, or `defer:` blocks — each key directly mirrors the decision it emits. Every rule takes `tool`, `matches[]`, optional `reason` |
 | **Config hierarchy** | `./.yapermission.yaml` (project) overrides `~/.yapermission.yaml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
-| **Onboarding** | `/yapermission:yap-onboard` writes a heavily-commented starter config to `~/.yapermission.yaml` |
+| **Onboarding** | `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.yaml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails) |
 | **Dry-run debugger** | `/yapermission:yap-explain Bash "git push"` shows which rule matched and why |
 | **Knowledge skill** | Ask "how do I auto-allow git commands?" — auto-loads schema docs |
 

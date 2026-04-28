@@ -1,0 +1,142 @@
+# yapermission policy — YOLO template (default-allow with hard guardrails)
+#
+# *** READ THIS BEFORE INSTALLING AS GLOBAL CONFIG ***
+#
+# This template flips the safety model: instead of "ask by default, allow what
+# you trust," it does "allow by default, deny what's dangerous, ask for the
+# borderline cases." That's faster but leans on the deny list to catch every
+# class of damage — anything you forget to deny will run unprompted.
+#
+# Recommended usage:
+#   - PROJECT-LEVEL (./.yapermission.yaml in a repo you trust): great fit
+#     for tight dev loops and personal sandboxes. The "yolo" effect is
+#     scoped to that directory; everywhere else your conservative global
+#     config still applies.
+#   - GLOBAL (~/.yapermission.yaml): only when you're confident the deny
+#     list covers your threat model and you're ready to maintain it. New
+#     dangerous tools added in future Claude Code versions will not be
+#     auto-blocked — you have to add them yourself.
+#
+# Eval order: deny → ask → allow → defer → default
+# This file has NO `allow:` rules — anything not denied/asked falls through
+# to `default: allow`. The deny list is your only guardrail; the ask list
+# catches borderline-dangerous things (package installs, force pushes).
+
+default: allow
+
+deny:
+  # ---- File-system hazards ----
+
+  - name: dangerous-deletes
+    tool: Bash
+    matches:
+      - command: '\brm\s+-rf\b'
+      - command: 'sudo\s+rm\b'
+      - command: 'dd\s+.*of=/dev/'
+    reason: "Destructive command — manual approval required"
+
+  - name: write-system-paths
+    tool: 'Write|Edit|NotebookEdit'
+    matches:
+      - file_path: '^/etc/'
+      - file_path: '^/usr/'
+      - file_path: '^/System/'
+      - file_path: '^/Library/'
+      - file_path: '^/private/etc/'
+    reason: "Writes outside user space require manual approval"
+
+  - name: write-credential-stores
+    tool: 'Write|Edit'
+    matches:
+      - file_path: '/\.ssh/'
+      - file_path: '/\.aws/credentials\b'
+      - file_path: '/\.aws/config\b'
+      - file_path: '/\.gnupg/'
+      - file_path: '/\.netrc$'
+      - file_path: '/\.config/gh/hosts\.yml$'
+      - file_path: '/\.kube/config$'
+      - file_path: '/\.docker/config\.json$'
+    reason: "Credential file write — manual approval required"
+
+  # ---- Privilege escalation ----
+
+  - name: privilege-escalation
+    tool: Bash
+    matches:
+      - command: '^sudo\b'
+      - command: '^su\s'
+      - command: '^doas\b'
+    reason: "Privilege escalation — manual approval required"
+
+  # ---- Untrusted code execution from network ----
+
+  - name: pipe-to-shell
+    tool: Bash
+    matches:
+      - command: '(curl|wget|fetch)\s.*\|\s*(sh|bash|zsh|fish|ksh)\b'
+      - command: '(curl|wget)\s.*\|\s*sudo\b'
+    reason: "Piping network output to a shell — manual approval required"
+
+  # ---- Permission and ownership damage ----
+
+  - name: recursive-permission-change
+    tool: Bash
+    matches:
+      - command: 'chmod\s+-R\b'
+      - command: 'chown\s+-R\b'
+      - command: 'chmod\s+(0?7\d\d|7\d\d)\s+/'
+    reason: "Recursive permission/ownership change — manual approval required"
+
+  # ---- Persistent or externally-visible side effects (Claude Code tools) ----
+
+  - name: persistent-or-external-tools
+    tool: '^(CronCreate|CronDelete|PushNotification|RemoteTrigger)$'
+    matches:
+      - {}
+    reason: "Persistent/external action — manual approval required"
+
+  # ---- Git history rewriting ----
+
+  - name: git-history-rewrite
+    tool: Bash
+    matches:
+      - command: 'git filter-(branch|repo)\b'
+      - command: 'git update-ref\s+-d\b'
+      - command: 'git push\s+.*--mirror\b'
+    reason: "Git history rewrite or mirror push — manual approval required"
+
+ask:
+  # Borderline-dangerous git operations: prompt rather than block.
+  - name: destructive-git
+    tool: Bash
+    matches:
+      - command: 'git push.*--force\b'
+      - command: 'git push.*-f\b'
+      - command: 'git reset\s+--hard\b'
+      - command: 'git clean\s+-[a-z]*f'
+      - command: 'git branch\s+-D\b'
+      - command: 'git checkout\s+--\s'
+    reason: "Destructive git operation — confirm before running"
+
+  # Package installs are the #1 supply-chain risk vector. Always confirm.
+  - name: package-install
+    tool: Bash
+    matches:
+      - command: '^npm (install|i)\b'
+      - command: '^pnpm (install|add)\b'
+      - command: '^yarn (add|install)\b'
+      - command: '^pip3? install\b'
+      - command: '^uv (add|pip install)\b'
+      - command: '^poetry add\b'
+      - command: '^cargo install\b'
+      - command: '^go install\b'
+      - command: '^gem install\b'
+      - command: '^brew install\b'
+    reason: "Package install (supply-chain risk) — confirm before running"
+
+  # Pushing to remote: usually fine but worth a beat of attention.
+  - name: git-push
+    tool: Bash
+    matches:
+      - command: '^git push\b'
+    reason: "Pushing to remote — confirm target branch"
