@@ -1,6 +1,6 @@
 ---
-name: explain
-description: Dry-run a tool call against the active yapermission policy and report which rule matched and why. Trigger when the user runs /yapermission:explain or asks to test/debug/trace a yapermission rule, check whether a command would be auto-approved or blocked, or understand why a yapermission decision happened.
+name: yap-explain
+description: Dry-run a tool call against the active yapermission policy and report which rule matched and why. Trigger when the user runs /yapermission:yap-explain or asks to test/debug/trace a yapermission rule, check whether a command would be auto-approved or blocked, or understand why a yapermission decision happened.
 argument-hint: 'Bash "git status"  |  Edit /etc/hosts  |  <Tool> <json> [--verbose]'
 allowed-tools: Bash
 ---
@@ -45,5 +45,5 @@ Show the output to the user verbatim. If the script exits non-zero, surface the 
 ## Common follow-ups
 
 - If the user asks "why didn't *X* match?", re-run with `--verbose` and walk through the trace.
-- If `config:` is `(none — every call falls through to ask)`, suggest running `/yapermission:onboard` to scaffold one.
+- If `config:` is `(none — every call falls through to ask)`, suggest running `/yapermission:yap-onboard` to scaffold one.
 - The engine reads from the **current working directory** to find a project config, so cd-ing somewhere else changes which policy is active.

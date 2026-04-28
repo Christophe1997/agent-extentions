@@ -12,8 +12,8 @@ A `PreToolUse` hook evaluates every tool call against a YAML policy. Matching `d
 | **YAML policy** | Group rules under `deny:` / `approve:` blocks. Each rule has `tool`, `matches[]`, optional `reason` |
 | **Config hierarchy** | `./.yapermission.yaml` (project) overrides `~/.yapermission.yaml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
-| **Onboarding** | `/yapermission:onboard` writes a heavily-commented starter config to `~/.yapermission.yaml` |
-| **Dry-run debugger** | `/yapermission:explain Bash "git push"` shows which rule matched and why |
+| **Onboarding** | `/yapermission:yap-onboard` writes a heavily-commented starter config to `~/.yapermission.yaml` |
+| **Dry-run debugger** | `/yapermission:yap-explain Bash "git push"` shows which rule matched and why |
 | **Knowledge skill** | Ask "how do I auto-approve git commands?" — auto-loads schema docs |
 
 ## Examples
@@ -67,7 +67,7 @@ approve:                  # evaluated second; first match wins
 Run the onboarding skill to scaffold a starter config:
 
 ```
-/yapermission:onboard
+/yapermission:yap-onboard
 ```
 
 This writes `~/.yapermission.yaml` with comments explaining every field. Edit it to taste.
@@ -76,8 +76,8 @@ This writes `~/.yapermission.yaml` with comments explaining every field. Edit it
 
 Once installed and configured, the hook runs on every tool call automatically. There are three skills you'll interact with directly:
 
-- `/yapermission:onboard` — scaffold or reset the global config
-- `/yapermission:explain <Tool> <args>` — dry-run the active config against a sample tool call (add `--verbose` for a per-rule trace)
+- `/yapermission:yap-onboard` — scaffold or reset the global config
+- `/yapermission:yap-explain <Tool> <args>` — dry-run the active config against a sample tool call (add `--verbose` for a per-rule trace)
 - Ask "how do I write a yapermission rule?" — auto-loads the schema reference
 
 Decisions are appended to `~/.yapermission.log`:

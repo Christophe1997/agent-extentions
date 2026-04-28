@@ -1,6 +1,6 @@
 ---
-name: onboard
-description: Scaffold the global yapermission config at ~/.yapermission.yaml from the bundled starter template. Trigger when the user runs /yapermission:onboard or asks to set up yapermission, initialize the policy file, or create a starter yapermission config.
+name: yap-onboard
+description: Scaffold the global yapermission config at ~/.yapermission.yaml from the bundled starter template. Trigger when the user runs /yapermission:yap-onboard or asks to set up yapermission, initialize the policy file, or create a starter yapermission config.
 allowed-tools: Bash, Read, Write
 ---
 
@@ -27,7 +27,7 @@ Scaffold a starter `~/.yapermission.yaml` from the bundled template so the user 
 4. **Confirm and orient the user.** Print:
    - The full path of the new file (`~/.yapermission.yaml`)
    - That `default: ask` is set (every unmatched call falls through to the normal prompt)
-   - That they can run `/yapermission:explain <Tool> <args>` to dry-run a tool call against the active policy
+   - That they can run `/yapermission:yap-explain <Tool> <args>` to dry-run a tool call against the active policy
    - That they should restart Claude Code for the hook config to take effect (hooks load at session start)
 
 ## Notes

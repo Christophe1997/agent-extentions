@@ -1,6 +1,6 @@
 {
   "name": "yapermission",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Yet Another Permission — auto-approve or block Claude Code tool calls via a YAML ruleset, with project-overrides-global config and decision logging.",
   "author": {
     "name": "Christophe1997",

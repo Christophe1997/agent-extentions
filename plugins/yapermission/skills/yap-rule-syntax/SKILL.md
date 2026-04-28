@@ -1,5 +1,5 @@
 ---
-name: rule-syntax
+name: yap-rule-syntax
 description: Reference for the yapermission YAML rule schema and evaluation order. Trigger when the user asks how to write a yapermission rule, the yapermission yaml format or schema, how to auto-approve git commands or shell utilities, how to block rm -rf or other dangerous commands, what the deny/approve/default fields mean, or how project and global yapermission configs interact.
 ---
 

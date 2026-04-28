@@ -112,7 +112,7 @@ Patterns are user-controlled and matched with Python's `re` module, which is **n
 - Avoid nested quantifiers (`(a+)+`, `(.*)*`).
 - Anchor with `^` / `$` whenever you can — it short-circuits failures.
 - Prefer character classes (`[a-z]+`) over alternation when matching a single position.
-- Test new patterns with `/yapermission:explain --verbose` against representative inputs before committing them.
+- Test new patterns with `/yapermission:yap-explain --verbose` against representative inputs before committing them.
 
 ## Failure modes
 
@@ -127,7 +127,7 @@ Patterns are user-controlled and matched with Python's `re` module, which is **n
 
 ## Debugging tips
 
-1. **Run `/yapermission:explain --verbose <Tool> <args>`** for a per-rule trace of which rules were considered and why each matched or skipped.
+1. **Run `/yapermission:yap-explain --verbose <Tool> <args>`** for a per-rule trace of which rules were considered and why each matched or skipped.
 2. **`tail -f ~/.yapermission.log`** while you work — every tool call shows up.
 3. **Test rules in isolation** with explain before committing them to the live config.
 4. **A rule that "doesn't fire" is almost always** an empty `matches:` list (use `[{}]`) or a regex that's missing a `^` / word boundary.
