@@ -85,7 +85,7 @@ Run the onboarding skill to scaffold a starter config:
 /yapermission:yap-onboard
 ```
 
-This writes `~/.yapermission.yaml` with comments explaining every field. Edit it to taste.
+This writes `~/.yapermission.yaml` with comments explaining every field. Edit it to taste. **I think the true value of the plugin is setting a yolo config, thus providing an intermediate form between Claude Code's `acceptEdits` and `bypassPermissions` modes.**
 
 ## Usage
 
