@@ -49,26 +49,81 @@ ask:
     reason: "Destructive git operation — confirm before running"
 
 allow:
-  - name: safe-git-reads
+  # --- Bash command rules (must come BEFORE the broad builtin tool-name rules
+  # below, otherwise the tool-name rules would short-circuit them). ---
+
+  # Read-only shell utilities. All side-effect free.
+  - name: read-only-shell
     tool: Bash
     matches:
-      - command: '^git (status|log|diff|branch|show|remote|ls-files|stash list)\b'
-    reason: "Read-only git operations"
+      - command: '^(ls|pwd|whoami|date|uname|cat|head|tail|wc|file|stat|which|tree|find|rg|grep|echo|df|du|ps|env|printenv)\b'
+    reason: "Read-only shell utilities and environment inspection"
 
-  - name: harmless-shell-reads
+  # Pipeline tools. Note: awk/sed/tr can write via -i or redirection — the
+  # `write-system-paths` deny rule blocks the worst cases. To be stricter,
+  # tighten with a negative lookahead, e.g. `'^sed (?!-i)'`.
+  - name: text-processing
     tool: Bash
     matches:
-      - command: '^(ls|pwd|whoami|date|cat|head|tail|wc|file|which)\b'
-    reason: "Read-only shell utilities"
+      - command: '^(sort|uniq|cut|diff|jq|awk|sed|tr)\b'
+    reason: "Text processing utilities (pipeline tools)"
 
-  # Example: auto-allow reads inside your project tree.
-  # Uncomment and edit the path to match your setup.
+  # All git operations. The `ask: destructive-git` rule above carves out
+  # force-push, hard reset, branch -D, and clean -f for manual confirmation,
+  # so this can safely be broad.
+  - name: git-all
+    tool: Bash
+    matches:
+      - command: '^git\b'
+    reason: "All git operations (paired with `destructive-git` ask rule)"
+
+  # --- Claude Code builtin tools (Bash is intentionally NOT in these regexes
+  # — handled above via specific command rules). ---
+
+  # File reads, web fetches, code search, LSP queries — all observation-only.
+  - name: builtin-reads
+    tool: '^(Read|Glob|Grep|LS|NotebookRead|WebFetch|WebSearch|LSP|ListMcpResourcesTool|ReadMcpResourceTool)$'
+    matches:
+      - {}
+    reason: "Read-only builtin tools"
+
+  # File edits to user-space paths. The `write-system-paths` deny above
+  # blocks /etc, /usr, /System; this allows everything else.
+  - name: builtin-edits
+    tool: '^(Edit|Write|NotebookEdit)$'
+    matches:
+      - {}
+    reason: "File edits — bounded by `write-system-paths` deny rule"
+
+  # Internal orchestration: subagents, todo tracking, plan mode, etc.
+  # Deliberately EXCLUDES CronCreate/PushNotification/RemoteTrigger because
+  # they have persistent or external side effects.
+  - name: builtin-orchestration
+    tool: '^(Agent|TaskCreate|TaskGet|TaskList|TaskOutput|TaskStop|TaskUpdate|TodoWrite|Skill|ToolSearch|Monitor|AskUserQuestion|ScheduleWakeup|EnterPlanMode|ExitPlanMode|EnterWorktree|ExitWorktree)$'
+    matches:
+      - {}
+    reason: "Internal orchestration — no external or persistent side effects"
+
+  # --- Examples to copy and tailor to your setup ---
+
+  # Build and test commands. Tailor regex to YOUR toolchain — `make` and
+  # `npm run` execute user-controlled scripts, so don't auto-allow them
+  # unless you trust the project's Makefile / package.json.
+  # - name: build-and-test
+  #   tool: Bash
+  #   matches:
+  #     - command: '^(npm test|npm run|pnpm test|yarn test)\b'
+  #     - command: '^(go test|go build|cargo (test|build)|make)\b'
+  #     - command: '^(pytest|python -m pytest|uv run pytest)\b'
+  #   reason: "Build and test commands"
+
+  # Auto-allow reads inside your project tree (replace path).
   # - name: project-reads
   #   tool: Read
   #   matches:
   #     - file_path: '^/Users/me/code/'
 
-  # Example: auto-allow all read-only MCP calls from a specific server.
+  # Auto-allow read-only MCP calls from a specific server.
   # - name: mcp-github-reads
   #   tool: '^mcp__github__(get_|list_|search_)'
   #   matches:

@@ -1,6 +1,6 @@
 {
   "name": "yapermission",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a YAML policy, with project-overrides-global config and decision logging.",
   "author": {
     "name": "Christophe1997",
