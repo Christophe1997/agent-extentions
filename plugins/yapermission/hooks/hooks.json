@@ -1,5 +1,5 @@
 {
-  "description": "yapermission PreToolUse policy gate — evaluates every tool call against the active YAML ruleset",
+  "description": "yapermission PreToolUse policy gate — evaluates every tool call against the active TOML ruleset",
   "hooks": {
     "PreToolUse": [
       {

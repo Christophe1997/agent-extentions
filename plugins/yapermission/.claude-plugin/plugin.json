@@ -1,10 +1,10 @@
 {
   "name": "yapermission",
-  "version": "0.4.0",
-  "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a YAML policy, with project-overrides-global config and decision logging.",
+  "version": "0.5.0",
+  "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a TOML policy, with project-overrides-global config and decision logging.",
   "author": {
     "name": "Christophe1997",
     "email": "hey_christophe@outlook.com"
   },
-  "keywords": ["permission", "hook", "yaml", "policy", "allow", "deny", "ask", "defer"]
+  "keywords": ["permission", "hook", "toml", "policy", "allow", "deny", "ask", "defer"]
 }

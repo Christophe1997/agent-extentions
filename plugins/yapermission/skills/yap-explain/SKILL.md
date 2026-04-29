@@ -36,7 +36,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py explain [--verbose] <tool_
 ```
 
 The script prints:
-- `cwd:` and `config:` (which YAML is active)
+- `cwd:` and `config:` (which TOML is active)
 - The matched rule name + reason, or `decision: ask` if nothing matched
 - With `--verbose`: a per-rule "matched" / "skipped" trace
 

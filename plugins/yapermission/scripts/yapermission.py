@@ -12,17 +12,13 @@ import json
 import os
 import re
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-try:
-    import yaml
-except ImportError:
-    yaml = None  # handled in load_config
-
-GLOBAL_CONFIG = Path.home() / ".yapermission.yaml"
-PROJECT_CONFIG_NAME = ".yapermission.yaml"
+GLOBAL_CONFIG = Path.home() / ".yapermission.toml"
+PROJECT_CONFIG_NAME = ".yapermission.toml"
 LOG_PATH = Path.home() / ".yapermission.log"
 
 
@@ -52,13 +48,9 @@ def active_config_path(cwd: str) -> Optional[Path]:
 
 
 def load_config(path: Path) -> dict:
-    if yaml is None:
-        raise RuntimeError(
-            "PyYAML not installed. Run: pip install --user pyyaml"
-        )
-    with path.open() as f:
-        data = yaml.safe_load(f)
-    return data or {}
+    # tomllib (stdlib in Python 3.11+) requires binary mode.
+    with path.open("rb") as f:
+        return tomllib.load(f)
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +77,7 @@ def rule_matches(rule: dict, tool_name: str, tool_input: dict) -> bool:
            rule fires as long as the tool matches.
 
     Args:
-        rule: parsed YAML rule dict with keys `name`, `tool`, `matches`, `reason`.
+        rule: parsed TOML rule dict with keys `name`, `tool`, `matches`, `reason`.
         tool_name: e.g. "Bash", "Edit", "mcp__github__list_issues".
         tool_input: tool-specific input dict, e.g. {"command": "git status"}.
 
@@ -109,7 +101,7 @@ def rule_matches(rule: dict, tool_name: str, tool_input: dict) -> bool:
     return False
 
 
-# Rule groups in evaluation order. Each entry is (yaml_key, permissionDecision).
+# Rule groups in evaluation order. Each entry is (toml_key, permissionDecision).
 # More restrictive intent comes first: an absolute block beats a "make me think"
 # beats an "auto-approve" beats a "pass to next hook". Reordering this list
 # changes the policy semantics — every group beats every group below it.
@@ -210,6 +202,9 @@ def cmd_hook() -> int:
     except json.JSONDecodeError:
         emit_hook_output(Decision("ask"))
         return 0
+    # Errors below (TOML decode, IO) are caught generically and the hook
+    # falls back to "ask" — the audit log captures the exception type so
+    # config-format mistakes are diagnosable without breaking the session.
 
     tool_name = event.get("tool_name", "") or ""
     tool_input = event.get("tool_input") or {}

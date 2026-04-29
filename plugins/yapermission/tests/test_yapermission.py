@@ -259,7 +259,7 @@ class TestActiveConfigPath(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         # Redirect global config to a tmp location so tests don't touch ~/.
-        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.yaml"
+        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.toml"
 
     def tearDown(self):
         yp.GLOBAL_CONFIG = self._original_global
@@ -268,10 +268,10 @@ class TestActiveConfigPath(unittest.TestCase):
         project_dir = self.tmp / "project"
         project_dir.mkdir()
         project_cfg = project_dir / yp.PROJECT_CONFIG_NAME
-        project_cfg.write_text("default: allow\n")
+        project_cfg.write_text('default = "allow"\n')
 
         yp.GLOBAL_CONFIG.parent.mkdir()
-        yp.GLOBAL_CONFIG.write_text("default: deny\n")
+        yp.GLOBAL_CONFIG.write_text('default = "deny"\n')
 
         self.assertEqual(yp.active_config_path(str(project_dir)), project_cfg)
 
@@ -280,7 +280,7 @@ class TestActiveConfigPath(unittest.TestCase):
         project_dir.mkdir()
 
         yp.GLOBAL_CONFIG.parent.mkdir()
-        yp.GLOBAL_CONFIG.write_text("default: ask\n")
+        yp.GLOBAL_CONFIG.write_text('default = "ask"\n')
 
         self.assertEqual(yp.active_config_path(str(project_dir)), yp.GLOBAL_CONFIG)
 

@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "plugins": [
     {
@@ -60,9 +60,9 @@
     {
       "name": "yapermission",
       "source": "./plugins/yapermission",
-      "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a YAML policy, with project-overrides-global config and decision logging.",
+      "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a TOML policy, with project-overrides-global config and decision logging.",
       "category": "productivity",
-      "keywords": ["permission", "hook", "yaml", "policy", "allow", "deny", "ask", "defer", "audit"],
+      "keywords": ["permission", "hook", "toml", "policy", "allow", "deny", "ask", "defer", "audit"],
       "tags": ["permission policy"]
     }
   ]
