@@ -1,5 +1,7 @@
 # Agent Extensions
 
+[![skills.sh](https://skills.sh/b/Christophe1997/agent-extentions)](https://skills.sh/Christophe1997/agent-extentions)
+
 Agent extentions in Claude marketplace structure.
 
 ## Plugins
