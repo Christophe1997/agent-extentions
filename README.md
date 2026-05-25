@@ -1,6 +1,6 @@
 # Agent Extensions
 
-Agent extentions in Claude marketplace structure.
+Claude Code plugins to my own taste.
 
 ## Plugins
 
