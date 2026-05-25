@@ -1,0 +1,10 @@
+{
+  "name": "go-pkg-discovery",
+  "version": "0.1.0",
+  "description": "Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, and exported symbols via pkg.go.dev — powered by the upstream pkgsite-cli wrapper.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  },
+  "keywords": ["go", "golang", "pkg.go.dev", "pkgsite", "package-discovery", "vulnerabilities", "symbols"]
+}

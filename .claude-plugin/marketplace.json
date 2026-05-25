@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "plugins": [
     {
@@ -64,6 +64,14 @@
       "category": "productivity",
       "keywords": ["permission", "hook", "toml", "policy", "allow", "deny", "ask", "defer", "audit"],
       "tags": ["permission policy"]
+    },
+    {
+      "name": "go-pkg-discovery",
+      "source": "./plugins/go-pkg-discovery",
+      "description": "Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, and exported symbols via pkg.go.dev — powered by the upstream pkgsite-cli wrapper.",
+      "category": "developer-tools",
+      "keywords": ["go", "golang", "pkg.go.dev", "pkgsite", "package-discovery", "vulnerabilities", "symbols"],
+      "tags": ["Go package discovery"]
     }
   ]
 }
