@@ -13,6 +13,7 @@ Agent extentions in Claude marketplace structure.
 | [tdd](./plugins/tdd/README.md) | Test-Driven Development guidance based on Kent Beck's Red/Green/Refactor workflow |
 | [a2a](./plugins/a2a/README.md) | A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias |
 | [yapermission](./plugins/yapermission/README.md) | Auto-approve or block tool calls via a TOML ruleset, with project-overrides-global config and decision logging |
+| [go-pkg-discovery](./plugins/go-pkg-discovery/README.md) | Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, and exported symbols via pkg.go.dev (wraps `pkgsite-cli`) |
 
 > **Portability note.** All plugins are authored for Claude Code and rely on Claude-specific tools (`AskUserQuestion`, `Skill` chaining, the `agents/` subagent format) and/or hook events (`PreToolUse`, `PermissionRequest`, `Stop`). Installing via skills.sh in another agent will load the `SKILL.md` prose, but the Claude-specific UX and automation will not function.
 
@@ -36,6 +37,7 @@ Install plugins:
 /plugin install tdd@agent-extentions
 /plugin install a2a@agent-extentions
 /plugin install yapermission@agent-extentions
+/plugin install go-pkg-discovery@agent-extentions
 ```
 
 ### Via skills.sh

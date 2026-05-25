@@ -6,12 +6,13 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.4.0"
+    "version": "1.4.1"
   },
   "plugins": [
     {
       "name": "review-blog",
       "source": "./plugins/review-blog",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/review-blog",
       "description": "Review Chinese blog posts for writing style, punctuation, and formatting issues.",
       "category": "content-creation",
       "keywords": ["blog", "review", "chinese", "writing-style", "markdown"],
@@ -20,6 +21,7 @@
     {
       "name": "agentic-doc",
       "source": "./plugins/agentic-doc",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/agentic-doc",
       "description": "Documentation standards for agentic programming: AGENTS.md lifecycle management and conventional commit messages.",
       "category": "developer-tools",
       "keywords": ["agentic", "agents.md", "documentation", "commit", "conventional-commits"],
@@ -28,6 +30,7 @@
     {
       "name": "show-me-the-session",
       "source": "./plugins/show-me-the-session",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/show-me-the-session",
       "description": "Export Claude Code session transcripts to solarized-light HTML with pagination support. Features: auto session detection, split output for large sessions, configurable page size.",
       "category": "developer-tools",
       "keywords": ["session", "export", "html", "transcript", "solarized"],
@@ -36,6 +39,7 @@
     {
       "name": "permission-notification",
       "source": "./plugins/permission-notification",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/permission-notification",
       "description": "Sends macOS notifications when Claude Code needs permission to execute commands",
       "category": "productivity",
       "keywords": ["notification", "permission", "macos", "alert"],
@@ -44,6 +48,7 @@
     {
       "name": "tdd",
       "source": "./plugins/tdd",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/tdd",
       "description": "Test-Driven Development guidance based on Kent Beck's 'Test Driven Development: By Example'. Provides the Red/Green/Refactor workflow, 40+ named TDD patterns, and autonomous test quality review.",
       "category": "developer-tools",
       "keywords": ["tdd", "testing", "red-green-refactor", "kent-beck", "test-driven-development", "patterns"],
@@ -52,6 +57,7 @@
     {
       "name": "a2a",
       "source": "./plugins/a2a",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/a2a",
       "description": "A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias. Supports blocking and background tasks, auth params, agent aliases, and session task tracking.",
       "category": "developer-tools",
       "keywords": ["a2a", "agent", "protocol", "client", "interop", "agent-to-agent"],
@@ -60,6 +66,7 @@
     {
       "name": "yapermission",
       "source": "./plugins/yapermission",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/yapermission",
       "description": "Yet Another Permission — declarative allow / ask / deny / defer rules for Claude Code tool calls via a TOML policy, with project-overrides-global config and decision logging.",
       "category": "productivity",
       "keywords": ["permission", "hook", "toml", "policy", "allow", "deny", "ask", "defer", "audit"],
@@ -68,6 +75,7 @@
     {
       "name": "go-pkg-discovery",
       "source": "./plugins/go-pkg-discovery",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/go-pkg-discovery",
       "description": "Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, and exported symbols via pkg.go.dev — powered by the upstream pkgsite-cli wrapper.",
       "category": "developer-tools",
       "keywords": ["go", "golang", "pkg.go.dev", "pkgsite", "package-discovery", "vulnerabilities", "symbols"],
