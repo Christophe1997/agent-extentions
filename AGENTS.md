@@ -57,6 +57,7 @@ plugin-name/
 2. Add `plugin.json` under `.claude-plugin/`
 3. Register in `marketplace.json` with source path `./plugins/your-plugin`
 4. Create at least one skill
+5. Add the plugin to root README
 
 ## Component Patterns
 
