@@ -21,7 +21,7 @@ deliberately narrow: **it only ever creates files in `inbox/`.**
    `inbox/` doesn't exist yet, the first create makes it.
 4. **Collision:** if `inbox/<name>.md` already exists (check via
    `obsidian_list_files_in_dir("inbox")` first), write to
-   `inbox/<name>-vs<date>.md` instead — never overwrite.
+   `inbox/<name>-<date>.md` instead — never overwrite.
 5. **Ignore the `## Suggestions` section entirely.** Merges, orphan links, and
    reciprocal edits are the user's to perform during promotion.
 6. **Update state.** In `_artifacts/zettel-sync/.state.json`:

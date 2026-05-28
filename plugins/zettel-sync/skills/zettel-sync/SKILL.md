@@ -1,6 +1,6 @@
 ---
 name: zettel-sync
-description: Use when the user runs /zettel-sync or asks to sync, update, or grow their Obsidian vault / Zettelkasten-style vault from recent Claude Code sessions — harvest explored concepts into draft notes, find orphan notes, detect near-duplicate notes, or propose a new MOC. Produces one batched-approval review document; a separate apply step writes the approved items.
+description: This skill should be used when the user asks to sync, update, or grow their Obsidian vault / Zettelkasten-style vault from recent Claude Code sessions — harvest explored concepts into draft notes, find orphan notes, detect near-duplicate notes, or propose a new MOC. Produces one batched-approval review document; a separate apply step writes the approved items.
 argument-hint: "[--days N] [--dry-run] | apply"
 allowed-tools: [Bash, Read, Write, Task]
 ---
@@ -9,7 +9,7 @@ allowed-tools: [Bash, Read, Write, Task]
 
 Maintain a structured Obsidian vault (Zettelkasten-style) from recent Claude Code sessions. One run
 analyzes your sessions and your vault, then writes a **single batched-approval
-review document**. You edit it (uncheck anything you don't want), then run
+review document**. Edit it (uncheck anything you don't want), then run
 `/zettel-sync apply` to write the still-checked items.
 
 **Requires** a running Obsidian with the Local REST API plugin. This plugin
@@ -48,8 +48,8 @@ user's explicit instruction. Violating them is a defect, not a judgment call.
    technical terms keep their original form.
 4. **Conservative and ranked.** Cap new-note proposals at ~6 per run, ranked by
    evidence strength. A flood betrays the vault's philosophy.
-5. **Idempotent.** Never re-propose a concept already in `.state.json`'s
-   `declined` or `applied` lists.
+5. **Idempotent.** Never re-propose a concept whose `.state.json` `concepts`
+   entry has `status` `applied` or `declined`.
 
 See `references/drafting-convention.md`, `references/review-doc-template.md`,
 and `references/apply-protocol.md` for the details each phase needs.
@@ -89,7 +89,8 @@ For each candidate concept:
 - `obsidian_simple_search(concept)` and a search on 1–2 key terms.
 - Compare hits against the `notes/` stem list.
 - Classify **covered** (a note already exists) vs **missing**.
-- Drop any concept present in `.state.json` (`applied` or `declined`).
+- Drop any concept whose `.state.json` `concepts` entry has `status` `applied`
+  or `declined`.
 
 ### 3. Run structural analysis (scans the vault on disk — no snapshot to build)
 The vault is local, so `vault_graph.py` reads it straight off disk. **Do not**
@@ -103,10 +104,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/vault_graph.py" --format json
   **not** expose the absolute root, which is why the script reads `obsidian.json`
   itself. If it can't decide (multiple open vaults, non-standard config) it exits
   with guidance — re-run with `--vault-path /abs/path`, asking the user for their
-  vault's absolute path if you don't already know it.
+  vault's absolute path if it's not already known.
 - By default it scans `notes/` and `moc/` (override with `--dirs a,b`). It
   returns `orphans`, `moc_gaps` (tags with ≥5 notes and no MOC), and
-  `near_dup_pairs`. The script narrows; **you judge** which candidates are real.
+  `near_dup_pairs`. The script narrows; **judge** which candidates are real.
 - **Offline / sandboxed fallback only:** if this session genuinely can't read the
   vault directory, build a snapshot tree with `obsidian_batch_get_file_contents`
   under `/tmp/zettel-sync/snapshot/<relpath>` (frontmatter intact) and run with
@@ -154,4 +155,4 @@ Follow `references/apply-protocol.md`. In short:
    `declined`. Report exactly what was written.
 
 Never delete, never touch `notes/` or `moc/`. If an `inbox/<name>.md` already
-exists, append a disambiguating suffix rather than overwrite.
+exists, append a `-<date>` suffix rather than overwrite.
