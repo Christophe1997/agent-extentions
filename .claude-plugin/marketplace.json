@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.4.1"
+    "version": "1.6.0"
   },
   "plugins": [
     {
@@ -80,6 +80,15 @@
       "category": "developer-tools",
       "keywords": ["go", "golang", "pkg.go.dev", "pkgsite", "package-discovery", "vulnerabilities", "symbols"],
       "tags": ["Go package discovery"]
+    },
+    {
+      "name": "zettel-sync",
+      "source": "./plugins/zettel-sync",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/zettel-sync",
+      "description": "Maintain a structured Obsidian vault (Zettelkasten-style) from recent Claude Code sessions: harvest concepts into inbox seed notes, detect orphans, near-duplicates, and MOC gaps — all as a single batched-approval review document.",
+      "category": "productivity",
+      "keywords": ["obsidian", "zettelkasten", "notes", "knowledge-management", "mcp", "session"],
+      "tags": ["zettel sync"]
     }
   ]
 }

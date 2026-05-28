@@ -1,0 +1,9 @@
+{
+  "name": "zettel-sync",
+  "version": "0.3.0",
+  "description": "Autonomously maintain a structured Obsidian vault (Zettelkasten-style) from recent Claude Code sessions: harvest concepts, draft inbox seed notes, detect near-duplicates, surface orphans, and propose MOCs — all as a single batched-approval review document.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  }
+}
