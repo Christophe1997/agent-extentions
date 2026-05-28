@@ -11,9 +11,11 @@ in existing notes.
   frontmatter, a thesis line, the sub-points actually discussed, and links. The
   user writes the real synthesis during promotion. Don't fabricate depth the
   session didn't reach.
-- **Chinese prose.** Title and body are Chinese. **Tags stay lowercase-English
-  kebab-case** (`distributed-systems`, `go`, `consensus`). Code, commands, and
-  established technical terms keep their original form.
+- **Match the vault's language.** Write the title and body in the same language
+  the existing notes use — infer it from the notes you read, never assume one.
+  **Tags stay lowercase-English kebab-case** (`distributed-systems`, `go`,
+  `consensus`). Code, commands, and established technical terms keep their
+  original form.
 - **Everything lands in `inbox/`.** Never write to `notes/` or `moc/`.
 
 ## Frontmatter (from the schema)

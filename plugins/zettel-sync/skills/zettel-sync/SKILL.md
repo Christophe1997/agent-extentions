@@ -42,8 +42,10 @@ user's explicit instruction. Violating them is a defect, not a judgment call.
 2. **Never modify or delete existing curated notes.** Near-duplicate merges,
    orphan reconnections, and reciprocal links are **suggestions in the review
    doc only** — the user applies them by hand during promotion.
-3. **Draft in Chinese.** Note prose is Chinese; tags stay lowercase-English
-   kebab-case; code and technical terms keep their original form.
+3. **Match the vault's language.** Draft note prose in the same language the
+   existing notes use — infer it from the representative notes read in Step 0;
+   never assume a language. Tags stay lowercase-English kebab-case; code and
+   technical terms keep their original form.
 4. **Conservative and ranked.** Cap new-note proposals at ~6 per run, ranked by
    evidence strength. A flood betrays the vault's philosophy.
 5. **Idempotent.** Never re-propose a concept already in `.state.json`'s
@@ -112,7 +114,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/vault_graph.py" --format json
 
 ### 4. Draft proposals
 Per `references/drafting-convention.md`, conservative and ranked:
-- **New seed notes** (`inbox/`) for missing concepts — Chinese, frontmatter from
+- **New seed notes** (`inbox/`) for missing concepts — in the vault's language, frontmatter from
   the schema, `# Title`, `> 提要` thesis, an outline of the sub-points the
   session actually covered, and proposed `[[links]]` to related existing notes.
 - **New MOC drafts** (`inbox/`, as a draft) for each real `moc_gaps` cluster.
