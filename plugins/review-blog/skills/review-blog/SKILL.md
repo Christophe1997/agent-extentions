@@ -86,12 +86,6 @@ Review an existing blog post against the Chinese writing style guide and offer t
    ✅ Review complete. File updated.
    ```
 
-## Example Usage
-
-```
-/review-blog:review-blog content/posts/2026/my-docker-guide.md
-```
-
 ## Tips
 
 - Works on both draft and published posts

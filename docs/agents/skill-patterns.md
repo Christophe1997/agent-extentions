@@ -24,7 +24,7 @@ skills/
 ---
 name: <prefix>:<skill>          # see "Naming & Invocation"
 description: This skill should be used when the user asks to "<phrase A>", "<phrase B>". <One sentence on what it does.>
-argument-hint: "[--flag N] | subcommand"        # optional, display-only
+argument-hint: "[--flag N] | subcommand"        # optional; the invocation surface
 allowed-tools: [Read, Write, Bash, Skill, AskUserQuestion]   # optional
 disable-model-invocation: true   # optional; see "Frontmatter Reference"
 ---
@@ -36,7 +36,7 @@ disable-model-invocation: true   # optional; see "Frontmatter Reference"
 |-------|-----------|---------|
 | `name` | **Required** | The skill's identifier — see [Naming & Invocation](#naming--invocation). |
 | `description` | **Required** | Triggers model invocation; must carry concrete phrases — see [Description](#description). |
-| `argument-hint` | Optional | Display-only usage hint. Mirror the real flags/subcommands. |
+| `argument-hint` | Optional | The **canonical invocation surface** — set it whenever the skill takes args. Display-only (slash menu); mirror the real flags/subcommands. |
 | `allowed-tools` | Optional | Restricts the tools the skill may use. **MUST include `Skill`** if it loads other skills. Pure-knowledge skills may omit it. Canonical form is a YAML list (`[Read, Bash]`); a bare comma string also parses. |
 | `disable-model-invocation` | Optional | `true` stops the model from auto-triggering the skill, so it runs only when a human invokes the `/command`. Use for deterministic, script-like skills with no reasoning step. |
 
@@ -83,15 +83,16 @@ The `description` is what makes the model load the skill, so it must contain
 
 Two shapes, with different section expectations:
 
-- **Command / workflow skill** (performs a task): has a `## Process`, usually
-  `## Example Usage`, and `allowed-tools`. Examples: `agd:commit`, `a2a:send`,
-  `zettel-sync`.
+- **Command / workflow skill** (performs a task): has a `## Process`,
+  `allowed-tools`, and an `argument-hint` when it takes args. Examples:
+  `agd:commit`, `a2a:send`, `zettel-sync`.
 - **Reference / knowledge skill** (informs reasoning): lean prose, often no
   `## Process` and no tools; loaded by other skills or activated by topic.
   Examples: `a2a:protocol`, `tdd:patterns`, `yap:rule-syntax`.
 
 The Required markers and Checklist below apply to **command/workflow** skills.
-Reference skills are exempt from `## Process` and `## Example Usage`.
+Reference skills are exempt from `## Process`. `## Example Usage` is optional
+for every skill — see [Example Usage](#example-usage).
 
 ## Process Section Guidelines
 
@@ -143,6 +144,24 @@ For complex skills with distinct phases, use `###` headers within Process:
 
 Prefer flat numbered steps when possible. Only use phases when the skill has
 clearly separate stages.
+
+## Example Usage
+
+`SKILL.md` is agent-first: the body loads when the skill triggers, to tell the
+agent *what to do* — not how a human types the command. So the **invocation
+surface belongs in `argument-hint`** (and the plugin README), not in a body
+section that merely echoes them. A model-invoked skill is never typed at all;
+a human-invoked one already shows its `argument-hint` in the slash menu.
+
+Add a `## Example Usage` section **only** when it conveys something
+`argument-hint` cannot:
+
+- a **multi-invocation, human-in-the-loop sequence** — e.g. zettel-sync's
+  `analyze → edit the doc → apply`, which the flat grammar can't order; or
+- a **non-obvious flag combination** whose effect isn't clear from the hint.
+
+A single-shot example that just restates the hint (`/gpd:search <pkg>`) is
+redundant — omit it.
 
 ## Body Writing Style
 
@@ -237,7 +256,7 @@ This provides:
 | `## Load Context` | Optional | Optional | Load other skills for knowledge |
 | `## Process` | **Required** | — (n/a) | Main workflow steps |
 | `## Error Handling` | Optional | Optional | Edge cases and failures |
-| `## Example Usage` | Recommended | Optional | Show how to invoke |
+| `## Example Usage` | Optional | Optional | Only for a multi-step/non-obvious sequence `argument-hint` can't express — see [Example Usage](#example-usage) |
 | `## Tips` | Optional | Optional | Helpful hints |
 
 ## Checklist
@@ -249,7 +268,8 @@ For a **command / workflow** skill:
 - [ ] Body is imperative / verb-first (no second person)
 - [ ] Body is lean (~1,500–2,000 words; detail in `references/`)
 - [ ] Bash commands in code blocks; `${CLAUDE_PLUGIN_ROOT}` for scripts
-- [ ] `## Example Usage` present (recommended)
+- [ ] `argument-hint` set when the skill takes args
+- [ ] `## Example Usage` only for a multi-invocation sequence (e.g. analyze → edit → apply)
 - [ ] `allowed-tools` includes `Skill` if it loads other skills
 - [ ] `disable-model-invocation: true` if it is a deterministic, human-only runner
 

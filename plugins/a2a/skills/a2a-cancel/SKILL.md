@@ -45,10 +45,3 @@ allowed-tools: Bash
 
 5. **Report the result**: Show the updated task state returned by the CLI. If the task was
    already in a terminal state, report that cancellation was not needed.
-
-## Example Usage
-
-```bash
-# Cancel a task
-/a2a:cancel my-agent task_abc123
-```

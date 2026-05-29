@@ -213,13 +213,3 @@ Summarise what was done:
 
 Suggest the next step:
 > Send a message with `/a2a:send <alias-or-url> "your message"`
-
-## Example Usage
-
-```bash
-# Onboard a new agent (discover + save alias + configure auth)
-/a2a:onboard https://demo.a2a-protocol.org
-
-# Onboard with the extended agent card
-/a2a:onboard https://demo.a2a-protocol.org --extended
-```
