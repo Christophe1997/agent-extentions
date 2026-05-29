@@ -15,7 +15,7 @@ Confirm `pkgsite-cli` is on `PATH`:
 command -v pkgsite-cli >/dev/null 2>&1 && echo OK || echo MISSING
 ```
 
-If `MISSING`, use the `Skill` tool with `skill="go-pkg-discovery:gpd-discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
+If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
 
 ## Process
 

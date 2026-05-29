@@ -1,5 +1,5 @@
 ---
-name: tdd-review
+name: tdd:review
 description: This skill should be used when the user asks to "review my tests", "check my TDD", "is this good TDD", "review test quality", "check test design", "are my tests testing too much", "why is my test hard to write", "fragile tests", "slow tests", "test smell", "assess TDD compliance", or wants feedback on existing tests or test-driven code. Provides structured review of tests against Kent Beck's TDD principles.
 ---
 

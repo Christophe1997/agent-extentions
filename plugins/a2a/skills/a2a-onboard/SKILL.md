@@ -9,7 +9,9 @@ Parse `$ARGUMENTS`:
 - `URL_OR_ALIAS`: the first non-flag token
 - `EXTENDED`: true if `--extended` is present
 
-## Step 1: Prerequisites check
+## Process
+
+1. **Prerequisites check**:
 
 Before anything else, verify the `a2a` binary is installed:
 
@@ -49,7 +51,7 @@ If missing, use `AskUserQuestion`:
 - If **No**, stop here with:
   > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest` and re-run `/a2a:onboard`.
 
-## Step 2: Locate settings file
+2. **Locate settings file**:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" find-settings
@@ -59,7 +61,7 @@ This prints either `found:<path>` or `missing:<preferred-path>`. Store the resul
 - `SETTINGS_STATUS`: `found` or `missing`
 - `SETTINGS_PATH`: the path after the colon
 
-## Step 3: Resolve and discover
+3. **Resolve and discover**:
 
 ```bash
 URL=$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/a2a-helper.py" resolve "$URL_OR_ALIAS")
@@ -74,7 +76,7 @@ Display the agent card output clearly.
 
 After displaying, extract `SUGGESTED_ALIAS` from the agent name in the card: lowercase, spaces replaced with hyphens, non-alphanumeric characters removed (e.g. "Change Agent" → `change-agent`).
 
-## Step 4: Save alias
+4. **Save alias**:
 
 Use `AskUserQuestion` with `SUGGESTED_ALIAS` as a pre-filled option:
 
@@ -104,7 +106,7 @@ Use `AskUserQuestion` with `SUGGESTED_ALIAS` as a pre-filled option:
 - If the user types a custom name in the **Other** field: store it as `ALIAS`.
 - If the user selects **Skip — no alias**: leave `ALIAS` empty.
 
-## Step 5: Auth capture
+5. **Auth capture**:
 
 Only ask if auth was **not already present** in AUTH_ARGS (i.e. the auth step returned nothing):
 
@@ -137,7 +139,7 @@ Use `AskUserQuestion` to ask for the token in one step:
   - Otherwise: `AUTH_ENTRY=Authorization=Bearer <input>`
 - If the user selects **Skip — no auth needed**: leave `AUTH_ENTRY` empty.
 
-## Step 6: Write settings file
+6. **Write settings file**:
 
 Now write the gathered config. Settings are always preferred in this order:
 1. **Local** — `.claude/a2a.local.md` in the current project directory (project-scoped, git-ignored)
@@ -200,7 +202,7 @@ Do **not** auto-write to an existing settings file — the user's existing confi
 
 No file write needed. Inform the user that onboarding is complete and they can add config manually via `SETTINGS_PATH`.
 
-## Step 7: Confirm
+7. **Confirm**:
 
 Summarise what was done:
 
@@ -211,3 +213,13 @@ Summarise what was done:
 
 Suggest the next step:
 > Send a message with `/a2a:send <alias-or-url> "your message"`
+
+## Example Usage
+
+```bash
+# Onboard a new agent (discover + save alias + configure auth)
+/a2a:onboard https://demo.a2a-protocol.org
+
+# Onboard with the extended agent card
+/a2a:onboard https://demo.a2a-protocol.org --extended
+```

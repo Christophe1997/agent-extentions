@@ -27,20 +27,31 @@ If the user passes raw JSON as the second+ argument (starts with `{`), use it di
 
 If `--verbose` appears anywhere in the arguments, pass `--verbose` to the engine to get the per-rule trace.
 
-## Run
+## Process
 
-Invoke:
+1. **Invoke the engine in dry-run mode**:
+
+   ```
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py explain [--verbose] <tool_name> '<tool_input_json>'
+   ```
+
+2. **Read the output**: The script prints:
+   - `cwd:` and `config:` (which TOML is active)
+   - The matched rule name + reason, or `decision: ask` if nothing matched
+   - With `--verbose`: a per-rule "matched" / "skipped" trace
+
+3. **Report verbatim**: Show the output to the user verbatim. If the script exits non-zero, surface the stderr message and stop.
+
+## Example Usage
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py explain [--verbose] <tool_name> '<tool_input_json>'
+/yapermission:yap-explain Bash "git push --force"
+/yapermission:yap-explain Bash "git status"
+/yapermission:yap-explain Edit /etc/hosts
+/yapermission:yap-explain Read /Users/me/x.py
+/yapermission:yap-explain mcp__github__list_issues {"owner":"foo"}
+/yapermission:yap-explain Bash "git push" --verbose
 ```
-
-The script prints:
-- `cwd:` and `config:` (which TOML is active)
-- The matched rule name + reason, or `decision: ask` if nothing matched
-- With `--verbose`: a per-rule "matched" / "skipped" trace
-
-Show the output to the user verbatim. If the script exits non-zero, surface the stderr message and stop.
 
 ## Common follow-ups
 

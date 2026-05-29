@@ -1,5 +1,5 @@
 ---
-name: yap-rule-syntax
+name: yap:rule-syntax
 description: Reference for the yapermission TOML rule schema and evaluation order. Trigger when the user asks how to write a yapermission rule, the yapermission toml format or schema, how to auto-allow git commands or shell utilities, how to force a prompt for force-push or other commands, how to block rm -rf or other dangerous commands, or how project and global yapermission configs interact.
 ---
 

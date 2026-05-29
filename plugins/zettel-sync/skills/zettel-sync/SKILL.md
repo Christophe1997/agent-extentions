@@ -56,9 +56,15 @@ and `references/apply-protocol.md` for the details each phase needs.
 
 ---
 
-## Analyze mode (default)
+## Process
 
-### 0. Load the vault convention (do not hardcode it)
+The default invocation runs **Phase 1 (Analyze)**; `/zettel-sync apply` runs
+**Phase 2 (Apply)** — two separate runs, with your manual review of the review
+doc in between.
+
+### Phase 1 — Analyze (default)
+
+0. **Load the vault convention** (do not hardcode it):
 - `obsidian_get_file_contents("_templates/_schema.md")` → the authoritative
   frontmatter contract. Re-read it every run; the user may have evolved it.
   **If `_schema.md` is absent**, infer the contract from 2–3 representative
@@ -67,7 +73,7 @@ and `references/apply-protocol.md` for the details each phase needs.
 - `obsidian_get_file_contents` on 1–2 representative notes (e.g. a long one) to
   re-learn the note shape (frontmatter → `# Title` → `> 提要` → sections).
 
-### 1. Harvest concepts from sessions
+1. **Harvest concepts from sessions**:
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/harvest_concepts.py" \
   --days "${DAYS:-7}" --format text --output /tmp/zettel-sync/digest.txt
@@ -84,7 +90,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/harvest_concepts.py" \
   internals, algorithms, kernel, networking, etc.). Drop tooling chatter,
   meta-discussion, and one-off trivia. Rank by how deeply each was explored.
 
-### 2. Match against the vault
+2. **Match against the vault**:
 For each candidate concept:
 - `obsidian_simple_search(concept)` and a search on 1–2 key terms.
 - Compare hits against the `notes/` stem list.
@@ -92,7 +98,7 @@ For each candidate concept:
 - Drop any concept whose `.state.json` `concepts` entry has `status` `applied`
   or `declined`.
 
-### 3. Run structural analysis (scans the vault on disk — no snapshot to build)
+3. **Run structural analysis** — scans the vault on disk, no snapshot to build:
 The vault is local, so `vault_graph.py` reads it straight off disk. **Do not**
 `batch_get` note bodies into the conversation or hand-write a snapshot — that
 routes the whole vault through the model. Just run:
@@ -113,7 +119,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/vault_graph.py" --format json
   under `/tmp/zettel-sync/snapshot/<relpath>` (frontmatter intact) and run with
   `--snapshot /tmp/zettel-sync/snapshot` instead.
 
-### 4. Draft proposals
+4. **Draft proposals**:
 Per `references/drafting-convention.md`, conservative and ranked:
 - **New seed notes** (`inbox/`) for missing concepts — in the vault's language, frontmatter from
   the schema, `# Title`, `> 提要` thesis, an outline of the sub-points the
@@ -123,7 +129,7 @@ Per `references/drafting-convention.md`, conservative and ranked:
 - **Orphan connections** — for each orphan, suggest which existing note/MOC
   should link to it — report only.
 
-### 5. Write the review document
+5. **Write the review document**:
 Write the review doc to `_artifacts/zettel-sync/zettel-sync-<YYYY-MM-DD>.md`
 following `references/review-doc-template.md`. **Apply** items are emitted
 **pre-checked (`- [x]`)** — they are pre-approved; the user *unchecks* anything
@@ -141,9 +147,7 @@ Update `_artifacts/zettel-sync/.state.json` with `last_sync` and the proposed
 concepts (status `proposed`). **In `--dry-run`, print proposals to chat and
 write neither the doc nor `.state.json`.**
 
----
-
-## Apply mode (`/zettel-sync apply`)
+### Phase 2 — Apply (`/zettel-sync apply`)
 
 Follow `references/apply-protocol.md`. In short:
 1. Read the latest `_artifacts/zettel-sync/zettel-sync-*.md` (or a named one).
@@ -156,3 +160,12 @@ Follow `references/apply-protocol.md`. In short:
 
 Never delete, never touch `notes/` or `moc/`. If an `inbox/<name>.md` already
 exists, append a `-<date>` suffix rather than overwrite.
+
+## Example Usage
+
+```
+/zettel-sync --days 7
+
+# After review and unchecking in the generated doc, then:
+/zettel-sync apply
+```

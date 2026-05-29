@@ -80,6 +80,41 @@ This step runs at most once per session — if you've already verified availabil
      ```
    - Install declined → respect the choice. Stop and tell the user how to install manually; do not retry.
 
+## Example Usage
+
+Conversational (this skill activates automatically):
+
+- "Find a Go package for X" / "look up Go module Y" / "search pkg.go.dev"
+- "What versions of go-cmp are available?"
+- "Are there any known vulnerabilities in x/crypto?"
+- "Who imports github.com/google/uuid?"
+- "What does <go package> export?" / "show docs for Go package Z"
+
+Slash commands the dedicated skills handle (this skill provides the shared bootstrap):
+
+```bash
+# Find packages mentioning "uuid"
+/gpd:search uuid
+
+# Find packages that export a function named Marshal
+/gpd:search -symbol Marshal json
+
+# Inspect a package, list its exported symbols
+/gpd:package -symbols github.com/google/go-cmp/cmp
+
+# See who depends on go-cmp
+/gpd:package -imported-by github.com/google/go-cmp/cmp
+
+# Render package docs as Markdown
+/gpd:package -doc md github.com/google/go-cmp/cmp
+
+# List all versions of a module
+/gpd:module -versions github.com/google/go-cmp
+
+# Check a module for known vulnerabilities
+/gpd:module -vulns golang.org/x/crypto
+```
+
 ## Running commands
 
 Once `pkgsite-cli` is available, run the chosen subcommand and **always show the raw CLI output** before synthesizing. Trust the CLI's formatting — it is already human-readable. Use `-json` only when you need to extract specific fields programmatically (e.g., picking the latest non-prerelease version).

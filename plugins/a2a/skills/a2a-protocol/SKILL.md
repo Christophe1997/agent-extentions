@@ -1,5 +1,5 @@
 ---
-name: a2a-protocol
+name: a2a:protocol
 description: This skill provides the foundational A2A protocol knowledge Claude needs whenever a user wants to communicate with an A2A-compliant agent, call a remote agent by URL or alias, understand how agent cards work, integrate an agent-to-agent connection, construct an `a2a` CLI command, list or poll task status, cancel a running task, or subscribe to task updates. Relevant when the user mentions "A2A protocol", "agent card", "remote agent", "agent endpoint", "agent-to-agent", "a2a CLI", "use an agent", "call an agent", "ping an agent", or needs to understand task lifecycle states.
 ---
 
@@ -7,6 +7,26 @@ description: This skill provides the foundational A2A protocol knowledge Claude 
 
 The `a2a` CLI communicates with any A2A-compliant agent. All operations resolve agent aliases and
 auth parameters via the settings file (see `references/settings-format.md`).
+
+## Process
+
+This is reference knowledge for any A2A operation. Apply it in this order, drilling into the
+detailed sections below for each step:
+
+1. **Check prerequisites**: Verify the `a2a` binary is installed and, on first use, prefer the
+   onboarding flow over raw CLI calls. See [Prerequisites](#prerequisites).
+2. **Build the CLI invocation**: Resolve the alias to a URL and load auth args via the helper
+   script before calling `a2a`, using an array to handle auth values that may contain spaces.
+   See [Helper Script](#helper-script) and [Building a CLI Invocation](#building-a-cli-invocation).
+3. **Pick an execution strategy**: Default to a blocking send; use `--immediate` for background
+   tasks, and reach for `--stream` only when the agent card declares streaming support.
+   See [Execution Strategy](#execution-strategy) and [Core Operations](#core-operations).
+4. **Track the task lifecycle**: Map the returned status onto the lifecycle states, distinguishing
+   terminal states from intermediate states that can be resumed via `send --task`.
+   See [Task Lifecycle](#task-lifecycle).
+5. **Handle the output**: Read artifacts and Parts from the Task response, present text parts
+   directly, surface file parts as URIs, and use `-o json` for structured parsing.
+   See [Output Handling](#output-handling).
 
 ## Prerequisites
 
@@ -133,3 +153,34 @@ Intermediate states: `input-required`, `auth-required` (can resume via send with
 
 See `references/settings-format.md` for settings file format.
 See `references/cli-reference.md` for full CLI flag reference.
+
+## Example Usage
+
+This is a knowledge skill — it is not invoked directly. It loads automatically when a user talks
+about A2A agents, or it is loaded by the `a2a` command skills (`a2a-onboard`, `a2a-send`,
+`a2a-status`, `a2a-cancel`) for foundational protocol context.
+
+Model-invocation triggers (user prose):
+
+```
+Call the remote agent at https://demo.a2a-protocol.org and summarize the latest news about AI
+Ping my-agent and tell me if it's up
+What states can an A2A task be in?
+How do I construct an a2a CLI command to cancel a running task?
+```
+
+Loaded by another a2a skill for protocol knowledge:
+
+```
+Use Skill tool with skill="a2a:protocol"
+```
+
+The slash commands that build on this knowledge:
+
+```bash
+/a2a:onboard https://demo.a2a-protocol.org
+/a2a:send https://demo.a2a-protocol.org "Summarize the latest news about AI"
+/a2a:send my-agent --background "Run a long analysis job"
+/a2a:status my-agent task_abc123 --watch
+/a2a:cancel my-agent task_abc123
+```
