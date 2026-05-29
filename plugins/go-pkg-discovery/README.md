@@ -6,12 +6,10 @@ Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, 
 
 ### Skills
 
-| Skill | Description |
-|-------|-------------|
-| `gpd:discovery` | Knowledge base for Go package discovery — when to reach for `pkgsite-cli`, which subcommand answers which question, and the shared install-on-first-use bootstrap |
-| `gpd:search` | Search pkg.go.dev for packages by keyword or exported symbol |
-| `gpd:package` | Inspect a specific package — metadata, docs, exported symbols, reverse dependencies, licenses |
-| `gpd:module` | Inspect a specific module — versions, vulnerabilities, packages, README, licenses |
+- **gpd:discovery** - Knowledge base for Go package discovery — when to reach for `pkgsite-cli`, which subcommand answers which question, and the shared install-on-first-use bootstrap
+- **gpd:search** - Search pkg.go.dev for packages by keyword or exported symbol
+- **gpd:package** - Inspect a specific package — metadata, docs, exported symbols, reverse dependencies, licenses
+- **gpd:module** - Inspect a specific module — versions, vulnerabilities, packages, README, licenses
 
 ## Examples
 

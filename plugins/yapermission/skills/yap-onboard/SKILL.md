@@ -15,7 +15,7 @@ Scaffold `~/.yapermission.toml` from one of the bundled templates so the user ha
 | `starter` | `${CLAUDE_PLUGIN_ROOT}/scripts/starter.toml` | `default = "ask"` — broad allow rules + targeted asks/denies; unmatched calls prompt | Default choice. Conservative, low-blast-radius, fail-safe. |
 | `yolo` | `${CLAUDE_PLUGIN_ROOT}/scripts/yolo.toml` | `default = "allow"` — comprehensive deny list + ask list; unmatched calls auto-run | Trusted dev environments, autonomous loops, sandbox/worktree work. Faster but the deny list is the only safety net. |
 
-## Steps
+## Process
 
 1. **Check whether the file already exists.**
 

@@ -6,9 +6,7 @@ Review Chinese blog posts for writing style, punctuation, and formatting issues.
 
 ### Skills
 
-| Skill | Description |
-|-------|-------------|
-| `review-blog` | Review a blog post for style issues and offer to apply fixes |
+- **review-blog** - Review a blog post for style issues and offer to apply fixes
 
 ## Installation
 

@@ -6,13 +6,11 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 
 ### Skills
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
-| `a2a-protocol` | Auto | Core A2A knowledge — activates when talking about remote agents, A2A URLs, or agent communication |
-| `a2a-onboard` | `/a2a:onboard` | Onboard a new agent — binary check, discover, save alias, configure auth |
-| `a2a-send` | `/a2a:send` | Send a message to an agent (blocking, background, or streaming) |
-| `a2a-status` | `/a2a:status` | Show session tasks or get live status of a specific task |
-| `a2a-cancel` | `/a2a:cancel` | Cancel an active task |
+- **a2a-protocol** - Core A2A knowledge — activates when talking about remote agents, A2A URLs, or agent communication
+- **a2a-onboard** - Onboard a new agent — binary check, discover, save alias, configure auth
+- **a2a-send** - Send a message to an agent (blocking, background, or streaming)
+- **a2a-status** - Show session tasks or get live status of a specific task
+- **a2a-cancel** - Cancel an active task
 
 ## Examples
 

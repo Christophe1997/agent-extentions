@@ -8,14 +8,22 @@ A `PreToolUse` hook evaluates every tool call against a TOML policy and emits th
 
 | Capability | Description |
 |---|---|
-| **PreToolUse hook** | Intercepts every tool call (Bash, Edit, Write, Read, MCP, …) and emits one of the four `permissionDecision` values: `allow`, `deny`, `ask`, `defer` |
 | **TOML policy** | Group rules under `[[deny]]`, `[[ask]]`, `[[allow]]`, or `[[defer]]` arrays-of-tables — each key directly mirrors the decision it emits. Every rule takes `tool`, `matches`, optional `reason` |
 | **Stdlib-only** | Uses Python 3.11+ `tomllib` — no third-party dependencies |
 | **Config hierarchy** | `./.yapermission.toml` (project) overrides `~/.yapermission.toml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
-| **Onboarding** | `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.toml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails) |
-| **Dry-run debugger** | `/yapermission:yap-explain Bash "git push"` shows which rule matched and why |
-| **Knowledge skill** | Ask "how do I auto-allow git commands?" — auto-loads schema docs |
+
+### Skills
+
+- **yap-onboard** - `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.toml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails)
+- **yap-explain** - `/yapermission:yap-explain Bash "git push"` shows which rule matched and why
+- **yap-rule-syntax** - Ask "how do I auto-allow git commands?" — auto-loads schema docs
+
+### Hooks
+
+| Hook | Description |
+|---|---|
+| **PreToolUse** | Intercepts every tool call (Bash, Edit, Write, Read, MCP, …) and emits one of the four `permissionDecision` values: `allow`, `deny`, `ask`, `defer` |
 
 ## Examples
 

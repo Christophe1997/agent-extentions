@@ -8,9 +8,13 @@ Export Claude Code session transcripts to solarized-light themed HTML with pagin
 
 ### Skills
 
-| Skill | Description |
-|---------|-------------|
-| `smts:export` | Export current session to HTML |
+- **smts:export** - Export current session to HTML
+
+### Hooks
+
+| Hook | Description |
+|------|-------------|
+| `SessionStart` | Captures the session ID and project directory at session start for use by the export command |
 
 ### Capabilities
 

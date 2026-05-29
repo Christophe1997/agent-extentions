@@ -11,37 +11,11 @@ Built around your vault's own philosophy: **curation over accumulation**. Drafts
 land in `inbox/` for you to promote; existing notes are never modified
 automatically.
 
-## Vault structure
-
-`zettel-sync` expects an Obsidian vault shaped roughly like this:
-
-```
-vault/
-├── notes/                  # atomic notes   (frontmatter: type: note)
-├── moc/                    # Maps of Content (frontmatter: type: moc)
-├── inbox/                  # new drafts land here (auto-created)
-├── _templates/_schema.md   # your frontmatter contract (read at runtime)
-└── _artifacts/zettel-sync/ # review docs + state (auto-created)
-```
-
-Required vs. flexible:
-
-- **Classification is by frontmatter `type:`, not folder.** `notes/` and `moc/`
-  are just the default scan dirs — override with `vault_graph.py --dirs a,b`
-  (e.g. `--dirs .` for a flat vault), as long as notes carry `type: note` /
-  `type: moc`.
-- **`inbox/` and `_artifacts/zettel-sync/` are fixed write targets**, both
-  auto-created on first run — you don't have to make them.
-- **`_templates/_schema.md` is optional** — without it, the frontmatter
-  convention is inferred from a few existing notes.
-
 ## Features
 
 ### Skills
 
-| Skill | Description |
-|-------|-------------|
-| `zettel-sync` | Analyze sessions + vault and write a review doc; `apply` to write approved items |
+- **zettel-sync** - Analyze sessions + vault and write a review doc; `apply` to write approved items
 
 ### Capabilities
 
@@ -115,3 +89,27 @@ anything you don't want, then run `/zettel-sync apply`. Promote notes from
 ## License
 
 MIT
+
+## Vault structure
+
+`zettel-sync` expects an Obsidian vault shaped roughly like this:
+
+```
+vault/
+├── notes/                  # atomic notes   (frontmatter: type: note)
+├── moc/                    # Maps of Content (frontmatter: type: moc)
+├── inbox/                  # new drafts land here (auto-created)
+├── _templates/_schema.md   # your frontmatter contract (read at runtime)
+└── _artifacts/zettel-sync/ # review docs + state (auto-created)
+```
+
+Required vs. flexible:
+
+- **Classification is by frontmatter `type:`, not folder.** `notes/` and `moc/`
+  are just the default scan dirs — override with `vault_graph.py --dirs a,b`
+  (e.g. `--dirs .` for a flat vault), as long as notes carry `type: note` /
+  `type: moc`.
+- **`inbox/` and `_artifacts/zettel-sync/` are fixed write targets**, both
+  auto-created on first run — you don't have to make them.
+- **`_templates/_schema.md` is optional** — without it, the frontmatter
+  convention is inferred from a few existing notes.

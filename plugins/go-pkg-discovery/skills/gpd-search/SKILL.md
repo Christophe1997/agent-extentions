@@ -15,7 +15,7 @@ Confirm `pkgsite-cli` is on `PATH`:
 command -v pkgsite-cli >/dev/null 2>&1 && echo OK || echo MISSING
 ```
 
-If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
+If `MISSING`, use the `Skill` tool with `skill="go-pkg-discovery:gpd-discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
 
 ## Process
 
@@ -41,7 +41,7 @@ If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` — it owns the 
    - Non-zero exit → surface the CLI's error message verbatim, then suggest the most likely fix (e.g., network, typo in symbol name).
    - Empty results → suggest alternative spellings or related symbols before giving up.
 
-## Examples
+## Example Usage
 
 | Invocation | Translated to |
 |------------|---------------|

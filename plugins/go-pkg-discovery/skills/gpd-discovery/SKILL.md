@@ -28,7 +28,7 @@ If the user is working with code already vendored or in `go.mod`, prefer `go doc
 
 When invoked as a slash command (`/gpd:search`, `/gpd:package`, `/gpd:module`), the dedicated skills handle parsing. When activated conversationally, pick the subcommand yourself, then either run the CLI directly or delegate to the matching `gpd:*` skill.
 
-## Bootstrap: ensure `pkgsite-cli` is available
+## Process
 
 This step runs at most once per session — if you've already verified availability earlier in the conversation, skip it.
 

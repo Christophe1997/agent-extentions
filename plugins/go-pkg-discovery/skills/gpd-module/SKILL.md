@@ -15,7 +15,7 @@ Verify `pkgsite-cli` availability:
 command -v pkgsite-cli >/dev/null 2>&1 && echo OK || echo MISSING
 ```
 
-If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` to run the install bootstrap.
+If `MISSING`, use the `Skill` tool with `skill="go-pkg-discovery:gpd-discovery"` to run the install bootstrap.
 
 ## Process
 
@@ -59,7 +59,7 @@ Module { Path, Version, CommitTime, IsLatest, IsRedistributable,
          IsStandardLibrary, HasGoMod, RepoURL, GoModContents, Readme, Licenses }
 ```
 
-## Examples
+## Example Usage
 
 | Invocation | Translated to |
 |------------|---------------|

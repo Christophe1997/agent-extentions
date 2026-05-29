@@ -6,14 +6,12 @@ Documentation standards for agentic programming. Provides comprehensive tooling 
 
 ### Skills
 
-| Skill | Description |
-|-------|-------------|
-| `agd:agents-md` | Knowledge base for AGENTS.md format, structure, best practices, and multi-agent compatibility |
-| `agd:conventional-commits` | Conventional Commits specification with AI-specific rules (no `Co-Authored-By`) |
-| `agd:init-agents-md` | Scaffold AGENTS.md by analyzing project configuration |
-| `agd:migrate-agents-md` | Migrate AGENT.md, .cursorrules, .windsurfrules to AGENTS.md format |
-| `agd:update-agents-md` | Update existing AGENTS.md to reflect current project state |
-| `agd:commit` | Generate commit message from staged changes and create the commit |
+- **agd:agents-md** - Knowledge base for AGENTS.md format, structure, best practices, and multi-agent compatibility
+- **agd:conventional-commits** - Conventional Commits specification with AI-specific rules (no `Co-Authored-By`)
+- **agd:init-agents-md** - Scaffold AGENTS.md by analyzing project configuration
+- **agd:migrate-agents-md** - Migrate AGENT.md, .cursorrules, .windsurfrules to AGENTS.md format
+- **agd:update-agents-md** - Update existing AGENTS.md to reflect current project state
+- **agd:commit** - Generate commit message from staged changes and create the commit
 
 ## Examples
 

@@ -103,7 +103,7 @@ updates to the codebase                # No type, vague
 feat(authentication-system): add oauth # Scope too long
 ```
 
-## Process for Generating Commits
+## Process
 
 1. **Analyze changes**: Review staged files with `git diff --staged`
 2. **Identify type**: Determine the primary change category

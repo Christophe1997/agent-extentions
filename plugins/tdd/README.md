@@ -6,11 +6,9 @@ Test-Driven Development guidance based on Kent Beck's *Test Driven Development: 
 
 ### Skills
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
-| `tdd` | "use TDD", "write this test-first", "help me do TDD", "red green refactor" | Complete TDD workflow — the two rules, Red/Green/Refactor cycle, how to start, how to choose strategies (Fake It, Triangulate, Obvious Implementation) |
-| `tdd-patterns` | "TDD patterns", "mock object", "fake it til you make it", "starter test", "triangulate", "fixture", "learning test" | Reference for all 40+ patterns from Part III of the book |
-| `tdd-review` | "review my tests", "check my TDD", "test smell", "fragile tests", "is this good TDD" | Structured review of tests against TDD principles |
+- **tdd:tdd** - Complete TDD workflow — the two rules, Red/Green/Refactor cycle, how to start, how to choose strategies (Fake It, Triangulate, Obvious Implementation). Triggers: "use TDD", "write this test-first", "help me do TDD", "red green refactor"
+- **tdd:tdd-patterns** - Reference for all 40+ patterns from Part III of the book. Triggers: "TDD patterns", "mock object", "fake it til you make it", "starter test", "triangulate", "fixture", "learning test"
+- **tdd:tdd-review** - Structured review of tests against TDD principles. Triggers: "review my tests", "check my TDD", "test smell", "fragile tests", "is this good TDD"
 
 ### Agents
 
