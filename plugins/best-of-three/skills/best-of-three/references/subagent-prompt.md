@@ -19,10 +19,10 @@ Agent(
 )
 ```
 
-Do **not** tell a candidate to invoke an interactive orchestrator skill
-(e.g. `ce:work`): it asks for approval up front and will stall headless. Hand the
-candidate the concrete spec directly instead. Nesting orchestrators (this skill →
-candidate → another fan-out) also multiplies worktree cost — keep candidates flat.
+A candidate may invoke an interactive orchestrator skill (e.g. `ce:work`) or take
+the spec directly — Claude Code disables `AskUserQuestion` inside subagents, so such
+skills run autonomously instead of stalling on approval. Just note that an
+orchestrator that fans out further multiplies worktree cost; keep nesting shallow.
 
 ## Prompt template
 

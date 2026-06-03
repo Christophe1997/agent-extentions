@@ -103,8 +103,9 @@ in a **single message** so they run concurrently:
 that with the branch/SHA each candidate reports. Without this, Phase 6 has nothing
 concrete to cherry-pick from or remove.
 
-Do not instruct candidates to invoke interactive orchestrators (e.g. `ce:work`) —
-they stall waiting for headless approval. Hand them the concrete spec directly.
+Candidates run autonomously — Claude Code disables `AskUserQuestion` inside
+subagents, so an interactive orchestrator (e.g. `ce:work`) won't stall on approval;
+it just proceeds. A candidate may use such a skill or take the concrete spec directly.
 
 ### Phase 5: Collect & compare
 
@@ -143,8 +144,8 @@ Report the final state: base adopted, ideas grafted from whom, acceptance status
 
 - Worktree isolation is real overhead (~200-500ms + disk per candidate). Worth it
   for genuinely competing approaches; wasteful for cheap fan-out.
-- Keep candidates **flat** — no nested fan-out inside a candidate, or worktree
-  cost multiplies.
+- Mind **nesting cost** — a candidate that fans out further (e.g. via an
+  orchestrator skill) multiplies worktree overhead; keep nesting shallow.
 - The contest only pays off when lenses diverge (Phase 2). Three lenses that
   collapse to the same code produce three near-identical results.
 
