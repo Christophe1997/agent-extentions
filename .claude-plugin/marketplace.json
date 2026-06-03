@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.6.0"
+    "version": "1.7.0"
   },
   "plugins": [
     {
@@ -89,6 +89,15 @@
       "category": "productivity",
       "keywords": ["obsidian", "zettelkasten", "notes", "knowledge-management", "mcp", "session"],
       "tags": ["zettel sync"]
+    },
+    {
+      "name": "best-of-three",
+      "source": "./plugins/best-of-three",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/best-of-three",
+      "description": "Best-of-N competitive implementation workflow: gather the task, derive design lenses, run N isolated worktree agents in parallel, then compare, pick a winner, and graft the best ideas from the runners-up.",
+      "category": "developer-tools",
+      "keywords": ["best-of-three", "best-of-n", "compete", "worktree", "parallel-agents", "orchestration", "subagent"],
+      "tags": ["competitive implementation"]
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "best-of-three",
+  "version": "0.1.0",
+  "description": "Best-of-N competitive implementation workflow: gather the task, derive design lenses, run N isolated worktree agents in parallel, then compare, pick a winner, and graft the best ideas from the runners-up.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  }
+}
