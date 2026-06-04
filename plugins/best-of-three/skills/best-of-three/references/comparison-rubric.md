@@ -32,7 +32,7 @@ modularity carry the most weight.
 | Criterion | Good signal | Weight |
 |-----------|-------------|--------|
 | **DRY / reuse** | Uses a third-party library suited to the goal, or abstracts a shared lib/util used across modules | ×3 |
-| **Modularity** | Correctly splits and couples interfaces | ×3 |
+| **Modularity** | Correctly splits and couples interfaces; no domain leak — domain/business logic stays inside its boundary and never bleeds into adjacent layers (transport, persistence, UI) | ×3 |
 | **Project convention** | Follows the codebase's coding taste, library preferences, and existing patterns | ×2 |
 | **Correctness depth** | Considers more edge cases (beyond the gate's basic bar) | ×2 |
 
