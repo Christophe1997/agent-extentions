@@ -184,7 +184,7 @@ Fixes #456
 
 ### Rule: No AI Attribution
 
-**Never add `Co-Authored-By` footer for AI agents** (Claude Code, GitHub Copilot, OpenAI Codex, Cursor, etc.).
+**Never add `Co-Authored-By` footer for AI agents** (Claude Code, GitHub Copilot, OpenAI Codex, Cursor, etc.), unless the project explicitly allows it.
 
 AI is a tool, not a co-author. The human takes full ownership of every commit in their repository.
 
