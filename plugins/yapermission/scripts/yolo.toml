@@ -151,11 +151,13 @@ matches = [
   { command = '^brew install\b' },
 ]
 
-# Pushing to remote: usually fine but worth a beat of attention.
+# Normal pushes fall through to `default = "allow"` (silent). Only pushing to
+# the trunk branch is worth a confirmation prompt.
 [[ask]]
-name = "git-push"
+name = "git-push-protected-branch"
 tool = "Bash"
-reason = "Pushing to remote — confirm target branch"
+reason = "Pushing to main/master — confirm before running"
 matches = [
-  { command = '^git push\b' },
+  { command = '^git push\b.*\b(main|master)\b' },
+  { command = '^git push\s+\S+\s+HEAD:(main|master)\b' },
 ]
