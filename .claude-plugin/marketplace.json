@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.7.1"
+    "version": "1.8.0"
   },
   "plugins": [
     {
@@ -98,6 +98,15 @@
       "category": "developer-tools",
       "keywords": ["best-of-three", "best-of-n", "compete", "worktree", "parallel-agents", "orchestration", "subagent"],
       "tags": ["competitive implementation"]
+    },
+    {
+      "name": "ship",
+      "source": "./plugins/ship",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/ship",
+      "description": "Ship a goal end-to-end on a git repo: apply changes, surface related tasks, commit per project convention (branch-off-trunk + gates), and sync to remote — aborting if any phase fails.",
+      "category": "developer-tools",
+      "keywords": ["ship", "git", "commit", "push", "workflow", "orchestration", "branch", "gates"],
+      "tags": ["ship workflow"]
     }
   ]
 }
