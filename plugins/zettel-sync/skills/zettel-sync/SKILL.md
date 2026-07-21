@@ -2,7 +2,7 @@
 name: zettel-sync
 description: This skill should be used when the user asks to sync, update, or grow their Obsidian vault / Zettelkasten-style vault from recent Claude Code sessions — harvest explored concepts into draft notes, find orphan notes, detect near-duplicate notes, or propose a new MOC. Produces one batched-approval review document; a separate apply step writes the approved items.
 argument-hint: "[--days N] [--dry-run] | apply"
-allowed-tools: [Bash, Read, Write, Task]
+allowed-tools: [Bash, Read, Write, Agent]
 ---
 
 # zettel-sync
@@ -82,7 +82,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/harvest_concepts.py" \
   `wrote <N> sessions, <chars> chars -> ...`. Read `<chars>` from there (the
   digest itself is in the file). The total-size cap is 120000 chars.
 - **If `<chars>` is large** (say > 90000, i.e. nearing the 120000 cap), fan out:
-  launch one `general-purpose` Task agent per project, each given that project's
+  launch one `general-purpose` Agent per project, each given that project's
   slice of the digest, asked to return JSON
   `[{concept, domain, evidence, session_id}]`. Merge the results.
 - **Otherwise** read `digest.txt` yourself and extract the same structure.

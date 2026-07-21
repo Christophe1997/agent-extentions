@@ -1,7 +1,8 @@
 ---
 name: yap:onboard
 description: Scaffold the global yapermission config at ~/.yapermission.toml from a bundled template. Two templates are offered — `starter` (default-ask, conservative) and `yolo` (default-allow with hard guardrails). Trigger when the user asks to set up yapermission, initialize the policy file, or create a starter/yolo yapermission config.
-allowed-tools: Bash, Read, Write
+argument-hint: "[starter|yolo]"
+allowed-tools: Bash, Read, Write, AskUserQuestion
 ---
 
 # Onboard yapermission
