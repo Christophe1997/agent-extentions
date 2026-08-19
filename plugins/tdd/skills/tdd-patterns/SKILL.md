@@ -1,5 +1,5 @@
 ---
-name: tdd:patterns
+name: tdd-patterns
 description: This skill should be used when the user asks about "TDD patterns", "what pattern should I use", "mock object pattern", "fake it til you make it", "triangulate", "fixture setup", "test isolation", "xUnit patterns", "one step test", "starter test", "learning test", "regression test", "child test", "self shunt", "log string", "green bar patterns", "red bar patterns", "testing patterns", or any named pattern from Kent Beck's TDD book. Reference for all 40+ patterns from Part III of 'Test Driven Development: By Example'.
 ---
 

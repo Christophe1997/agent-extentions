@@ -14,7 +14,7 @@ When a skill needs knowledge from another domain, reference the skill instead of
 
 ```markdown
 ### PR/Commit Guidelines
-Reference the `agd:conventional-commits` skill for Conventional Commits format.
+Reference the `agd-conventional-commits` skill for Conventional Commits format.
 When generating this section, load the `commit-message` skill for details.
 ```
 

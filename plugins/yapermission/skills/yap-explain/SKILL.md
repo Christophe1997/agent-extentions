@@ -1,5 +1,5 @@
 ---
-name: yap:explain
+name: yap-explain
 description: Dry-run a tool call against the active yapermission policy and report which rule matched and why. Trigger when the user asks to test/debug/trace a yapermission rule, check whether a command would be auto-approved or blocked, or understand why a yapermission decision happened.
 argument-hint: 'Bash "git status"  |  Edit /etc/hosts  |  <Tool> <json> [--verbose]'
 allowed-tools: Bash

@@ -1,5 +1,5 @@
 ---
-name: a2a:onboard
+name: a2a-onboard
 description: Onboards a new A2A agent connection — fetches the Agent Card, checks prerequisites, and guides through saving the alias and configuring authentication. Use when the user wants to "discover", "onboard", "add", "register", or "connect" an A2A agent, or provides an agent URL they want to start using. Also triggers on "what can this agent do?" or "check the agent at <url>".
 argument-hint: <url-or-alias> [--extended]
 allowed-tools: Bash, Read, Write, AskUserQuestion
@@ -35,7 +35,7 @@ If missing, use `AskUserQuestion`:
         },
         {
           "label": "No — exit",
-          "description": "Stop here. You can install manually and re-run /a2a:onboard later."
+          "description": "Stop here. You can install manually and re-run /a2a-onboard later."
         }
       ]
     }
@@ -49,7 +49,7 @@ If missing, use `AskUserQuestion`:
   ```
   Then verify `command -v a2a` succeeds before continuing. If install fails, report the error and stop.
 - If **No**, stop here with:
-  > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest` and re-run `/a2a:onboard`.
+  > Onboarding cancelled. Install `a2a` with `go install github.com/a2aproject/a2a-go/v2/cmd/a2a@latest` and re-run `/a2a-onboard`.
 
 2. **Locate settings file**:
 
@@ -212,4 +212,4 @@ Summarise what was done:
 - Settings file: created at `<SETTINGS_PATH>` / updated manually / no changes needed
 
 Suggest the next step:
-> Send a message with `/a2a:send <alias-or-url> "your message"`
+> Send a message with `/a2a-send <alias-or-url> "your message"`

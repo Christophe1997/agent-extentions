@@ -17,7 +17,7 @@ A `PreToolUse` hook evaluates every tool call against a TOML policy and emits th
 
 - **yap-onboard** - `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.toml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails)
 - **yap-explain** - `/yapermission:yap-explain Bash "git push"` shows which rule matched and why
-- **yap:rule-syntax** - Ask "how do I auto-allow git commands?" — auto-loads schema docs
+- **yap-rule-syntax** - Ask "how do I auto-allow git commands?" — auto-loads schema docs
 
 ### Hooks
 

@@ -15,9 +15,9 @@ Use commands for lifecycle management:
 
 | Command | Purpose | When to Use |
 |---------|---------|-------------|
-| `/agd:init-agents-md` | Create new from scratch | New project, no existing agent docs |
-| `/agd:migrate-agents-md` | Convert from other format | Have AGENT.md, .cursorrules, etc. |
-| `/agd:update-agents-md` | Update existing AGENTS.md | File exists but needs updates |
+| `/agd-init-agents-md` | Create new from scratch | New project, no existing agent docs |
+| `/agd-migrate-agents-md` | Convert from other format | Have AGENT.md, .cursorrules, etc. |
+| `/agd-update-agents-md` | Update existing AGENTS.md | File exists but needs updates |
 
 All commands use `AskUserQuestion` to ask about references folder only when appropriate.
 
@@ -38,7 +38,7 @@ All commands use `AskUserQuestion` to ask about references folder only when appr
 
 ### Automated Creation
 
-Use `/agd:init-agents-md [path]` to:
+Use `/agd-init-agents-md [path]` to:
 1. Analyze project structure and configuration
 2. Detect package manager, test framework, linters
 3. Generate compact AGENTS.md with project-specific content
@@ -77,7 +77,7 @@ Trigger updates when:
 
 ### Automated Update
 
-Use `/agd:update-agents-md [path]` to:
+Use `/agd-update-agents-md [path]` to:
 1. Read existing AGENTS.md
 2. Analyze project for changes
 3. Update sections incrementally
@@ -111,7 +111,7 @@ Transform common patterns:
 
 ### Automated Migration
 
-Use `/agd:migrate-agents-md [source-file]` to:
+Use `/agd-migrate-agents-md [source-file]` to:
 1. Auto-detect source files
 2. Transform content to compact AGENTS.md format
 3. Ask about references folder using AskUserQuestion (only for verbose sources)

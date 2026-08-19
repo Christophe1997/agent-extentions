@@ -108,7 +108,7 @@ If none are found, say so and continue.
    before running `git commit`.
 
    If the project's conventions name a specific skill for committing or gating
-   (e.g. `agd:commit`), prefer it: invoke it via the `Skill` tool and skip the
+   (e.g. `agd-commit`), prefer it: invoke it via the `Skill` tool and skip the
    manual staging/commit steps above rather than reimplementing them —
    following the convention beats duplicating it.
 

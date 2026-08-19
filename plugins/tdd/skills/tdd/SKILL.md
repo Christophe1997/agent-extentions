@@ -124,7 +124,7 @@ assertEquals(7, plus(3, 4));  // Now abstraction is forced
 
 Once GREEN, eliminate all duplication — between the test and the code, and within the code. Do NOT add features. Refactor only within a green bar.
 
-Key refactorings (see `/tdd:patterns` for full list):
+Key refactorings (see `/tdd-patterns` for full list):
 - **Extract Method** — pull duplicated logic into a named method
 - **Reconcile Differences** — make two similar code paths identical, then eliminate one
 - **Migrate Data** — when changing representation, temporarily duplicate then delete old
@@ -174,5 +174,5 @@ When the user provides a feature or task:
 
 ## Additional Resources
 
-- **`/tdd:patterns`** — All 40+ patterns from Part III of the book (Red Bar, Testing, Green Bar, xUnit, Design, Refactoring patterns)
-- **`/tdd:review`** — Review existing code or tests for TDD compliance and quality
+- **`/tdd-patterns`** — All 40+ patterns from Part III of the book (Red Bar, Testing, Green Bar, xUnit, Design, Refactoring patterns)
+- **`/tdd-review`** — Review existing code or tests for TDD compliance and quality

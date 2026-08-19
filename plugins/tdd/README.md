@@ -6,9 +6,9 @@ Test-Driven Development guidance based on Kent Beck's *Test Driven Development: 
 
 ### Skills
 
-- **tdd:tdd** - Complete TDD workflow — the two rules, Red/Green/Refactor cycle, how to start, how to choose strategies (Fake It, Triangulate, Obvious Implementation). Triggers: "use TDD", "write this test-first", "help me do TDD", "red green refactor"
-- **tdd:patterns** - Reference for all 40+ patterns from Part III of the book. Triggers: "TDD patterns", "mock object", "fake it til you make it", "starter test", "triangulate", "fixture", "learning test"
-- **tdd:review** - Structured review of tests against TDD principles. Triggers: "review my tests", "check my TDD", "test smell", "fragile tests", "is this good TDD"
+- **tdd** - Complete TDD workflow — the two rules, Red/Green/Refactor cycle, how to start, how to choose strategies (Fake It, Triangulate, Obvious Implementation). Triggers: "use TDD", "write this test-first", "help me do TDD", "red green refactor"
+- **tdd-patterns** - Reference for all 40+ patterns from Part III of the book. Triggers: "TDD patterns", "mock object", "fake it til you make it", "starter test", "triangulate", "fixture", "learning test"
+- **tdd-review** - Structured review of tests against TDD principles. Triggers: "review my tests", "check my TDD", "test smell", "fragile tests", "is this good TDD"
 
 ### Agents
 
@@ -20,13 +20,13 @@ Test-Driven Development guidance based on Kent Beck's *Test Driven Development: 
 
 ```
 # Start implementing a feature with TDD
-/tdd:tdd implement a stack data structure
+/tdd implement a stack data structure
 
 # Look up a specific pattern  
-/tdd:patterns how do I use Mock Object?
+/tdd-patterns how do I use Mock Object?
 
 # Review existing tests
-/tdd:review @src/cart/cart.test.js
+/tdd-review @src/cart/cart.test.js
 ```
 
 ## Installation
@@ -39,7 +39,7 @@ Test-Driven Development guidance based on Kent Beck's *Test Driven Development: 
 
 ## Usage
 
-### TDD Workflow (`/tdd:tdd`)
+### TDD Workflow (`/tdd`)
 
 Guides you through the complete TDD cycle for a feature:
 1. Write the Test List
@@ -49,7 +49,7 @@ Guides you through the complete TDD cycle for a feature:
 5. Refactor from green
 6. Repeat
 
-### Pattern Lookup (`/tdd:patterns`)
+### Pattern Lookup (`/tdd-patterns`)
 
 Quick lookup for any of the 40+ patterns organized by chapter:
 - **Chapter 25** — TDD Core Patterns (Isolated Test, Test List, Assert First, Evident Data...)
@@ -61,7 +61,7 @@ Quick lookup for any of the 40+ patterns organized by chapter:
 - **Chapter 31** — Refactoring (Reconcile Differences, Migrate Data, Extract Method, Isolate Change...)
 - **Chapter 32** — Mastering TDD (step size, when to delete tests, switching midstream...)
 
-### Test Review (`/tdd:review`)
+### Test Review (`/tdd-review`)
 
 Analyzes tests for:
 - Test smells (long setup, fragile tests, over-specification)

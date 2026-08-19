@@ -1,5 +1,5 @@
 ---
-name: agd:migrate-agents-md
+name: agd-migrate-agents-md
 description: "Migrate existing agent documentation to the standardized AGENTS.md format. Use when the user wants to convert, migrate, or port from AGENT.md, .cursorrules, .windsurfrules, CLAUDE.md, or contributing.md. Also triggers on 'convert .cursorrules to AGENTS.md', 'migrate agent docs', 'switch to AGENTS.md format'."
 argument-hint: optional source file path (auto-detects AGENT.md, .cursorrules, etc.)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
@@ -11,7 +11,7 @@ Migrate existing agent documentation files to the standardized AGENTS.md format.
 
 Load the agents-md skill for format guidance:
 ```
-Use Skill tool with skill="agd:agents-md"
+Use Skill tool with skill="agd-agents-md"
 ```
 Provides: sections, structure, symlink patterns, best practices
 
@@ -172,7 +172,7 @@ Transform common patterns:
 - Functional components with hooks
 
 ## PR instructions
-- Use Conventional Commits (see agd:conventional-commits skill)
+- Use Conventional Commits (see agd-conventional-commits skill)
 - Run `pnpm lint && pnpm test` before pushing
 ```
 

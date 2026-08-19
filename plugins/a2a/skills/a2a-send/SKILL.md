@@ -1,5 +1,5 @@
 ---
-name: a2a:send
+name: a2a-send
 description: Sends a message to an A2A-compliant agent at a URL or alias. Always runs in blocking mode. Pass --background to return immediately with a task ID instead. Resolves aliases, auth params, and timeout from settings. Tracks tasks in session.
 argument-hint: <url-or-alias> [--background] [--stream] [--timeout <duration>] [--task <id>] [--context <id>] <message>
 allowed-tools: Bash
@@ -76,11 +76,11 @@ the task by running send again with `--task <task-id>`.
 
 ```bash
 # Send a message (blocking — waits for response)
-/a2a:send https://demo.a2a-protocol.org "Summarize the latest news about AI"
+/a2a-send https://demo.a2a-protocol.org "Summarize the latest news about AI"
 
 # Send in background — returns task ID immediately
-/a2a:send my-agent --background "Run a long analysis job"
+/a2a-send my-agent --background "Run a long analysis job"
 
 # Continue an existing task by passing --task <task-id>
-/a2a:send my-agent --task task_abc123 "Here is the additional context you asked for"
+/a2a-send my-agent --task task_abc123 "Here is the additional context you asked for"
 ```

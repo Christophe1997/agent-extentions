@@ -1,5 +1,5 @@
 ---
-name: a2a:cancel
+name: a2a-cancel
 description: Cancels an active A2A task. Resolves aliases and auth params from settings, updates session tracking.
 argument-hint: <url-or-alias> <task-id>
 allowed-tools: Bash
@@ -13,7 +13,7 @@ allowed-tools: Bash
 
    If either is missing, output:
    ```
-   Usage: /a2a:cancel <url-or-alias> <task-id>
+   Usage: /a2a-cancel <url-or-alias> <task-id>
    ```
 
 2. **Check that `a2a` is installed** before proceeding:

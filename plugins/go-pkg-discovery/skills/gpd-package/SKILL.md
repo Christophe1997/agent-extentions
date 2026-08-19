@@ -1,6 +1,6 @@
 ---
-name: gpd:package
-description: Inspect a specific Go package on pkg.go.dev — metadata, rendered documentation, exported symbols, reverse dependencies, imports, licenses. Use when the user asks to "look up Go package X", "show docs for Y", "list symbols of Z", "who imports W", or invokes /gpd:package.
+name: gpd-package
+description: Inspect a specific Go package on pkg.go.dev — metadata, rendered documentation, exported symbols, reverse dependencies, imports, licenses. Use when the user asks to "look up Go package X", "show docs for Y", "list symbols of Z", "who imports W", or invokes /gpd-package.
 argument-hint: <path>[@version] [-symbols] [-imported-by] [-doc text|md|html] [-examples] [-imports] [-licenses] [-module M]
 allowed-tools: [Bash, AskUserQuestion, Skill]
 ---
@@ -15,7 +15,7 @@ Verify `pkgsite-cli` availability:
 command -v pkgsite-cli >/dev/null 2>&1 && echo OK || echo MISSING
 ```
 
-If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` to run the install bootstrap.
+If `MISSING`, use the `Skill` tool with `skill="gpd-discovery"` to run the install bootstrap.
 
 ## Process
 
@@ -64,14 +64,14 @@ Package { Path, Name, Synopsis, ModulePath, Version, IsLatest,
 
 | Invocation | Translated to |
 |------------|---------------|
-| `/gpd:package github.com/google/uuid` | metadata |
-| `/gpd:package -symbols github.com/google/go-cmp/cmp` | list exported API |
-| `/gpd:package -imported-by github.com/google/go-cmp/cmp` | reverse deps |
-| `/gpd:package -doc md github.com/spf13/cobra@v1.8.0` | render docs as Markdown |
-| `/gpd:package -goos windows -doc text golang.org/x/sys/windows` | docs for Windows-only build |
+| `/gpd-package github.com/google/uuid` | metadata |
+| `/gpd-package -symbols github.com/google/go-cmp/cmp` | list exported API |
+| `/gpd-package -imported-by github.com/google/go-cmp/cmp` | reverse deps |
+| `/gpd-package -doc md github.com/spf13/cobra@v1.8.0` | render docs as Markdown |
+| `/gpd-package -goos windows -doc text golang.org/x/sys/windows` | docs for Windows-only build |
 
 ## Related
 
-- `gpd:module` for module-level info (versions, vulns)
-- `gpd:search` to find candidate packages first
-- `gpd:discovery` for the broader subcommand decision tree
+- `gpd-module` for module-level info (versions, vulns)
+- `gpd-search` to find candidate packages first
+- `gpd-discovery` for the broader subcommand decision tree

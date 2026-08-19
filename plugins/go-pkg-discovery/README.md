@@ -6,36 +6,36 @@ Discover Go packages, modules, versions, vulnerabilities, reverse dependencies, 
 
 ### Skills
 
-- **gpd:discovery** - Knowledge base for Go package discovery — when to reach for `pkgsite-cli`, which subcommand answers which question, and the shared install-on-first-use bootstrap
-- **gpd:search** - Search pkg.go.dev for packages by keyword or exported symbol
-- **gpd:package** - Inspect a specific package — metadata, docs, exported symbols, reverse dependencies, licenses
-- **gpd:module** - Inspect a specific module — versions, vulnerabilities, packages, README, licenses
+- **gpd-discovery** - Knowledge base for Go package discovery — when to reach for `pkgsite-cli`, which subcommand answers which question, and the shared install-on-first-use bootstrap
+- **gpd-search** - Search pkg.go.dev for packages by keyword or exported symbol
+- **gpd-package** - Inspect a specific package — metadata, docs, exported symbols, reverse dependencies, licenses
+- **gpd-module** - Inspect a specific module — versions, vulnerabilities, packages, README, licenses
 
 ## Examples
 
 ```bash
 # Find packages mentioning "uuid"
-/gpd:search uuid
+/gpd-search uuid
 
 # Find packages that export a function named Marshal
-/gpd:search -symbol Marshal json
+/gpd-search -symbol Marshal json
 
 # Inspect a package, list its exported symbols
-/gpd:package -symbols github.com/google/go-cmp/cmp
+/gpd-package -symbols github.com/google/go-cmp/cmp
 
 # See who depends on go-cmp
-/gpd:package -imported-by github.com/google/go-cmp/cmp
+/gpd-package -imported-by github.com/google/go-cmp/cmp
 
 # Render package docs as Markdown
-/gpd:package -doc md github.com/google/go-cmp/cmp
+/gpd-package -doc md github.com/google/go-cmp/cmp
 
 # List all versions of a module
-/gpd:module -versions github.com/google/go-cmp
+/gpd-module -versions github.com/google/go-cmp
 
 # Check a module for known vulnerabilities
-/gpd:module -vulns golang.org/x/crypto
+/gpd-module -vulns golang.org/x/crypto
 
-# Conversational use (auto-triggered via gpd:discovery skill):
+# Conversational use (auto-triggered via gpd-discovery skill):
 # "What versions of go-cmp are available?"
 # "Are there any known vulnerabilities in x/crypto?"
 # "Who imports github.com/google/uuid?"
@@ -60,10 +60,10 @@ Make sure `$(go env GOBIN)` (or `$(go env GOPATH)/bin`) is on your `PATH`.
 
 ## Usage
 
-- **Conversational discovery** → ask anything about Go packages; `gpd:discovery` activates automatically
-- **Search** → `/gpd:search <query> [-symbol NAME] [-limit N]`
-- **Package inspect** → `/gpd:package [flags] <path>[@version]`
-- **Module inspect** → `/gpd:module [flags] <path>[@version]`
+- **Conversational discovery** → ask anything about Go packages; `gpd-discovery` activates automatically
+- **Search** → `/gpd-search <query> [-symbol NAME] [-limit N]`
+- **Package inspect** → `/gpd-package [flags] <path>[@version]`
+- **Module inspect** → `/gpd-module [flags] <path>[@version]`
 
 Flag syntax mirrors `pkgsite-cli` exactly — run `pkgsite-cli <command> -h` for the full list.
 

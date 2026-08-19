@@ -1,5 +1,5 @@
 ---
-name: a2a:protocol
+name: a2a-protocol
 description: This skill provides the foundational A2A protocol knowledge Claude needs whenever a user wants to communicate with an A2A-compliant agent, call a remote agent by URL or alias, understand how agent cards work, integrate an agent-to-agent connection, construct an `a2a` CLI command, list or poll task status, cancel a running task, or subscribe to task updates. Relevant when the user mentions "A2A protocol", "agent card", "remote agent", "agent endpoint", "agent-to-agent", "a2a CLI", "use an agent", "call an agent", "ping an agent", or needs to understand task lifecycle states.
 ---
 
@@ -42,7 +42,7 @@ command -v a2a &>/dev/null || {
 
 If the binary is missing, show the install command and stop. Do not attempt any `a2a` subcommands.
 
-**First-time setup:** If no `~/.claude/a2a.local.md` exists, suggest running `/a2a:onboard <url>`
+**First-time setup:** If no `~/.claude/a2a.local.md` exists, suggest running `/a2a-onboard <url>`
 instead of constructing raw CLI calls — it handles binary check, discovery, alias saving, and auth
 configuration in one flow.
 
@@ -172,15 +172,15 @@ How do I construct an a2a CLI command to cancel a running task?
 Loaded by another a2a skill for protocol knowledge:
 
 ```
-Use Skill tool with skill="a2a:protocol"
+Use Skill tool with skill="a2a-protocol"
 ```
 
 The slash commands that build on this knowledge:
 
 ```bash
-/a2a:onboard https://demo.a2a-protocol.org
-/a2a:send https://demo.a2a-protocol.org "Summarize the latest news about AI"
-/a2a:send my-agent --background "Run a long analysis job"
-/a2a:status my-agent task_abc123 --watch
-/a2a:cancel my-agent task_abc123
+/a2a-onboard https://demo.a2a-protocol.org
+/a2a-send https://demo.a2a-protocol.org "Summarize the latest news about AI"
+/a2a-send my-agent --background "Run a long analysis job"
+/a2a-status my-agent task_abc123 --watch
+/a2a-cancel my-agent task_abc123
 ```

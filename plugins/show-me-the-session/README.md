@@ -8,7 +8,7 @@ Export Claude Code session transcripts to solarized-light themed HTML with pagin
 
 ### Skills
 
-- **smts:export** - Export current session to HTML
+- **smts-export** - Export current session to HTML
 
 ### Hooks
 
@@ -42,11 +42,11 @@ See a [live example](https://christophe1997.github.io/agent-extentions/examples/
 ## Usage
 
 ```bash
-/smts:export                    # Export current session to docs/sessions/
-/smts:export pick               # Choose from recent sessions
-/smts:export -o /path/out.html  # Custom output path
-/smts:export --split            # Split into multiple pages
-/smts:export --split --page-size 30  # Custom page size
+/smts-export                    # Export current session to docs/sessions/
+/smts-export pick               # Choose from recent sessions
+/smts-export -o /path/out.html  # Custom output path
+/smts-export --split            # Split into multiple pages
+/smts-export --split --page-size 30  # Custom page size
 ```
 
 ### CLI Options

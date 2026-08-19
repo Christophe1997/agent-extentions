@@ -1,5 +1,5 @@
 ---
-name: agd:update-agents-md
+name: agd-update-agents-md
 description: "This skill should be used when the user says their AGENTS.md is outdated, stale, or needs refreshing, or when they say 'update AGENTS.md', 'refresh AGENTS.md', 'AGENTS.md is out of date', or 'sync AGENTS.md with project'. Provides a step-by-step process to update an existing AGENTS.md to reflect current project state."
 argument-hint: optional path (default: ./AGENTS.md)
 allowed-tools: [Bash, Read, Write, Glob, Skill, AskUserQuestion]
@@ -11,7 +11,7 @@ Update an existing AGENTS.md file to reflect current project state. Default to k
 
 Load the agents-md skill for format guidance:
 ```
-Use Skill tool with skill="agd:agents-md"
+Use Skill tool with skill="agd-agents-md"
 ```
 Provides: sections, structure, validation checklist, best practices
 

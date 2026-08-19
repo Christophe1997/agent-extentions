@@ -1,6 +1,6 @@
 ---
-name: gpd:search
-description: Search pkg.go.dev for Go packages by free-text query or exported symbol name. Use when the user asks to "search Go packages for X", "find Go libraries for Y", "which packages export symbol Z", or invokes /gpd:search.
+name: gpd-search
+description: Search pkg.go.dev for Go packages by free-text query or exported symbol name. Use when the user asks to "search Go packages for X", "find Go libraries for Y", "which packages export symbol Z", or invokes /gpd-search.
 argument-hint: <query> [-symbol NAME] [-limit N] [-json]
 allowed-tools: [Bash, AskUserQuestion, Skill]
 ---
@@ -15,7 +15,7 @@ Confirm `pkgsite-cli` is on `PATH`:
 command -v pkgsite-cli >/dev/null 2>&1 && echo OK || echo MISSING
 ```
 
-If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
+If `MISSING`, use the `Skill` tool with `skill="gpd-discovery"` — it owns the install-on-first-use bootstrap flow. Do not auto-install without confirmation.
 
 ## Process
 
@@ -45,12 +45,12 @@ If `MISSING`, use the `Skill` tool with `skill="gpd:discovery"` — it owns the 
 
 | Invocation | Translated to |
 |------------|---------------|
-| `/gpd:search uuid` | `pkgsite-cli search uuid` |
-| `/gpd:search -symbol Marshal json` | `pkgsite-cli search -symbol Marshal json` |
-| `/gpd:search -limit 50 grpc gateway` | `pkgsite-cli search -limit 50 grpc gateway` |
+| `/gpd-search uuid` | `pkgsite-cli search uuid` |
+| `/gpd-search -symbol Marshal json` | `pkgsite-cli search -symbol Marshal json` |
+| `/gpd-search -limit 50 grpc gateway` | `pkgsite-cli search -limit 50 grpc gateway` |
 
 ## Related
 
-- `gpd:package` for inspecting a specific result in depth
-- `gpd:module` for module-level metadata of a result's owning module
-- `gpd:discovery` for the broader decision tree on which subcommand to use
+- `gpd-package` for inspecting a specific result in depth
+- `gpd-module` for module-level metadata of a result's owning module
+- `gpd-discovery` for the broader decision tree on which subcommand to use

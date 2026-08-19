@@ -27,7 +27,7 @@ const RUBRIC = [
   '  - License section says MIT. Hooks shown as a table; Skills shown as a bullet list.',
   '',
   'DIMENSION "skills" (docs/agents/skill-patterns.md):',
-  '  - Each skills/*/SKILL.md has YAML frontmatter: a name in short plugin-prefix form (e.g. a2a:send; bare for single-skill plugins and the directory-matching flagship) and a description with concrete trigger phrases.',
+  '  - Each skills/*/SKILL.md has YAML frontmatter: a name in short plugin-prefix form (e.g. a2a-send; bare for single-skill plugins and the directory-matching flagship) and a description with concrete trigger phrases.',
   '  - COMMAND/workflow skills (perform a task) have a "## Process" of numbered, **bold action-labelled** steps, and set argument-hint when they accept arguments.',
   '  - REFERENCE/knowledge skills (inform reasoning) are EXEMPT from "## Process" — do NOT flag its absence.',
   '  - "## Example Usage" is OPTIONAL and sequence-only: NEVER flag its absence. Flag it (low severity) ONLY when present but redundant — a single-shot echo of argument-hint that shows nothing the hint cannot.',

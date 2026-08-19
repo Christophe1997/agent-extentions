@@ -370,7 +370,7 @@ See ./docs/agents/testing.md for detailed guidelines and conventions.
 See ./docs/agents/code-style.md for detailed conventions.
 
 ## PR instructions
-- Use Conventional Commits (see agd:conventional-commits skill)
+- Use Conventional Commits (see agd-conventional-commits skill)
 - Run `pnpm lint && pnpm test` before pushing
 - Reference issues: Fixes #123
 

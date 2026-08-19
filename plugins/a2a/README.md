@@ -16,25 +16,25 @@ Claude Code plugin for the [Agent2Agent (A2A) protocol](https://a2a-protocol.org
 
 ```bash
 # Onboard a new agent (discover + save alias + configure auth)
-/a2a:onboard https://demo.a2a-protocol.org
+/a2a-onboard https://demo.a2a-protocol.org
 
 # Send a message (blocking — waits for response)
-/a2a:send https://demo.a2a-protocol.org "Summarize the latest news about AI"
+/a2a-send https://demo.a2a-protocol.org "Summarize the latest news about AI"
 
 # Send in background — returns task ID immediately
-/a2a:send my-agent --background "Run a long analysis job"
+/a2a-send my-agent --background "Run a long analysis job"
 
 # Check all session tasks
-/a2a:status
+/a2a-status
 
 # Get live status of a specific task
-/a2a:status my-agent task_abc123
+/a2a-status my-agent task_abc123
 
 # Watch a task until completion
-/a2a:status my-agent task_abc123 --watch
+/a2a-status my-agent task_abc123 --watch
 
 # Cancel a task
-/a2a:cancel my-agent task_abc123
+/a2a-cancel my-agent task_abc123
 ```
 
 ## Installation
@@ -75,10 +75,10 @@ This file is gitignored automatically.
 
 ### Sending Messages
 
-By default, `/a2a:send` waits for the agent to complete the task before showing the result.
+By default, `/a2a-send` waits for the agent to complete the task before showing the result.
 
 Use `--background` to fire-and-forget — the task ID is tracked in the session and you can check
-progress with `/a2a:status`.
+progress with `/a2a-status`.
 
 Use `--stream` only when you know the agent supports streaming (visible in the agent card).
 
@@ -87,7 +87,7 @@ Use `--stream` only when you know the agent supports streaming (visible in the a
 Continue an existing task by passing `--task <task-id>`:
 
 ```bash
-/a2a:send my-agent --task task_abc123 "Here is the additional context you asked for"
+/a2a-send my-agent --task task_abc123 "Here is the additional context you asked for"
 ```
 
 ## License

@@ -47,23 +47,23 @@ A plugin skill is reachable two ways, **both of which resolve at runtime**:
 - **`<plugin>:<skill-directory>`** — e.g. `agentic-doc:agd-agents-md`. Claude Code
   derives this canonical id from the `plugin.json` `name` plus the skill folder; it
   is how the skill appears in the skills registry.
-- **the frontmatter `name:` value** — e.g. `agd:agents-md`. The Skill tool also
-  resolves `skill=` against this (verified: invoking `skill="agd:conventional-commits"`
+- **the frontmatter `name:` value** — e.g. `agd-agents-md`. The Skill tool also
+  resolves `skill=` against this (verified: invoking `skill="agd-conventional-commits"`
   loads `agentic-doc/skills/agd-conventional-commits`).
 
 Because both resolve, the in-file `name:` is a **convenience alias**. This repo's
 convention:
 
-- Use a **short plugin prefix + skill suffix**: `name: <prefix>:<skill>`
-  (`a2a:send`, `agd:commit`, `gpd:search`, `yap:explain`, `smts:export`). The prefix
+- Use a **short plugin prefix + skill suffix**: `name: <prefix>-<skill>`
+  (`a2a-send`, `agd-commit`, `gpd-search`, `yap-explain`, `smts-export`). The prefix
   is a deliberate shorthand (`agd:` for plugin `agentic-doc`), not the full plugin
   name; keep it consistent across a plugin's skills.
 - **Multi-skill plugins** prefix every skill **except** the flagship whose directory
-  equals the plugin name, which stays bare: `tdd` (invoked `/tdd:tdd`) alongside
-  `tdd:patterns` and `tdd:review`.
+  equals the plugin name, which stays bare: `tdd` (invoked `/tdd`) alongside
+  `tdd-patterns` and `tdd-review`.
 - **Single-skill plugins** stay bare: `review-blog`, `zettel-sync`.
 - A cross-skill `Skill` reference uses the same short-prefix form:
-  `Use Skill tool with skill="agd:conventional-commits"`.
+  `Use Skill tool with skill="agd-conventional-commits"`.
 
 ## Description
 
@@ -85,10 +85,10 @@ Two shapes, with different section expectations:
 
 - **Command / workflow skill** (performs a task): has a `## Process`,
   `allowed-tools`, and an `argument-hint` when it takes args. Examples:
-  `agd:commit`, `a2a:send`, `zettel-sync`.
+  `agd-commit`, `a2a-send`, `zettel-sync`.
 - **Reference / knowledge skill** (informs reasoning): lean prose, often no
   `## Process` and no tools; loaded by other skills or activated by topic.
-  Examples: `a2a:protocol`, `tdd:patterns`, `yap:rule-syntax`.
+  Examples: `a2a-protocol`, `tdd-patterns`, `yap-rule-syntax`.
 
 The Required markers and Checklist below apply to **command/workflow** skills.
 Reference skills are exempt from `## Process`. `## Example Usage` is optional
@@ -160,7 +160,7 @@ Add a `## Example Usage` section **only** when it conveys something
   `analyze → edit the doc → apply`, which the flat grammar can't order; or
 - a **non-obvious flag combination** whose effect isn't clear from the hint.
 
-A single-shot example that just restates the hint (`/gpd:search <pkg>`) is
+A single-shot example that just restates the hint (`/gpd-search <pkg>`) is
 redundant — omit it.
 
 ## Body Writing Style
@@ -239,9 +239,9 @@ Reference other skills with the short-prefix form, and include `Skill` in
 ```markdown
 ## Load Context
 
-Load the `agd:conventional-commits` skill for guidance:
+Load the `agd-conventional-commits` skill for guidance:
 ```
-Use Skill tool with skill="agd:conventional-commits"
+Use Skill tool with skill="agd-conventional-commits"
 ```
 
 This provides:

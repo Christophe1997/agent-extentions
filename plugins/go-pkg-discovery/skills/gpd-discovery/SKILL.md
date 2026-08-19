@@ -1,12 +1,12 @@
 ---
-name: gpd:discovery
+name: gpd-discovery
 description: Knowledge for discovering Go packages and modules via pkg.go.dev. This skill should be used when the user asks to "find a Go package for X", "look up Go module Y", "search pkg.go.dev", "what versions of <go module> exist", "are there vulnerabilities in <go module>", "what does <go package> export", "who imports <go package>", or "show docs for Go package Z" — any question about discovering Go packages/modules whose answer lives on pkg.go.dev rather than in local code.
 allowed-tools: [Bash, AskUserQuestion, Skill]
 ---
 
 Discover Go packages and modules by routing the user's intent to the right `pkgsite-cli` subcommand. Run the CLI, show raw output, then synthesize.
 
-This skill is also the shared owner of the install-on-first-use bootstrap — `/gpd:search`, `/gpd:package`, and `/gpd:module` delegate to it via the `Skill` tool when `pkgsite-cli` is missing.
+This skill is also the shared owner of the install-on-first-use bootstrap — `/gpd-search`, `/gpd-package`, and `/gpd-module` delegate to it via the `Skill` tool when `pkgsite-cli` is missing.
 
 ## When to use this skill (vs. alternatives)
 
@@ -26,7 +26,7 @@ If the user is working with code already vendored or in `go.mod`, prefer `go doc
 | Package metadata, docs, symbols, reverse deps          | `package`  | `-symbols`, `-imported-by`, `-doc md`, `-imports`, `-licenses`, `-goos`, `-goarch`, `-module` |
 | Module versions, vulnerabilities, package list, README | `module`   | `-versions`, `-vulns`, `-packages`, `-readme`, `-licenses`                                    |
 
-When invoked as a slash command (`/gpd:search`, `/gpd:package`, `/gpd:module`), the dedicated skills handle parsing. When activated conversationally, pick the subcommand yourself, then either run the CLI directly or delegate to the matching `gpd:*` skill.
+When invoked as a slash command (`/gpd-search`, `/gpd-package`, `/gpd-module`), the dedicated skills handle parsing. When activated conversationally, pick the subcommand yourself, then either run the CLI directly or delegate to the matching `gpd:*` skill.
 
 ## Process
 
@@ -94,25 +94,25 @@ Slash commands the dedicated skills handle (this skill provides the shared boots
 
 ```bash
 # Find packages mentioning "uuid"
-/gpd:search uuid
+/gpd-search uuid
 
 # Find packages that export a function named Marshal
-/gpd:search -symbol Marshal json
+/gpd-search -symbol Marshal json
 
 # Inspect a package, list its exported symbols
-/gpd:package -symbols github.com/google/go-cmp/cmp
+/gpd-package -symbols github.com/google/go-cmp/cmp
 
 # See who depends on go-cmp
-/gpd:package -imported-by github.com/google/go-cmp/cmp
+/gpd-package -imported-by github.com/google/go-cmp/cmp
 
 # Render package docs as Markdown
-/gpd:package -doc md github.com/google/go-cmp/cmp
+/gpd-package -doc md github.com/google/go-cmp/cmp
 
 # List all versions of a module
-/gpd:module -versions github.com/google/go-cmp
+/gpd-module -versions github.com/google/go-cmp
 
 # Check a module for known vulnerabilities
-/gpd:module -vulns golang.org/x/crypto
+/gpd-module -vulns golang.org/x/crypto
 ```
 
 ## Running commands

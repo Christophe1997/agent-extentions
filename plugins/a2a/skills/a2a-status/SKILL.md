@@ -1,5 +1,5 @@
 ---
-name: a2a:status
+name: a2a-status
 description: Shows all A2A tasks tracked in the current session, or fetches the full details of a specific task. Fetches live task state from the remote agent when a task ID is provided.
 argument-hint: [<url-or-alias> <task-id>] [--watch]
 allowed-tools: Bash
@@ -66,11 +66,11 @@ allowed-tools: Bash
 
 ```bash
 # Check all session tasks
-/a2a:status
+/a2a-status
 
 # Get live status of a specific task
-/a2a:status my-agent task_abc123
+/a2a-status my-agent task_abc123
 
 # Watch a task until completion
-/a2a:status my-agent task_abc123 --watch
+/a2a-status my-agent task_abc123 --watch
 ```

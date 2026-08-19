@@ -1,5 +1,5 @@
 ---
-name: agd:commit
+name: agd-commit
 description: This skill should be used when the user asks to "commit these changes", "create a commit", "commit this", "make a commit", or when the agent has completed a task and has uncommitted changes ready to commit. Generates a Conventional Commits message from staged changes and creates the commit after human confirmation.
 argument-hint: optional scope (e.g., "api", "ui", "docs")
 allowed-tools: [Bash, Read, AskUserQuestion, Skill]
@@ -15,7 +15,7 @@ Generate a Conventional Commits message from staged changes and create the commi
 
 First, load the `conventional-commits` skill to understand commit format and best practices:
 ```
-Use Skill tool with skill="agd:conventional-commits"
+Use Skill tool with skill="agd-conventional-commits"
 ```
 
 This provides:
