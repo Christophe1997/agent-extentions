@@ -108,6 +108,38 @@ Match patterns are Python regexes evaluated with `re.search` (i.e., they match a
 matches = [ {} ]
 ```
 
+## Session cache (`cacheable` rules)
+
+A `[[ask]]` rule marked `cacheable = true` can have an approved decision remembered for the rest of the current Claude Code session, via the `remember` subcommand (invoked by the `yap-remember` skill only after the human explicitly confirms — see that skill's SKILL.md). A remembered call resolves straight to `allow` on the next identical call, without a prompt, for that session only. A matching `[[deny]]` rule always overrides a cached `allow` — the cache is checked only after `deny` has already failed to match.
+
+| Detail | Value |
+|---|---|
+| File | A fixed path in the OS temp dir (`yapermission-cache.jsonl`, e.g. `$TMPDIR/yapermission-cache.jsonl`) — deliberately not under `~/`, so the cache never outlives the OS's own temp-file lifecycle. |
+| Format | JSON Lines, one record per remembered call, mode `0600`. |
+| Scope | Session-scoped: every record carries `session_id`; a lookup only ever matches records for the current session. |
+| Key | The tuple (`rule_name`, `tool_name`, `tool_input`, `config_path`) — an exact match on the matched rule, the exact tool call, and the active config file. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it) or the config path invalidates any old entry for it. |
+
+Record shape:
+
+```json
+{"session_id":"S1","rule_name":"deploy","tool_name":"Bash","tool_input":{"command":"deploy prod"},"config_path":"/Users/me/proj/.yapermission.toml"}
+```
+
+### `remember` subcommand
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>'
+```
+
+Three positional arguments — **no `rule_name` argument**. The matched rule is re-derived from a fresh, live `decide()` call against the current config, not trusted from an agent-supplied claim. `remember` refuses (non-zero exit, nothing cached) when:
+
+- `session_id` is empty
+- no active config is found, or it fails to parse (fail-closed here, unlike `explain`'s fail-open-to-`ask`)
+- the call no longer resolves to `ask` (e.g. a `[[deny]]` rule now preempts it)
+- no `[[ask]]` rule matches the call
+- the matched rule isn't marked `cacheable = true`
+- the matched rule has no `name` (an unnamed cacheable rule would otherwise collapse its cache key onto any other unnamed cacheable rule)
+
 ## Audit log
 
 Every decision is appended to `~/.yapermission.log` as one JSON object per line:

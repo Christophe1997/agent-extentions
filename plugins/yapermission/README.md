@@ -12,11 +12,13 @@ A `PreToolUse` hook evaluates every tool call against a TOML policy and emits th
 | **Stdlib-only** | Uses Python 3.11+ `tomllib` — no third-party dependencies |
 | **Config hierarchy** | `./.yapermission.toml` (project) overrides `~/.yapermission.toml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
+| **Session-scoped caching** | Opt a `[[ask]]` rule in with `cacheable = true`; once the human confirms via the `yap-remember` skill, the same rule matching the same exact tool call resolves to `allow` for the rest of the session — never silently, and a matching `[[deny]]` rule always wins regardless |
 
 ### Skills
 
 - **yap-onboard** - `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.toml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails)
-- **yap-explain** - `/yapermission:yap-explain Bash "git push"` shows which rule matched and why
+- **yap-explain** - `/yapermission:yap-explain Bash "git push"` shows which rule matched and why (add `--session <id>` to also report live cache state for that session)
+- **yap-remember** - invoked by the agent, only after you explicitly say yes to an offer to cache an `[[ask]]` decision — remembers that exact call for the rest of the session
 - **yap-rule-syntax** - Ask "how do I auto-allow git commands?" — auto-loads schema docs
 
 ### Hooks
@@ -49,6 +51,17 @@ reason = "Destructive git operation — confirm before running"
 matches = [
   { command = 'git push.*--force\b' },
   { command = 'git reset\s+--hard\b' },
+]
+
+# cacheable = true: once you approve one call and confirm via yap-remember,
+# the same exact call stops asking for the rest of this session
+[[ask]]
+name = "deploy"
+tool = "Bash"
+reason = "Deploys need a human look"
+cacheable = true
+matches = [
+  { command = '^deploy\b' },
 ]
 
 # evaluated 3rd; first match wins
@@ -109,10 +122,11 @@ This writes `~/.yapermission.toml` with comments explaining every field. Edit it
 
 ## Usage
 
-Once installed and configured, the hook runs on every tool call automatically. There are three skills you'll interact with directly:
+Once installed and configured, the hook runs on every tool call automatically. There are four skills you'll interact with directly:
 
 - `/yapermission:yap-onboard` — scaffold or reset the global config
-- `/yapermission:yap-explain <Tool> <args>` — dry-run the active config against a sample tool call (add `--verbose` for a per-rule trace)
+- `/yapermission:yap-explain <Tool> <args>` — dry-run the active config against a sample tool call (add `--verbose` for a per-rule trace, `--session <id>` to also report live cache state for that session)
+- `yap-remember` — the agent invokes this on its own, but only after you explicitly confirm you want an approved `[[ask]]` decision cached for the rest of the session
 - Ask "how do I write a yapermission rule?" — auto-loads the schema reference
 
 Decisions are appended to `~/.yapermission.log`:

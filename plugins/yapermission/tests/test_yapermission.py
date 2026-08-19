@@ -651,6 +651,108 @@ class TestCmdHook(unittest.TestCase):
         self.assertNotIn("source", record)
 
 
+class TestCmdExplain(unittest.TestCase):
+    """cmd_explain's optional --session flag and its cache-state line.
+
+    cmd_explain has no session context of its own (it's a manual dry-run
+    tool, not the hook reading a PreToolUse event) — see correction #2 in
+    the U4 unit brief. These tests pin down the three honest states: a real
+    cache hit, a checked-but-missing entry, and "not checked at all" when
+    --session is omitted (never a guessed default).
+    """
+
+    def setUp(self):
+        self._original_cache_path = yp.CACHE_PATH
+        self._original_global = yp.GLOBAL_CONFIG
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.tmp = Path(self._tmpdir.name)
+        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
+        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.toml"
+        self.project_dir = self.tmp / "project"
+        self.project_dir.mkdir()
+
+    def tearDown(self):
+        yp.CACHE_PATH = self._original_cache_path
+        yp.GLOBAL_CONFIG = self._original_global
+
+    def _write_cacheable_ask_config(self) -> Path:
+        config_path = self.project_dir / yp.PROJECT_CONFIG_NAME
+        config_path.write_text(
+            '[[ask]]\n'
+            'name = "deploy"\n'
+            'tool = "Bash"\n'
+            'cacheable = true\n'
+            'matches = [{ command = "^deploy" }]\n'
+        )
+        return config_path
+
+    def _explain(self, argv):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with mock.patch(
+            "yapermission.os.getcwd", return_value=str(self.project_dir)
+        ), mock.patch("yapermission.sys.stdout", stdout), mock.patch(
+            "yapermission.sys.stderr", stderr
+        ):
+            rc = yp.cmd_explain(argv)
+        return rc, stdout.getvalue(), stderr.getvalue()
+
+    def test_session_given_with_cache_hit_reports_hit_alongside_trace(self):
+        config_path = self._write_cacheable_ask_config()
+        yp.append_cache_entry(
+            "S1", "deploy", "Bash", {"command": "deploy prod"}, str(config_path)
+        )
+
+        rc, stdout, stderr = self._explain(
+            ["--verbose", "--session", "S1", "Bash", json.dumps({"command": "deploy prod"})]
+        )
+
+        self.assertEqual(rc, 0)
+        # The rule-level trace (from decide()) and the top-level cache-state
+        # line must both show up — "alongside", not one replacing the other.
+        self.assertIn("cache hit for rule 'deploy'", stdout)
+        self.assertIn("cache:", stdout)
+        self.assertIn("hit", stdout.lower())
+        self.assertIn("S1", stdout)
+
+    def test_session_given_with_no_matching_entry_reports_no_entry(self):
+        self._write_cacheable_ask_config()
+
+        rc, stdout, stderr = self._explain(
+            ["--session", "S1", "Bash", json.dumps({"command": "deploy prod"})]
+        )
+
+        self.assertEqual(rc, 0)
+        self.assertIn("cache:", stdout)
+        self.assertIn("no matching cache entry", stdout.lower())
+        self.assertNotIn("hit", stdout.lower())
+
+    def test_session_omitted_reports_cache_state_not_checked(self):
+        self._write_cacheable_ask_config()
+
+        rc, stdout, stderr = self._explain(
+            ["Bash", json.dumps({"command": "deploy prod"})]
+        )
+
+        self.assertEqual(rc, 0)
+        self.assertIn("cache:", stdout)
+        self.assertIn("not checked", stdout.lower())
+        # Must not falsely imply a real lookup happened.
+        self.assertNotIn("hit", stdout.lower())
+        self.assertNotIn("no matching cache entry", stdout.lower())
+
+    def test_session_flag_missing_or_empty_value_exits_2(self):
+        # A dangling flag and an explicit "" must both fail closed — an
+        # empty session_id is falsy, so letting it through would silently
+        # skip the cache lookup while still claiming one happened.
+        for argv in (["--session"], ["--session", "", "Bash", "{}"]):
+            with self.subTest(argv=argv):
+                rc, stdout, stderr = self._explain(argv)
+                self.assertEqual(rc, 2)
+                self.assertTrue(stderr.strip())
+
+
 class TestRemember(unittest.TestCase):
     def setUp(self):
         self._original_cache_path = yp.CACHE_PATH

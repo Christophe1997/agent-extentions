@@ -455,12 +455,44 @@ def cmd_hook() -> int:
     return 0
 
 
+def _cache_state_line(session_id: Optional[str], decision: Optional[Decision]) -> str:
+    """Describe cache state honestly for `cmd_explain`'s trace output.
+
+    `cmd_explain` has no session context of its own (it's a manual dry-run,
+    not the hook reading a live PreToolUse event), so without an explicit
+    `--session` it must say so rather than imply a lookup happened. When a
+    session is given, `decision` was produced by the same `decide()` call
+    the hook makes with the same loaded cache — `decision.source == "cache"`
+    is therefore the live-path answer, never a separately-derived guess.
+    """
+    if session_id is None:
+        return "cache:    no --session given — cache state not checked"
+    if decision is not None and decision.source == "cache":
+        return f"cache:    hit — resolved from cache for session {session_id}"
+    return f"cache:    no matching cache entry for session {session_id}"
+
+
 def cmd_explain(argv: list[str]) -> int:
     verbose = "--verbose" in argv
     argv = [a for a in argv if a != "--verbose"]
+
+    session_id: Optional[str] = None
+    if "--session" in argv:
+        idx = argv.index("--session")
+        # An empty value would otherwise fall through the `if session_id`
+        # guards below as falsy — skipping the cache lookup while still
+        # reporting "no matching cache entry", a false claim that a check
+        # ran (mirrors cmd_hook/cmd_remember's own empty-session_id guards).
+        if idx + 1 >= len(argv) or not argv[idx + 1]:
+            sys.stderr.write("--session requires a non-empty value\n")
+            return 2
+        session_id = argv[idx + 1]
+        argv = argv[:idx] + argv[idx + 2 :]
+
     if len(argv) < 2:
         sys.stderr.write(
-            "usage: yapermission.py explain [--verbose] <tool_name> <tool_input_json>\n"
+            "usage: yapermission.py explain [--verbose] [--session <session_id>] "
+            "<tool_name> <tool_input_json>\n"
             'example: yapermission.py explain Bash \'{"command":"git status"}\'\n'
         )
         return 2
@@ -478,6 +510,7 @@ def cmd_explain(argv: list[str]) -> int:
     print(f"config: {config_path or '(none — every call falls through to ask)'}")
     if config_path is None:
         print("decision: ask")
+        print(_cache_state_line(session_id, None))
         return 0
 
     try:
@@ -485,9 +518,15 @@ def cmd_explain(argv: list[str]) -> int:
     except Exception as exc:
         print(f"config load failed: {exc}")
         print("decision: ask (fail-open)")
+        print(_cache_state_line(session_id, None))
         return 0
 
-    decision = decide(config, tool_name, tool_input)
+    # Same load_cache/cache_key path cmd_hook uses, so this dry run can
+    # never disagree with what the live PreToolUse hook would do.
+    cache = load_cache(session_id) if session_id else {}
+    decision = decide(
+        config, tool_name, tool_input, cache=cache, config_path=config_path, session_id=session_id
+    )
     print(f"tool:   {tool_name}")
     print(f"input:  {json.dumps(tool_input)}")
     print()
@@ -500,6 +539,7 @@ def cmd_explain(argv: list[str]) -> int:
         print(f"rule:     {decision.rule_name}")
     if decision.reason:
         print(f"reason:   {decision.reason}")
+    print(_cache_state_line(session_id, decision))
     return 0
 
 
