@@ -42,6 +42,10 @@ class Decision:
     # "cache" when this decision was resolved from a session cache hit rather
     # than direct rule evaluation — feeds the audit log's `source` field (R8).
     source: Optional[str] = None
+    # The matched rule object itself (None on a cache hit or a default
+    # fallthrough) — lets cmd_remember re-inspect flags like `cacheable`
+    # without re-scanning the rule groups decide() already scanned.
+    matched_rule: Optional[dict] = None
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +168,9 @@ def decide(
             # typo'd string) must not accidentally opt a rule in.
             cacheable = group_key == "ask" and rule.get("cacheable") is True
 
-            if cacheable:
+            if cacheable and cache:
                 key = cache_key(rule.get("name"), tool_name, tool_input, config_path)
-                if cache and key in cache:
+                if key in cache:
                     trace.append(f"cache hit for rule '{name}' — resolving to allow")
                     return Decision(
                         permission="allow",
@@ -196,6 +200,7 @@ def decide(
                 reason=reason,
                 trace=trace,
                 additional_context=additional_context,
+                matched_rule=rule,
             )
 
     default = (config.get("default") or "ask").lower()
@@ -220,6 +225,22 @@ def _now() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _append_jsonl_record(path: Path, fd: int, existed: bool, record: dict) -> None:
+    """Write one JSON line to an already-open fd; chmod 0600 when `existed` is False.
+
+    Shared write tail for `log_decision` and `append_cache_entry`, which each
+    apply their own distinct open-and-guard logic first. `existed` reflects
+    the path's state *before* the open. Never raises.
+    """
+    try:
+        with os.fdopen(fd, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+        if not existed:
+            os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
 def log_decision(record: dict) -> None:
     """Append one JSONL record to ~/.yapermission.log. Never raises.
 
@@ -234,12 +255,9 @@ def log_decision(record: dict) -> None:
             os.O_WRONLY | os.O_APPEND | os.O_CREAT,
             0o600,
         )
-        with os.fdopen(fd, "a") as f:
-            f.write(json.dumps(record, default=str) + "\n")
-        if not existed:
-            os.chmod(LOG_PATH, 0o600)
     except OSError:
-        pass
+        return
+    _append_jsonl_record(LOG_PATH, fd, existed, record)
 
 
 # ---------------------------------------------------------------------------
@@ -293,14 +311,19 @@ def _open_cache_path(flags: int, mode: int = 0) -> Optional[int]:
     return fd
 
 
-def load_cache(session_id: str) -> dict[str, dict]:
+def load_cache(session_id: Optional[str]) -> dict[str, dict]:
     """Load this session's live cache entries, keyed by `cache_key(...)`.
 
     Fails open (returns `{}`) on a missing file, a failed ownership/symlink
     check, an `OSError`, or a malformed line (unparseable JSON, or JSON that
     doesn't decode to an object) — a corrupt or tampered cache degrades to
-    "no cached decisions", never to a crash or a bypass.
+    "no cached decisions", never to a crash or a bypass. Also fails open on
+    an empty `session_id`: matching it against records would bleed across
+    sessions that failed to report one (KTD2).
     """
+    if not session_id:
+        return {}
+
     fd = _open_cache_path(os.O_RDONLY)
     if fd is None:
         return {}
@@ -352,20 +375,14 @@ def append_cache_entry(
     if fd is None:
         return
 
-    try:
-        record = {
-            "session_id": session_id,
-            "rule_name": rule_name,
-            "tool_name": tool_name,
-            "tool_input": tool_input,
-            "config_path": str(config_path),
-        }
-        with os.fdopen(fd, "a") as f:
-            f.write(json.dumps(record, default=str) + "\n")
-        if not existed:
-            os.chmod(CACHE_PATH, 0o600)
-    except OSError:
-        pass
+    record = {
+        "session_id": session_id,
+        "rule_name": rule_name,
+        "tool_name": tool_name,
+        "tool_input": tool_input,
+        "config_path": str(config_path),
+    }
+    _append_jsonl_record(CACHE_PATH, fd, existed, record)
 
 
 # ---------------------------------------------------------------------------
@@ -418,10 +435,10 @@ def cmd_hook() -> int:
 
     try:
         config = load_config(config_path)
-        # An empty session_id would let load_cache("") match records stored
-        # with an equally empty id, bleeding across sessions that failed to
-        # report one (KTD2) — skip the lookup entirely rather than risk that.
-        cache = load_cache(session_id) if session_id else {}
+        # decide() only ever consults the cache for a matched cacheable
+        # `[[ask]]` rule — skip the load entirely when no rule could match.
+        has_cacheable = any(r.get("cacheable") is True for r in config.get("ask") or [])
+        cache = load_cache(session_id) if has_cacheable else {}
         decision = decide(
             config,
             tool_name,
@@ -523,7 +540,8 @@ def cmd_explain(argv: list[str]) -> int:
 
     # Same load_cache/cache_key path cmd_hook uses, so this dry run can
     # never disagree with what the live PreToolUse hook would do.
-    cache = load_cache(session_id) if session_id else {}
+    has_cacheable = any(r.get("cacheable") is True for r in config.get("ask") or [])
+    cache = load_cache(session_id) if has_cacheable else {}
     decision = decide(
         config, tool_name, tool_input, cache=cache, config_path=config_path, session_id=session_id
     )
@@ -541,19 +559,6 @@ def cmd_explain(argv: list[str]) -> int:
         print(f"reason:   {decision.reason}")
     print(_cache_state_line(session_id, decision))
     return 0
-
-
-def _matched_ask_rule(config: dict, tool_name: str, tool_input: dict) -> Optional[dict]:
-    """Return the first `[[ask]]` rule matching this call, or None.
-
-    Mirrors `decide()`'s own ask-group scan so `cmd_remember`'s cacheable
-    check inspects the exact rule object `decide()` matched — never a
-    same-named lookalike (two `[[ask]]` rules may share a `name`).
-    """
-    for rule in config.get("ask") or []:
-        if rule_matches(rule, tool_name, tool_input):
-            return rule
-    return None
 
 
 def cmd_remember(argv: list[str]) -> int:
@@ -579,7 +584,7 @@ def cmd_remember(argv: list[str]) -> int:
     def refuse(reason: str, config_path: Any = None, rule_name: Optional[str] = None) -> int:
         sys.stderr.write(reason + "\n")
         log_decision({
-            "ts": _now(), "decision": "remember-refused", "reason": reason,
+            "ts": _now(), "event": "remember-refused", "reason": reason,
             "tool": tool_name, "rule": rule_name, "input": tool_input,
             "cwd": cwd, "config_path": str(config_path) if config_path else None,
             "session_id": session_id,
@@ -615,7 +620,7 @@ def cmd_remember(argv: list[str]) -> int:
             config_path=config_path, rule_name=decision.rule_name,
         )
 
-    matched_rule = _matched_ask_rule(config, tool_name, tool_input)
+    matched_rule = decision.matched_rule
     if matched_rule is None:
         return refuse(
             "no ask rule matched this call — nothing to remember", config_path=config_path,
@@ -639,7 +644,7 @@ def cmd_remember(argv: list[str]) -> int:
 
     append_cache_entry(session_id, decision.rule_name, tool_name, tool_input, config_path)
     log_decision({
-        "ts": _now(), "decision": "remember-granted",
+        "ts": _now(), "event": "remember-granted",
         "tool": tool_name, "rule": decision.rule_name, "input": tool_input,
         "cwd": cwd, "config_path": str(config_path), "session_id": session_id,
     })

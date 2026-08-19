@@ -26,6 +26,24 @@ sys.path.insert(0, str(_SCRIPTS))
 import yapermission as yp  # noqa: E402
 
 
+def _cacheable_deploy_toml(*, named: bool = True, cacheable: bool = True) -> str:
+    """TOML for a single `[[ask]]` "deploy" rule matching `^deploy` on Bash.
+
+    The standard cacheable-ask fixture reused across TestCmdHook,
+    TestCmdExplain, and TestRemember; `named=False` / `cacheable=False`
+    produce the two variant configs some tests need in place of a
+    hand-edited copy of the literal.
+    """
+    lines = ["[[ask]]\n"]
+    if named:
+        lines.append('name = "deploy"\n')
+    lines.append('tool = "Bash"\n')
+    if cacheable:
+        lines.append("cacheable = true\n")
+    lines.append('matches = [{ command = "^deploy" }]\n')
+    return "".join(lines)
+
+
 class TestRuleMatches(unittest.TestCase):
     def test_tool_mismatch_returns_false(self):
         rule = {"tool": "Bash", "matches": [{}]}
@@ -280,25 +298,10 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.permission, "deny")
         self.assertEqual(decision.rule_name, "blocked")
 
-    def test_non_cacheable_ask_rule_ignores_stale_cache_entry(self):
-        config = {
-            "ask": [
-                {"name": "deploy", "tool": "Bash", "matches": [{"command": "^deploy"}]}
-            ]
-        }
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
-        cache = {key: {"rule_name": "deploy"}}
-        decision = yp.decide(
-            config,
-            "Bash",
-            {"command": "deploy prod"},
-            cache=cache,
-            config_path="/cfg.toml",
-        )
-        self.assertEqual(decision.permission, "ask")
-        self.assertIsNone(decision.additional_context)
-
     def test_cache_entry_stops_hitting_once_rule_loses_cacheable_flag(self):
+        # Also covers the non-cacheable-rule case: a rule with no `cacheable`
+        # flag at all ignores a stale cache entry identically to one that
+        # lost the flag — same config, same rule, same stale entry.
         config = {
             "ask": [
                 {"name": "deploy", "tool": "Bash", "matches": [{"command": "^deploy"}]}
@@ -315,6 +318,7 @@ class TestDecide(unittest.TestCase):
         )
         self.assertEqual(decision.permission, "ask")
         self.assertEqual(decision.rule_name, "deploy")
+        self.assertIsNone(decision.additional_context)
 
     def test_cache_entry_stops_hitting_once_rule_removed_from_config(self):
         config = {"default": "deny", "ask": []}
@@ -388,15 +392,13 @@ class TestDeferDefault(unittest.TestCase):
 
 class TestActiveConfigPath(unittest.TestCase):
     def setUp(self):
-        self._original_global = yp.GLOBAL_CONFIG
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         # Redirect global config to a tmp location so tests don't touch ~/.
-        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.toml"
-
-    def tearDown(self):
-        yp.GLOBAL_CONFIG = self._original_global
+        self.enterContext(
+            mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
+        )
 
     def test_project_config_wins_over_global(self):
         project_dir = self.tmp / "project"
@@ -427,16 +429,14 @@ class TestActiveConfigPath(unittest.TestCase):
 
 class TestCacheStore(unittest.TestCase):
     def setUp(self):
-        self._original_cache_path = yp.CACHE_PATH
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         # Redirect the cache to a tmp location so tests don't touch the real
         # OS temp dir, mirroring TestActiveConfigPath's GLOBAL_CONFIG swap.
-        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
-
-    def tearDown(self):
-        yp.CACHE_PATH = self._original_cache_path
+        self.enterContext(
+            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+        )
 
     def test_round_trip(self):
         yp.append_cache_entry("S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
@@ -582,14 +582,12 @@ class TestEmitHookOutput(unittest.TestCase):
 
 class TestCmdHook(unittest.TestCase):
     def setUp(self):
-        self._original_cache_path = yp.CACHE_PATH
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
-        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
-
-    def tearDown(self):
-        yp.CACHE_PATH = self._original_cache_path
+        self.enterContext(
+            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+        )
 
     def _run_hook(self, event):
         stdin = io.StringIO(json.dumps(event))
@@ -602,13 +600,7 @@ class TestCmdHook(unittest.TestCase):
 
     def _write_cacheable_ask_config(self, project_dir):
         config_path = project_dir / yp.PROJECT_CONFIG_NAME
-        config_path.write_text(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        config_path.write_text(_cacheable_deploy_toml())
         return config_path
 
     def test_cache_resolved_decision_logs_source_cache_and_rule_name(self):
@@ -662,29 +654,21 @@ class TestCmdExplain(unittest.TestCase):
     """
 
     def setUp(self):
-        self._original_cache_path = yp.CACHE_PATH
-        self._original_global = yp.GLOBAL_CONFIG
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
-        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
-        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.toml"
+        self.enterContext(
+            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+        )
+        self.enterContext(
+            mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
+        )
         self.project_dir = self.tmp / "project"
         self.project_dir.mkdir()
 
-    def tearDown(self):
-        yp.CACHE_PATH = self._original_cache_path
-        yp.GLOBAL_CONFIG = self._original_global
-
     def _write_cacheable_ask_config(self) -> Path:
         config_path = self.project_dir / yp.PROJECT_CONFIG_NAME
-        config_path.write_text(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        config_path.write_text(_cacheable_deploy_toml())
         return config_path
 
     def _explain(self, argv):
@@ -755,23 +739,21 @@ class TestCmdExplain(unittest.TestCase):
 
 class TestRemember(unittest.TestCase):
     def setUp(self):
-        self._original_cache_path = yp.CACHE_PATH
-        self._original_global = yp.GLOBAL_CONFIG
         self._tmpdir = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
-        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
+        self.enterContext(
+            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+        )
         # Redirect the global-config fallback too: a project dir with no
         # project-level .yapermission.toml would otherwise fall through to
         # the developer's real ~/.yapermission.toml (mirrors
         # TestActiveConfigPath's swap).
-        yp.GLOBAL_CONFIG = self.tmp / "global" / ".yapermission.toml"
+        self.enterContext(
+            mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
+        )
         self.project_dir = self.tmp / "project"
         self.project_dir.mkdir()
-
-    def tearDown(self):
-        yp.CACHE_PATH = self._original_cache_path
-        yp.GLOBAL_CONFIG = self._original_global
 
     def _write_config(self, toml_text: str) -> Path:
         config_path = self.project_dir / yp.PROJECT_CONFIG_NAME
@@ -790,13 +772,7 @@ class TestRemember(unittest.TestCase):
         return rc, stdout.getvalue(), stderr.getvalue(), mock_log
 
     def test_successful_remember_persists_cache_entry_and_logs_grant(self):
-        config_path = self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        config_path = self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
             ["S1", "Bash", json.dumps({"command": "deploy prod"})]
@@ -811,7 +787,7 @@ class TestRemember(unittest.TestCase):
         self.assertEqual(cache[key]["rule_name"], "deploy")
 
         record = mock_log.call_args[0][0]
-        self.assertEqual(record["decision"], "remember-granted")
+        self.assertEqual(record["event"], "remember-granted")
         self.assertEqual(record["rule"], "deploy")
         self.assertEqual(record["session_id"], "S1")
 
@@ -824,11 +800,7 @@ class TestRemember(unittest.TestCase):
             'tool = "Bash"\n'
             'matches = [{ command = "^deploy" }]\n'
             '\n'
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
+            + _cacheable_deploy_toml()
         )
 
         rc, stdout, stderr, mock_log = self._remember(
@@ -838,7 +810,7 @@ class TestRemember(unittest.TestCase):
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
         record = mock_log.call_args[0][0]
-        self.assertEqual(record["decision"], "remember-refused")
+        self.assertEqual(record["event"], "remember-refused")
         self.assertEqual(record["session_id"], "S1")
 
     def test_allow_only_refuses(self):
@@ -857,7 +829,7 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_defer_only_refuses(self):
         self._write_config(
@@ -873,15 +845,10 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_ask_rule_not_cacheable_refuses(self):
-        self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml(cacheable=False))
 
         rc, stdout, stderr, mock_log = self._remember(
             ["S1", "Bash", json.dumps({"command": "deploy prod"})]
@@ -889,18 +856,13 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_unnamed_cacheable_rule_refuses(self):
         # `name` is only "recommended" in the schema — an unnamed cacheable
         # rule must not be granted, since it would cache under
         # rule_name=None and collapse onto any other unnamed cacheable rule.
-        self._write_config(
-            '[[ask]]\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml(named=False))
 
         rc, stdout, stderr, mock_log = self._remember(
             ["S1", "Bash", json.dumps({"command": "deploy prod"})]
@@ -908,7 +870,7 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_duplicate_rule_name_gates_on_matched_object_not_name_lookup(self):
         # Two [[ask]] rules share the name "deploy": the earlier one is
@@ -937,13 +899,7 @@ class TestRemember(unittest.TestCase):
         self.assertEqual(yp.load_cache("S1"), {})
 
     def test_no_rule_matches_refuses_with_clear_message(self):
-        self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
             ["S1", "Bash", json.dumps({"command": "rm -rf /"})]
@@ -953,19 +909,13 @@ class TestRemember(unittest.TestCase):
         self.assertEqual(yp.load_cache("S1"), {})
         self.assertTrue(stderr.strip())
         record = mock_log.call_args[0][0]
-        self.assertEqual(record["decision"], "remember-refused")
+        self.assertEqual(record["event"], "remember-refused")
         self.assertIsNone(record["rule"])
 
     def test_empty_session_id_refuses(self):
         # An entry stored under "" could never be looked up again by
         # cmd_hook's empty-session_id guard — refuse before writing it.
-        self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
             ["", "Bash", json.dumps({"command": "deploy prod"})]
@@ -973,7 +923,7 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache(""), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_no_active_config_refuses(self):
         rc, stdout, stderr, mock_log = self._remember(
@@ -994,7 +944,7 @@ class TestRemember(unittest.TestCase):
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
-        self.assertEqual(mock_log.call_args[0][0]["decision"], "remember-refused")
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_bad_usage_wrong_arg_count_exits_2(self):
         for argv in ([], ["S1"], ["S1", "Bash"], ["S1", "Bash", "{}", "extra"]):
@@ -1016,13 +966,7 @@ class TestRemember(unittest.TestCase):
         # instead of refusing cleanly. A config with a matching-tool rule is
         # required so evaluation actually reaches rule_matches() rather than
         # short-circuiting on "no active config" first.
-        self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml())
         for payload in ("[1, 2]", '"deploy prod"'):
             with self.subTest(payload=payload):
                 rc, stdout, stderr, mock_log = self._remember(["S1", "Bash", payload])
@@ -1034,13 +978,7 @@ class TestRemember(unittest.TestCase):
         # cache_key is deterministic. This chains remember -> hook through
         # the real entry points to prove the requirement R2 actually makes:
         # a remembered call stops asking on a subsequent PreToolUse.
-        self._write_config(
-            '[[ask]]\n'
-            'name = "deploy"\n'
-            'tool = "Bash"\n'
-            'cacheable = true\n'
-            'matches = [{ command = "^deploy" }]\n'
-        )
+        self._write_config(_cacheable_deploy_toml())
         tool_input = {"command": "deploy prod"}
 
         rc, *_ = self._remember(["S1", "Bash", json.dumps(tool_input)])
