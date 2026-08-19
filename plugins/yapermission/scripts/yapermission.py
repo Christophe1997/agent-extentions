@@ -503,15 +503,121 @@ def cmd_explain(argv: list[str]) -> int:
     return 0
 
 
+def _matched_ask_rule(config: dict, tool_name: str, tool_input: dict) -> Optional[dict]:
+    """Return the first `[[ask]]` rule matching this call, or None.
+
+    Mirrors `decide()`'s own ask-group scan so `cmd_remember`'s cacheable
+    check inspects the exact rule object `decide()` matched — never a
+    same-named lookalike (two `[[ask]]` rules may share a `name`).
+    """
+    for rule in config.get("ask") or []:
+        if rule_matches(rule, tool_name, tool_input):
+            return rule
+    return None
+
+
+def cmd_remember(argv: list[str]) -> int:
+    if len(argv) != 3:
+        sys.stderr.write(
+            "usage: yapermission.py remember <session_id> <tool_name> <tool_input_json>\n"
+            'example: yapermission.py remember S1 Bash \'{"command":"deploy prod"}\'\n'
+        )
+        return 2
+
+    session_id, tool_name, tool_input_raw = argv
+    try:
+        tool_input = json.loads(tool_input_raw)
+    except json.JSONDecodeError as exc:
+        sys.stderr.write(f"invalid tool_input JSON: {exc}\n")
+        return 2
+    if not isinstance(tool_input, dict):
+        sys.stderr.write("tool_input must be a JSON object\n")
+        return 2
+
+    cwd = os.getcwd()
+
+    def refuse(reason: str, config_path: Any = None, rule_name: Optional[str] = None) -> int:
+        sys.stderr.write(reason + "\n")
+        log_decision({
+            "ts": _now(), "decision": "remember-refused", "reason": reason,
+            "tool": tool_name, "rule": rule_name, "input": tool_input,
+            "cwd": cwd, "config_path": str(config_path) if config_path else None,
+            "session_id": session_id,
+        })
+        return 1
+
+    # A cache entry written under "" could never be looked up again by
+    # cmd_hook's empty-session_id guard (KTD2) — a dead write plus, if the
+    # cue that prompted it leaked, an invitation to retry it forever.
+    if not session_id:
+        return refuse("empty session_id — refusing to cache")
+
+    config_path = active_config_path(cwd)
+    if config_path is None:
+        return refuse("no active yapermission config — nothing to remember")
+
+    try:
+        config = load_config(config_path)
+    except Exception as exc:
+        # Deliberate divergence from cmd_explain's fail-open-to-ask: a
+        # revalidation gate that can't be evaluated must refuse, not allow.
+        return refuse(f"config load failed: {exc}", config_path=config_path)
+
+    # Empty cache: this call must exercise live rule evaluation, not a
+    # pre-existing cache hit — otherwise a repeat `remember` for an
+    # already-cached call would resolve to "allow" and skip the cacheable
+    # check entirely.
+    decision = decide(config, tool_name, tool_input, cache={}, config_path=config_path)
+
+    if decision.permission != "ask":
+        return refuse(
+            f"call resolves to '{decision.permission}', not 'ask' — refusing to cache",
+            config_path=config_path, rule_name=decision.rule_name,
+        )
+
+    matched_rule = _matched_ask_rule(config, tool_name, tool_input)
+    if matched_rule is None:
+        return refuse(
+            "no ask rule matched this call — nothing to remember", config_path=config_path,
+        )
+
+    if matched_rule.get("cacheable") is not True:
+        return refuse(
+            f"rule '{decision.rule_name}' is not marked cacheable",
+            config_path=config_path, rule_name=decision.rule_name,
+        )
+
+    # `name` is only "recommended" in the rule schema, so an unnamed
+    # cacheable rule would otherwise cache under rule_name=None — collapsing
+    # every unnamed cacheable rule onto the same cache-key component and
+    # weakening the "rule + exact command" key (R2/R3) for that edge case.
+    if not decision.rule_name:
+        return refuse(
+            "matched rule has no 'name' — cacheable rules must be named",
+            config_path=config_path,
+        )
+
+    append_cache_entry(session_id, decision.rule_name, tool_name, tool_input, config_path)
+    log_decision({
+        "ts": _now(), "decision": "remember-granted",
+        "tool": tool_name, "rule": decision.rule_name, "input": tool_input,
+        "cwd": cwd, "config_path": str(config_path), "session_id": session_id,
+    })
+    print(f"remembered: rule '{decision.rule_name}' cached for session {session_id}")
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        sys.stderr.write("usage: yapermission.py {hook|explain} [args...]\n")
+        sys.stderr.write("usage: yapermission.py {hook|explain|remember} [args...]\n")
         return 2
     cmd = sys.argv[1]
     if cmd == "hook":
         return cmd_hook()
     if cmd == "explain":
         return cmd_explain(sys.argv[2:])
+    if cmd == "remember":
+        return cmd_remember(sys.argv[2:])
     sys.stderr.write(f"unknown subcommand: {cmd}\n")
     return 2
 
