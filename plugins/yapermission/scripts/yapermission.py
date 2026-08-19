@@ -8,10 +8,12 @@ Two entry points:
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import json
 import os
 import re
 import sys
+import tempfile
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,6 +22,9 @@ from typing import Any, Optional
 GLOBAL_CONFIG = Path.home() / ".yapermission.toml"
 PROJECT_CONFIG_NAME = ".yapermission.toml"
 LOG_PATH = Path.home() / ".yapermission.log"
+# Ephemeral by design (KTD3): lives in the OS temp dir, not ~/, so the OS's
+# own temp-file lifecycle is the cleanup this feature deliberately skips.
+CACHE_PATH = Path(tempfile.gettempdir()) / "yapermission-cache.jsonl"
 
 
 @dataclass
@@ -173,6 +178,132 @@ def log_decision(record: dict) -> None:
             f.write(json.dumps(record, default=str) + "\n")
         if not existed:
             os.chmod(LOG_PATH, 0o600)
+    except OSError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Session cache
+#
+# Backs the `[[ask]]` opt-in caching feature: a session-scoped, fail-open
+# JSONL store keyed on the matched rule plus the exact tool call. See
+# docs/plans/2026-08-19-1444-feat-yapermission-cacheable-ask-rules-plan.md
+# (KTD2, KTD3, KTD7, KTD8) for the design rationale.
+# ---------------------------------------------------------------------------
+
+def cache_key(rule_name: Any, tool_name: Any, tool_input: Any, config_path: Any) -> str:
+    """Canonical-JSON hash identifying one (rule, call, config) triple.
+
+    Sorted-key JSON, not concatenation (KTD7): the key gates a silent
+    `allow`, so an ambiguous encoding would be a bypass vector — a crafted
+    `tool_input` could otherwise collide with a different rule's or tool's
+    key.
+    """
+    payload = {
+        "rule": rule_name,
+        "tool": tool_name,
+        "input": tool_input,
+        "config": str(config_path),
+    }
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
+def _open_cache_path(flags: int, mode: int = 0) -> Optional[int]:
+    """Open CACHE_PATH with O_NOFOLLOW and verify the owning uid.
+
+    Returns a live fd on success. Returns None — and closes any fd it
+    opened — on a missing file, a symlinked path, an owner mismatch, or any
+    other OSError (KTD8: CACHE_PATH is a fixed name in the world-writable
+    OS temp dir, so both the read and write paths distrust a pre-existing
+    file until its ownership is confirmed).
+    """
+    try:
+        fd = os.open(CACHE_PATH, flags | os.O_NOFOLLOW, mode)
+    except OSError:
+        return None
+    try:
+        if os.fstat(fd).st_uid != os.getuid():
+            os.close(fd)
+            return None
+    except OSError:
+        os.close(fd)
+        return None
+    return fd
+
+
+def load_cache(session_id: str) -> dict[str, dict]:
+    """Load this session's live cache entries, keyed by `cache_key(...)`.
+
+    Fails open (returns `{}`) on a missing file, a failed ownership/symlink
+    check, an `OSError`, or a malformed line (unparseable JSON, or JSON that
+    doesn't decode to an object) — a corrupt or tampered cache degrades to
+    "no cached decisions", never to a crash or a bypass.
+    """
+    fd = _open_cache_path(os.O_RDONLY)
+    if fd is None:
+        return {}
+
+    entries: dict[str, dict] = {}
+    try:
+        with os.fdopen(fd, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                if record.get("session_id") != session_id:
+                    continue
+                key = cache_key(
+                    record.get("rule_name"),
+                    record.get("tool_name"),
+                    record.get("tool_input"),
+                    record.get("config_path"),
+                )
+                entries[key] = record
+    except OSError:
+        return {}
+    return entries
+
+
+def append_cache_entry(
+    session_id: str,
+    rule_name: str,
+    tool_name: str,
+    tool_input: dict,
+    config_path: Any,
+) -> None:
+    """Append one JSONL cache record for `session_id`. Never raises.
+
+    Mirrors `log_decision`'s O_CREAT/0o600 pattern, plus the O_NOFOLLOW and
+    owning-uid check `_open_cache_path` performs (KTD8).
+    """
+    existed = CACHE_PATH.exists()
+    fd = _open_cache_path(
+        os.O_WRONLY | os.O_APPEND | os.O_CREAT,
+        0o600,
+    )
+    if fd is None:
+        return
+
+    try:
+        record = {
+            "session_id": session_id,
+            "rule_name": rule_name,
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "config_path": str(config_path),
+        }
+        with os.fdopen(fd, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+        if not existed:
+            os.chmod(CACHE_PATH, 0o600)
     except OSError:
         pass
 

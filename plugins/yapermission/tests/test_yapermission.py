@@ -11,10 +11,13 @@ Run a single class:
 # tests import scripts/yapermission.py just fine.
 from __future__ import annotations
 
+import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Make `scripts/yapermission.py` importable without packaging gymnastics.
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
@@ -289,6 +292,137 @@ class TestActiveConfigPath(unittest.TestCase):
         project_dir.mkdir()
 
         self.assertIsNone(yp.active_config_path(str(project_dir)))
+
+
+class TestCacheStore(unittest.TestCase):
+    def setUp(self):
+        self._original_cache_path = yp.CACHE_PATH
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.tmp = Path(self._tmpdir.name)
+        # Redirect the cache to a tmp location so tests don't touch the real
+        # OS temp dir, mirroring TestActiveConfigPath's GLOBAL_CONFIG swap.
+        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
+
+    def tearDown(self):
+        yp.CACHE_PATH = self._original_cache_path
+
+    def test_round_trip(self):
+        yp.append_cache_entry("S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+
+        cache = yp.load_cache("S1")
+
+        key = yp.cache_key("my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+        self.assertIn(key, cache)
+        self.assertEqual(cache[key]["rule_name"], "my-rule")
+        self.assertEqual(cache[key]["tool_name"], "Bash")
+        self.assertEqual(cache[key]["tool_input"], {"command": "git push"})
+
+    def test_cross_session_miss(self):
+        yp.append_cache_entry("S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+
+        self.assertEqual(yp.load_cache("S2"), {})
+
+    def test_missing_cache_file_returns_empty_dict(self):
+        self.assertEqual(yp.load_cache("S1"), {})
+
+    def test_load_cache_skips_corrupt_and_non_object_lines(self):
+        yp.append_cache_entry("S1", "rule-a", "Bash", {"command": "a"}, "/cfg.toml")
+        with yp.CACHE_PATH.open("a") as f:
+            f.write("not valid json\n")
+            f.write("[1, 2]\n")  # valid JSON, but not a record object
+        yp.append_cache_entry("S1", "rule-b", "Bash", {"command": "b"}, "/cfg.toml")
+
+        cache = yp.load_cache("S1")
+
+        self.assertEqual(len(cache), 2)
+
+    def test_cache_key_accepts_path_or_str_config_path_equivalently(self):
+        # active_config_path() returns a Path; stored records round-trip
+        # through str(). Both must resolve to the same key.
+        k_path = yp.cache_key("r", "Bash", {"command": "x"}, Path("/a/b/.yapermission.toml"))
+        k_str = yp.cache_key("r", "Bash", {"command": "x"}, "/a/b/.yapermission.toml")
+        self.assertEqual(k_path, k_str)
+
+    def test_cache_key_is_stable_regardless_of_field_insertion_order(self):
+        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "2"}, "/cfg.toml")
+        k2 = yp.cache_key("r", "Bash", {"b": "2", "a": "1"}, "/cfg.toml")
+        self.assertEqual(k1, k2)
+
+    def test_append_creates_file_with_0600_permissions(self):
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+
+        mode = yp.CACHE_PATH.stat().st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
+    def test_cache_key_differs_for_naive_concatenation_collision(self):
+        # "1"+"23" and "12"+"3" would collide under naive string concatenation.
+        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "23"}, "/cfg.toml")
+        k2 = yp.cache_key("r", "Bash", {"a": "12", "b": "3"}, "/cfg.toml")
+        self.assertNotEqual(k1, k2)
+
+    def test_cache_key_differs_for_swapped_field_values(self):
+        # Same values, swapped across keys — a naive per-value join wouldn't
+        # necessarily distinguish which field order produced the string.
+        k1 = yp.cache_key("r", "Bash", {"command": "foo", "path": "bar"}, "/cfg.toml")
+        k2 = yp.cache_key("r", "Bash", {"command": "bar", "path": "foo"}, "/cfg.toml")
+        self.assertNotEqual(k1, k2)
+
+    def test_cache_key_differs_for_config_path(self):
+        k1 = yp.cache_key("r", "Bash", {"command": "x"}, "/project-a/.yapermission.toml")
+        k2 = yp.cache_key("r", "Bash", {"command": "x"}, "/project-b/.yapermission.toml")
+        self.assertNotEqual(k1, k2)
+
+    def test_append_refuses_when_cache_path_is_symlink(self):
+        target = self.tmp / "target.jsonl"
+        target.write_text("")
+        link = self.tmp / "link.jsonl"
+        link.symlink_to(target)
+        yp.CACHE_PATH = link
+
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+
+        self.assertEqual(target.read_text(), "")
+
+    def test_append_refuses_when_owning_uid_mismatches(self):
+        class _WrongOwner:
+            st_uid = os.getuid() + 1
+
+        with mock.patch("yapermission.os.fstat", return_value=_WrongOwner()):
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+
+        self.assertEqual(yp.load_cache("S1"), {})
+
+    def test_load_cache_fails_open_when_cache_path_is_symlink(self):
+        target = self.tmp / "target.jsonl"
+        target.write_text(
+            json.dumps(
+                {
+                    "session_id": "S1",
+                    "rule_name": "r",
+                    "tool_name": "Bash",
+                    "tool_input": {"command": "x"},
+                    "config_path": "/cfg.toml",
+                }
+            )
+            + "\n"
+        )
+        link = self.tmp / "link.jsonl"
+        link.symlink_to(target)
+        yp.CACHE_PATH = link
+
+        self.assertEqual(yp.load_cache("S1"), {})
+
+    def test_load_cache_fails_open_when_owning_uid_mismatches(self):
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+
+        class _WrongOwner:
+            st_uid = os.getuid() + 1
+
+        with mock.patch("yapermission.os.fstat", return_value=_WrongOwner()):
+            cache = yp.load_cache("S1")
+
+        self.assertEqual(cache, {})
 
 
 if __name__ == "__main__":
