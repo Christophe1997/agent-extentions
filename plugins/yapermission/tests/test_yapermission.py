@@ -11,6 +11,7 @@ Run a single class:
 # tests import scripts/yapermission.py just fine.
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
@@ -228,6 +229,136 @@ class TestDecide(unittest.TestCase):
         decision = yp.decide(config, "Bash", {"command": "x"})
         self.assertEqual(decision.permission, "deny")
 
+    # -- Cache-aware ask rules -------------------------------------------
+
+    def _cacheable_ask_config(self, reason=None):
+        rule = {
+            "name": "deploy",
+            "tool": "Bash",
+            "matches": [{"command": "^deploy"}],
+            "cacheable": True,
+        }
+        if reason is not None:
+            rule["reason"] = reason
+        return {"ask": [rule]}
+
+    def test_cacheable_ask_rule_without_matching_cache_entry_still_asks(self):
+        # Regression guard: a cacheable rule must not short-circuit to allow
+        # on its first, unapproved match.
+        decision = yp.decide(
+            self._cacheable_ask_config(), "Bash", {"command": "deploy prod"}, cache={}
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "deploy")
+
+    def test_cacheable_ask_rule_cache_hit_resolves_to_allow(self):
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        cache = {key: {"rule_name": "deploy"}}
+        decision = yp.decide(
+            self._cacheable_ask_config(),
+            "Bash",
+            {"command": "deploy prod"},
+            cache=cache,
+            config_path="/cfg.toml",
+        )
+        self.assertEqual(decision.permission, "allow")
+        self.assertEqual(decision.rule_name, "deploy")
+        self.assertEqual(decision.source, "cache")
+
+    def test_deny_rule_beats_a_matching_cache_entry(self):
+        config = self._cacheable_ask_config()
+        config["deny"] = [{"name": "blocked", "tool": "Bash", "matches": [{}]}]
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        cache = {key: {"rule_name": "deploy"}}
+        decision = yp.decide(
+            config,
+            "Bash",
+            {"command": "deploy prod"},
+            cache=cache,
+            config_path="/cfg.toml",
+        )
+        self.assertEqual(decision.permission, "deny")
+        self.assertEqual(decision.rule_name, "blocked")
+
+    def test_non_cacheable_ask_rule_ignores_stale_cache_entry(self):
+        config = {
+            "ask": [
+                {"name": "deploy", "tool": "Bash", "matches": [{"command": "^deploy"}]}
+            ]
+        }
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        cache = {key: {"rule_name": "deploy"}}
+        decision = yp.decide(
+            config,
+            "Bash",
+            {"command": "deploy prod"},
+            cache=cache,
+            config_path="/cfg.toml",
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertIsNone(decision.additional_context)
+
+    def test_cache_entry_stops_hitting_once_rule_loses_cacheable_flag(self):
+        config = {
+            "ask": [
+                {"name": "deploy", "tool": "Bash", "matches": [{"command": "^deploy"}]}
+            ]
+        }
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        cache = {key: {"rule_name": "deploy"}}
+        decision = yp.decide(
+            config,
+            "Bash",
+            {"command": "deploy prod"},
+            cache=cache,
+            config_path="/cfg.toml",
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "deploy")
+
+    def test_cache_entry_stops_hitting_once_rule_removed_from_config(self):
+        config = {"default": "deny", "ask": []}
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        cache = {key: {"rule_name": "deploy"}}
+        decision = yp.decide(
+            config,
+            "Bash",
+            {"command": "deploy prod"},
+            cache=cache,
+            config_path="/cfg.toml",
+        )
+        # No rule matches at all now, so evaluation falls through to the
+        # top-level default rather than granting a stray cache hit.
+        self.assertEqual(decision.permission, "deny")
+        self.assertIsNone(decision.rule_name)
+
+    def test_cacheable_ask_rule_sets_additional_context_and_keeps_reason_plain(self):
+        config = self._cacheable_ask_config(reason="Deploys need a human look")
+        decision = yp.decide(
+            config,
+            "Bash",
+            {"command": "deploy prod"},
+            cache={},
+            session_id="S1",
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.reason, "Deploys need a human look")
+        self.assertIsNotNone(decision.additional_context)
+        self.assertIn("S1", decision.additional_context)
+        self.assertIn("cacheable", decision.additional_context.lower())
+        self.assertNotIn("Deploys need a human look", decision.additional_context)
+        self.assertNotIn("S1", decision.reason)
+
+    def test_cacheable_ask_rule_without_session_id_sets_no_additional_context(self):
+        # A missing session_id must never render into the cue: it would
+        # invite a `remember` call keyed to "" that the cache read path
+        # (cmd_hook's empty-session_id guard) can never look up again.
+        decision = yp.decide(
+            self._cacheable_ask_config(), "Bash", {"command": "deploy prod"}, cache={}
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertIsNone(decision.additional_context)
+
 
 class TestNormalizeDefault(unittest.TestCase):
     def test_normalization_table(self):
@@ -423,6 +554,101 @@ class TestCacheStore(unittest.TestCase):
             cache = yp.load_cache("S1")
 
         self.assertEqual(cache, {})
+
+
+class TestEmitHookOutput(unittest.TestCase):
+    def _capture(self, decision):
+        buf = io.StringIO()
+        with mock.patch("yapermission.sys.stdout", buf):
+            yp.emit_hook_output(decision)
+        return json.loads(buf.getvalue())
+
+    def test_additional_context_and_reason_land_in_separate_fields(self):
+        decision = yp.Decision(
+            permission="ask",
+            reason="human-facing reason",
+            additional_context="agent-facing cue (session_id=S1)",
+        )
+        out = self._capture(decision)["hookSpecificOutput"]
+        self.assertEqual(out["permissionDecisionReason"], "human-facing reason")
+        self.assertEqual(out["additionalContext"], "agent-facing cue (session_id=S1)")
+        self.assertNotEqual(out["permissionDecisionReason"], out["additionalContext"])
+
+    def test_additional_context_omitted_when_absent(self):
+        decision = yp.Decision(permission="allow")
+        out = self._capture(decision)["hookSpecificOutput"]
+        self.assertNotIn("additionalContext", out)
+
+
+class TestCmdHook(unittest.TestCase):
+    def setUp(self):
+        self._original_cache_path = yp.CACHE_PATH
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.tmp = Path(self._tmpdir.name)
+        yp.CACHE_PATH = self.tmp / "yapermission-cache.jsonl"
+
+    def tearDown(self):
+        yp.CACHE_PATH = self._original_cache_path
+
+    def _run_hook(self, event):
+        stdin = io.StringIO(json.dumps(event))
+        stdout = io.StringIO()
+        with mock.patch("yapermission.sys.stdin", stdin), mock.patch(
+            "yapermission.sys.stdout", stdout
+        ), mock.patch("yapermission.log_decision") as mock_log:
+            yp.cmd_hook()
+        return json.loads(stdout.getvalue()), mock_log
+
+    def _write_cacheable_ask_config(self, project_dir):
+        config_path = project_dir / yp.PROJECT_CONFIG_NAME
+        config_path.write_text(
+            '[[ask]]\n'
+            'name = "deploy"\n'
+            'tool = "Bash"\n'
+            'cacheable = true\n'
+            'matches = [{ command = "^deploy" }]\n'
+        )
+        return config_path
+
+    def test_cache_resolved_decision_logs_source_cache_and_rule_name(self):
+        project_dir = self.tmp / "project"
+        project_dir.mkdir()
+        config_path = self._write_cacheable_ask_config(project_dir)
+        yp.append_cache_entry(
+            "S1", "deploy", "Bash", {"command": "deploy prod"}, str(config_path)
+        )
+
+        event = {
+            "session_id": "S1",
+            "tool_name": "Bash",
+            "tool_input": {"command": "deploy prod"},
+            "cwd": str(project_dir),
+        }
+        output, mock_log = self._run_hook(event)
+
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "allow")
+        record = mock_log.call_args[0][0]
+        self.assertEqual(record["source"], "cache")
+        self.assertEqual(record["rule"], "deploy")
+
+    def test_first_hit_asks_and_logs_no_source_field(self):
+        project_dir = self.tmp / "project"
+        project_dir.mkdir()
+        self._write_cacheable_ask_config(project_dir)
+
+        event = {
+            "session_id": "S1",
+            "tool_name": "Bash",
+            "tool_input": {"command": "deploy prod"},
+            "cwd": str(project_dir),
+        }
+        output, mock_log = self._run_hook(event)
+
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+        self.assertIn("additionalContext", output["hookSpecificOutput"])
+        record = mock_log.call_args[0][0]
+        self.assertNotIn("source", record)
 
 
 if __name__ == "__main__":

@@ -36,6 +36,12 @@ class Decision:
     rule_name: Optional[str] = None
     reason: Optional[str] = None
     trace: list[str] = field(default_factory=list)
+    # Agent-facing only (never mirrored into `reason`, which is human-facing);
+    # set when a cacheable `ask` rule matches with no cache hit yet.
+    additional_context: Optional[str] = None
+    # "cache" when this decision was resolved from a session cache hit rather
+    # than direct rule evaluation — feeds the audit log's `source` field (R8).
+    source: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -118,25 +124,79 @@ _RULE_GROUPS = (
 )
 
 
-def decide(config: dict, tool_name: str, tool_input: dict) -> Decision:
-    """Evaluate rule groups in `_RULE_GROUPS` order; return the resulting Decision."""
+_CACHEABLE_CUE_TEMPLATE = (
+    "If this call proceeds to execute, the matched rule is cacheable: you may "
+    "offer to remember this exact call for the rest of this session "
+    "(session_id={session_id})."
+)
+
+
+def decide(
+    config: dict,
+    tool_name: str,
+    tool_input: dict,
+    cache: Optional[dict] = None,
+    config_path: Any = None,
+    session_id: Optional[str] = None,
+) -> Decision:
+    """Evaluate rule groups in `_RULE_GROUPS` order; return the resulting Decision.
+
+    `cache` is a pre-loaded session cache dict (from `load_cache`), keeping
+    this function I/O-free (KTD4): the cache-check only ever consults what
+    the caller already loaded. Only a matched `[[ask]]` rule with
+    `cacheable = true` is checked against it (KTD5) — the check runs against
+    the matched rule itself, not as an independent branch before `ask`, so a
+    rule edited to drop `cacheable`, tightened, or deleted never produces a
+    stale hit even if an old cache entry still exists.
+    """
     trace: list[str] = []
 
     for group_key, decision_value in _RULE_GROUPS:
         for rule in config.get(group_key) or []:
             name = rule.get("name", "<unnamed>")
-            if rule_matches(rule, tool_name, tool_input):
-                trace.append(f"{group_key} rule '{name}' matched")
-                reason = rule.get("reason")
-                if decision_value == "deny" and not reason:
-                    reason = "Denied by yapermission policy"
-                return Decision(
-                    permission=decision_value,
-                    rule_name=rule.get("name"),
-                    reason=reason,
-                    trace=trace,
+            if not rule_matches(rule, tool_name, tool_input):
+                trace.append(f"{group_key} rule '{name}' skipped")
+                continue
+
+            trace.append(f"{group_key} rule '{name}' matched")
+            # Strict `is True`, not truthiness: this flag converts prompts
+            # into silent allows, so a stray non-boolean TOML value (e.g. a
+            # typo'd string) must not accidentally opt a rule in.
+            cacheable = group_key == "ask" and rule.get("cacheable") is True
+
+            if cacheable:
+                key = cache_key(rule.get("name"), tool_name, tool_input, config_path)
+                if cache and key in cache:
+                    trace.append(f"cache hit for rule '{name}' — resolving to allow")
+                    return Decision(
+                        permission="allow",
+                        rule_name=rule.get("name"),
+                        trace=trace,
+                        source="cache",
+                    )
+
+            reason = rule.get("reason")
+            if decision_value == "deny" and not reason:
+                reason = "Denied by yapermission policy"
+
+            additional_context = None
+            if cacheable and session_id:
+                # No session_id, no cue: an empty id would render into the
+                # cue text and, if echoed back to a `remember` call, write an
+                # entry under "" that the empty-session_id guard in cmd_hook
+                # then refuses to ever look up again — a dead write plus a
+                # cue inviting it.
+                additional_context = _CACHEABLE_CUE_TEMPLATE.format(
+                    session_id=session_id
                 )
-            trace.append(f"{group_key} rule '{name}' skipped")
+
+            return Decision(
+                permission=decision_value,
+                rule_name=rule.get("name"),
+                reason=reason,
+                trace=trace,
+                additional_context=additional_context,
+            )
 
     default = (config.get("default") or "ask").lower()
     trace.append(f"no rule matched — default: {default}")
@@ -323,6 +383,10 @@ def emit_hook_output(decision: Decision) -> None:
     # `deny` and `ask` decisions; on `allow` and `defer` it would be ignored.
     if decision.permission in ("deny", "ask") and decision.reason:
         out["hookSpecificOutput"]["permissionDecisionReason"] = decision.reason
+    # additionalContext is model-only (never shown to the human) — the
+    # cacheable cue always goes here, never into permissionDecisionReason.
+    if decision.additional_context:
+        out["hookSpecificOutput"]["additionalContext"] = decision.additional_context
     json.dump(out, sys.stdout)
 
 
@@ -340,6 +404,7 @@ def cmd_hook() -> int:
     tool_name = event.get("tool_name", "") or ""
     tool_input = event.get("tool_input") or {}
     cwd = event.get("cwd") or os.getcwd()
+    session_id = event.get("session_id") or ""
 
     config_path = active_config_path(cwd)
     if config_path is None:
@@ -353,7 +418,18 @@ def cmd_hook() -> int:
 
     try:
         config = load_config(config_path)
-        decision = decide(config, tool_name, tool_input)
+        # An empty session_id would let load_cache("") match records stored
+        # with an equally empty id, bleeding across sessions that failed to
+        # report one (KTD2) — skip the lookup entirely rather than risk that.
+        cache = load_cache(session_id) if session_id else {}
+        decision = decide(
+            config,
+            tool_name,
+            tool_input,
+            cache=cache,
+            config_path=config_path,
+            session_id=session_id,
+        )
     except Exception as exc:
         log_decision({
             "ts": _now(), "tool": tool_name, "decision": "ask",
@@ -364,14 +440,17 @@ def cmd_hook() -> int:
         emit_hook_output(Decision("ask"))
         return 0
 
-    log_decision({
+    record = {
         "ts": _now(), "tool": tool_name,
         "decision": decision.permission,
         "rule": decision.rule_name,
         "reason": decision.reason,
         "input": tool_input, "cwd": cwd,
         "config_path": str(config_path),
-    })
+    }
+    if decision.source == "cache":
+        record["source"] = "cache"
+    log_decision(record)
     emit_hook_output(decision)
     return 0
 

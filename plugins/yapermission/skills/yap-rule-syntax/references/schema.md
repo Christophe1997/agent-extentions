@@ -40,6 +40,7 @@ Any other top-level keys are ignored.
 | `tool` | regex string | no | `re.search`-matched against `tool_name`. Missing means "any tool". |
 | `matches` | array of inline tables | yes (to fire) | OR-of-ANDs. Empty or missing = rule never fires. Use `[ {} ]` for "any input". |
 | `reason` | string | no | Shown to the user on `deny` and `ask` (via `permissionDecisionReason`); recorded in the audit log for every decision. |
+| `cacheable` | boolean | no, default `false` | `[[ask]]` rules only. When `true`, an approved decision may be remembered for the rest of the current session (via the `yap-remember` skill), so the same rule matching the same exact tool call resolves to `allow` without prompting again — until the rule is edited to drop `cacheable`, tightened, or removed. A `[[deny]]` match always overrides a cached `allow`. Ignored on `deny`, `allow`, and `defer` rules. |
 
 ## TOML string types and regex
 
