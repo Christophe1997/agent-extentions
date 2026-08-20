@@ -11,7 +11,7 @@ Run the policy engine in dry-run mode against a hypothetical tool call so the us
 
 ## Argument format
 
-The user invokes this with: `<tool_name> <arguments...> [--verbose]`
+The user invokes this with: `<tool_name> <arguments...> [--verbose] [--session <session_id>]`
 
 Translate the friendly form into the JSON `tool_input` the engine expects:
 
@@ -27,18 +27,21 @@ If the user passes raw JSON as the second+ argument (starts with `{`), use it di
 
 If `--verbose` appears anywhere in the arguments, pass `--verbose` to the engine to get the per-rule trace.
 
+If `--session <session_id>` appears anywhere in the arguments, pass it through to the engine so it also reports live cache state for that session.
+
 ## Process
 
 1. **Invoke the engine in dry-run mode**:
 
    ```
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py explain [--verbose] <tool_name> '<tool_input_json>'
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py explain [--verbose] [--session <session_id>] <tool_name> '<tool_input_json>'
    ```
 
 2. **Read the output**: The script prints:
    - `cwd:` and `config:` (which TOML is active)
    - The matched rule name + reason, or `decision: ask` if nothing matched
    - With `--verbose`: a per-rule "matched" / "skipped" trace
+   - `cache:` — without `--session`, reports that cache state wasn't checked; with `--session`, reports a cache hit or "no matching cache entry" for that session
 
 3. **Report verbatim**: Show the output to the user verbatim. If the script exits non-zero, surface the stderr message and stop.
 
@@ -51,6 +54,7 @@ If `--verbose` appears anywhere in the arguments, pass `--verbose` to the engine
 /yapermission:yap-explain Read /Users/me/x.py
 /yapermission:yap-explain mcp__github__list_issues {"owner":"foo"}
 /yapermission:yap-explain Bash "git push" --verbose
+/yapermission:yap-explain Bash "git status" --session S1
 ```
 
 ## Common follow-ups

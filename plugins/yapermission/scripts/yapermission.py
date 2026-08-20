@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 import tomllib
@@ -225,20 +226,26 @@ def _now() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _append_jsonl_record(path: Path, fd: int, existed: bool, record: dict) -> None:
+def _append_jsonl_record(path: Path, fd: int, existed: bool, record: dict) -> bool:
     """Write one JSON line to an already-open fd; chmod 0600 when `existed` is False.
 
     Shared write tail for `log_decision` and `append_cache_entry`, which each
     apply their own distinct open-and-guard logic first. `existed` reflects
-    the path's state *before* the open. Never raises.
+    the path's state *before* the open. Never raises. Returns whether the
+    write itself landed — a subsequent chmod failure doesn't flip this back
+    to False, since the record is already durable at that point.
     """
     try:
         with os.fdopen(fd, "a") as f:
             f.write(json.dumps(record, default=str) + "\n")
-        if not existed:
-            os.chmod(path, 0o600)
     except OSError:
-        pass
+        return False
+    if not existed:
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    return True
 
 
 def log_decision(record: dict) -> None:
@@ -289,20 +296,32 @@ def cache_key(rule_name: Any, tool_name: Any, tool_input: Any, config_path: Any)
 
 
 def _open_cache_path(flags: int, mode: int = 0) -> Optional[int]:
-    """Open CACHE_PATH with O_NOFOLLOW and verify the owning uid.
+    """Open CACHE_PATH with O_NOFOLLOW and verify the owning uid and file type.
 
     Returns a live fd on success. Returns None — and closes any fd it
-    opened — on a missing file, a symlinked path, an owner mismatch, or any
-    other OSError (KTD8: CACHE_PATH is a fixed name in the world-writable
-    OS temp dir, so both the read and write paths distrust a pre-existing
-    file until its ownership is confirmed).
+    opened — on a missing file, a symlinked path, an owner mismatch, a
+    non-regular file, or any other OSError (KTD8: CACHE_PATH is a fixed
+    name in the world-writable OS temp dir, so both the read and write
+    paths distrust a pre-existing file until its ownership and type are
+    confirmed).
+
+    O_NONBLOCK guards against a pre-planted FIFO at CACHE_PATH: without it,
+    open() on a FIFO with no reader/writer on the other end blocks the
+    calling process indefinitely, before the checks below ever run. It has
+    no effect on a regular file's open/read/write behavior. The uid check
+    runs before the S_ISREG check so an unowned special file is rejected on
+    ownership alone, without needing to inspect its type.
     """
     try:
-        fd = os.open(CACHE_PATH, flags | os.O_NOFOLLOW, mode)
+        fd = os.open(CACHE_PATH, flags | os.O_NOFOLLOW | os.O_NONBLOCK, mode)
     except OSError:
         return None
     try:
-        if os.fstat(fd).st_uid != os.getuid():
+        st = os.fstat(fd)
+        if st.st_uid != os.getuid():
+            os.close(fd)
+            return None
+        if not stat.S_ISREG(st.st_mode):
             os.close(fd)
             return None
     except OSError:
@@ -361,11 +380,14 @@ def append_cache_entry(
     tool_name: str,
     tool_input: dict,
     config_path: Any,
-) -> None:
+) -> bool:
     """Append one JSONL cache record for `session_id`. Never raises.
 
     Mirrors `log_decision`'s O_CREAT/0o600 pattern, plus the O_NOFOLLOW and
-    owning-uid check `_open_cache_path` performs (KTD8).
+    owning-uid check `_open_cache_path` performs (KTD8). Returns whether the
+    record actually landed — callers that report "remembered" to a human or
+    an audit log must check this rather than assume a fire-and-forget append
+    always succeeds.
     """
     existed = CACHE_PATH.exists()
     fd = _open_cache_path(
@@ -373,7 +395,7 @@ def append_cache_entry(
         0o600,
     )
     if fd is None:
-        return
+        return False
 
     record = {
         "session_id": session_id,
@@ -382,7 +404,7 @@ def append_cache_entry(
         "tool_input": tool_input,
         "config_path": str(config_path),
     }
-    _append_jsonl_record(CACHE_PATH, fd, existed, record)
+    return _append_jsonl_record(CACHE_PATH, fd, existed, record)
 
 
 # ---------------------------------------------------------------------------
@@ -472,18 +494,27 @@ def cmd_hook() -> int:
     return 0
 
 
-def _cache_state_line(session_id: Optional[str], decision: Optional[Decision]) -> str:
+def _cache_state_line(
+    session_id: Optional[str], decision: Optional[Decision], *, checked: bool
+) -> str:
     """Describe cache state honestly for `cmd_explain`'s trace output.
 
     `cmd_explain` has no session context of its own (it's a manual dry-run,
     not the hook reading a live PreToolUse event), so without an explicit
-    `--session` it must say so rather than imply a lookup happened. When a
-    session is given, `decision` was produced by the same `decide()` call
-    the hook makes with the same loaded cache — `decision.source == "cache"`
-    is therefore the live-path answer, never a separately-derived guess.
+    `--session` it must say so rather than imply a lookup happened.
+
+    `checked` is passed explicitly by the caller rather than inferred from
+    `decision is None`: cmd_explain's early-exit branches (no active config,
+    config load failure) also call this with `decision=None` despite never
+    having attempted a lookup at all — a different state from a real
+    `decide()` call that ran the cache check and came up empty. When a
+    session is given and a lookup did run, `decision.source == "cache"` is
+    the live-path answer, never a separately-derived guess.
     """
     if session_id is None:
         return "cache:    no --session given — cache state not checked"
+    if not checked:
+        return f"cache:    not checked — no policy evaluated for session {session_id}"
     if decision is not None and decision.source == "cache":
         return f"cache:    hit — resolved from cache for session {session_id}"
     return f"cache:    no matching cache entry for session {session_id}"
@@ -527,7 +558,7 @@ def cmd_explain(argv: list[str]) -> int:
     print(f"config: {config_path or '(none — every call falls through to ask)'}")
     if config_path is None:
         print("decision: ask")
-        print(_cache_state_line(session_id, None))
+        print(_cache_state_line(session_id, None, checked=False))
         return 0
 
     try:
@@ -535,7 +566,7 @@ def cmd_explain(argv: list[str]) -> int:
     except Exception as exc:
         print(f"config load failed: {exc}")
         print("decision: ask (fail-open)")
-        print(_cache_state_line(session_id, None))
+        print(_cache_state_line(session_id, None, checked=False))
         return 0
 
     # Same load_cache/cache_key path cmd_hook uses, so this dry run can
@@ -557,7 +588,7 @@ def cmd_explain(argv: list[str]) -> int:
         print(f"rule:     {decision.rule_name}")
     if decision.reason:
         print(f"reason:   {decision.reason}")
-    print(_cache_state_line(session_id, decision))
+    print(_cache_state_line(session_id, decision, checked=True))
     return 0
 
 
@@ -642,7 +673,14 @@ def cmd_remember(argv: list[str]) -> int:
             config_path=config_path,
         )
 
-    append_cache_entry(session_id, decision.rule_name, tool_name, tool_input, config_path)
+    if not append_cache_entry(
+        session_id, decision.rule_name, tool_name, tool_input, config_path
+    ):
+        return refuse(
+            "failed to persist cache entry — refusing to report success",
+            config_path=config_path, rule_name=decision.rule_name,
+        )
+
     log_decision({
         "ts": _now(), "event": "remember-granted",
         "tool": tool_name, "rule": decision.rule_name, "input": tool_input,

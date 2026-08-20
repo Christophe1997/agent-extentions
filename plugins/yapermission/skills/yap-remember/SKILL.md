@@ -10,12 +10,12 @@ Persist one approved `[[ask]]` decision into the session cache so it silently re
 
 ## Confirm-first — never silent
 
-This skill exists to enforce one rule: **the caching surface only ever expands after an explicit human "yes."** You must never invoke `remember` speculatively, by default, or because a rule merely *could* be cached.
+This skill exists to enforce one rule: **the caching surface only ever expands after an explicit human "yes."** Never invoke `remember` speculatively, by default, or because a rule merely *could* be cached.
 
 Only proceed when both are true:
 
 1. A tool call was just blocked by an `[[ask]]` decision whose `additionalContext` said the matched rule is cacheable (it names a `session_id`).
-2. You explicitly offered to remember this decision for the rest of the session, and the human explicitly said yes — a real affirmative reply, not silence, not a guess, not "they'll probably want this every time."
+2. An explicit offer was made to remember this decision for the rest of the session, and the human explicitly said yes — a real affirmative reply, not silence, not a guess, not "they'll probably want this every time."
 
 If either is missing, do not invoke this skill. If the human says no, or doesn't answer, drop it — the tool call proceeds (or not) on its own merits and nothing gets cached.
 

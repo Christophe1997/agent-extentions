@@ -14,8 +14,10 @@ from __future__ import annotations
 import io
 import json
 import os
+import signal
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -555,6 +557,74 @@ class TestCacheStore(unittest.TestCase):
 
         self.assertEqual(cache, {})
 
+    def _call_with_timeout(self, fn, *args, seconds=2, **kwargs):
+        """Run `fn` bounded by a SIGALRM, so a pre-fix hang fails fast and
+        observably instead of wedging the whole suite.
+
+        Asserting on elapsed time (not just on the raised exception) is
+        load-bearing: `TimeoutError` is itself an `OSError` subclass, so a
+        hang that gets interrupted mid-`os.open()` is silently absorbed by
+        yapermission's own `except OSError` handling — the call still
+        returns its normal fail-open value, just ~`seconds` late. Only the
+        elapsed-time check tells a genuine prompt return apart from a
+        swallowed near-timeout.
+        """
+
+        def _on_alarm(signum, frame):
+            raise TimeoutError(f"{fn.__name__} blocked past {seconds}s — likely hung on open()")
+
+        old_handler = signal.signal(signal.SIGALRM, _on_alarm)
+        signal.alarm(seconds)
+        start = time.monotonic()
+        try:
+            result = fn(*args, **kwargs)
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+        elapsed = time.monotonic() - start
+        self.assertLess(
+            elapsed, 1.0,
+            f"{fn.__name__} took {elapsed:.3f}s — expected a prompt, non-blocking return",
+        )
+        return result
+
+    def test_load_cache_does_not_hang_on_a_planted_fifo(self):
+        # A FIFO pre-planted at CACHE_PATH (e.g. by another process racing
+        # yapermission's first real write) must not block the read path
+        # indefinitely — it must be rejected as "not a regular file".
+        os.mkfifo(yp.CACHE_PATH)
+
+        result = self._call_with_timeout(yp.load_cache, "S1")
+
+        self.assertEqual(result, {})
+
+    def test_append_cache_entry_does_not_hang_on_a_planted_fifo(self):
+        os.mkfifo(yp.CACHE_PATH)
+
+        result = self._call_with_timeout(
+            yp.append_cache_entry, "S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"
+        )
+
+        self.assertIs(result, False)
+
+    def test_append_cache_entry_returns_true_on_success(self):
+        self.assertIs(
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"),
+            True,
+        )
+
+    def test_append_cache_entry_returns_false_when_cache_path_is_symlink(self):
+        target = self.tmp / "target.jsonl"
+        target.write_text("")
+        link = self.tmp / "link.jsonl"
+        link.symlink_to(target)
+        yp.CACHE_PATH = link
+
+        self.assertIs(
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"),
+            False,
+        )
+
 
 class TestEmitHookOutput(unittest.TestCase):
     def _capture(self, decision):
@@ -726,6 +796,34 @@ class TestCmdExplain(unittest.TestCase):
         self.assertNotIn("hit", stdout.lower())
         self.assertNotIn("no matching cache entry", stdout.lower())
 
+    def test_session_given_but_no_active_config_reports_not_checked(self):
+        # config_path is None here (no project or global config exists) —
+        # no lookup was ever attempted, so the cache line must not claim a
+        # real "no matching entry" result.
+        rc, stdout, stderr = self._explain(
+            ["--session", "S1", "Bash", json.dumps({"command": "deploy prod"})]
+        )
+
+        self.assertEqual(rc, 0)
+        cache_line = next(line for line in stdout.splitlines() if line.startswith("cache:"))
+        self.assertIn("not checked", cache_line.lower())
+        self.assertNotIn("hit", cache_line.lower())
+        self.assertNotIn("no matching cache entry", cache_line.lower())
+
+    def test_session_given_but_config_load_fails_reports_not_checked(self):
+        config_path = self.project_dir / yp.PROJECT_CONFIG_NAME
+        config_path.write_text("this is not [valid toml\n")
+
+        rc, stdout, stderr = self._explain(
+            ["--session", "S1", "Bash", json.dumps({"command": "deploy prod"})]
+        )
+
+        self.assertEqual(rc, 0)
+        cache_line = next(line for line in stdout.splitlines() if line.startswith("cache:"))
+        self.assertIn("not checked", cache_line.lower())
+        self.assertNotIn("hit", cache_line.lower())
+        self.assertNotIn("no matching cache entry", cache_line.lower())
+
     def test_session_flag_missing_or_empty_value_exits_2(self):
         # A dangling flag and an explicit "" must both fail closed — an
         # empty session_id is falsy, so letting it through would silently
@@ -790,6 +888,21 @@ class TestRemember(unittest.TestCase):
         self.assertEqual(record["event"], "remember-granted")
         self.assertEqual(record["rule"], "deploy")
         self.assertEqual(record["session_id"], "S1")
+
+    def test_failed_cache_write_refuses_instead_of_reporting_success(self):
+        # append_cache_entry can silently fail (symlinked/wrong-owner cache
+        # path, OSError). cmd_remember must not report "remembered" or log
+        # a grant when the write never actually landed.
+        self._write_config(_cacheable_deploy_toml())
+
+        with mock.patch("yapermission.append_cache_entry", return_value=False):
+            rc, stdout, stderr, mock_log = self._remember(
+                ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            )
+
+        self.assertNotEqual(rc, 0)
+        self.assertNotIn("remembered:", stdout)
+        self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
     def test_deny_preempts_refuses_and_logs_refusal(self):
         # A matching cacheable [[ask]] rule is present too, so this proves
