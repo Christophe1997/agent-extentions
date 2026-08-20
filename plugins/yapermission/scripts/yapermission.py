@@ -28,9 +28,9 @@ PROJECT_CONFIG_NAME = ".yapermission.toml"
 LOG_PATH = Path.home() / ".yapermission.log"
 # Ephemeral by design (KTD3): lives in the OS temp dir, not ~/, so the OS's
 # own temp-file lifecycle is the cleanup this feature deliberately skips.
-CACHE_PATH = Path(tempfile.gettempdir()) / "yapermission-cache.jsonl"
-# Persistent, unlike CACHE_PATH: regenerating this on every temp-dir clear
-# would silently invalidate every outstanding approval token for no
+CACHE_DIR = Path(tempfile.gettempdir())
+# Persistent, unlike the session cache: regenerating this on every temp-dir
+# clear would silently invalidate every outstanding approval token for no
 # security benefit, so it lives alongside LOG_PATH in the home directory.
 SECRET_PATH = Path.home() / ".yapermission-secret"
 
@@ -322,7 +322,7 @@ def _open_hardened_path(path: Path, flags: int, mode: int = 0) -> Optional[int]:
     non-regular file, or any other OSError (KTD8: a fixed name in a
     directory this process doesn't otherwise control, so every caller
     distrusts a pre-existing file until its ownership and type are
-    confirmed). Shared by CACHE_PATH's read/write paths and by
+    confirmed). Shared by the session cache's read/write paths and by
     SECRET_PATH's approval-token secret.
 
     O_NONBLOCK guards against a pre-planted FIFO at `path`: without it,
@@ -350,6 +350,26 @@ def _open_hardened_path(path: Path, flags: int, mode: int = 0) -> Optional[int]:
     return fd
 
 
+def _cache_path_for_session(session_id: str) -> Path:
+    """Per-session cache file path (finding #7 from the caching feature's
+    code review).
+
+    A single shared cache file makes every `load_cache()` call scan every
+    session that ever ran, for as long as the OS temp dir keeps the file
+    around — unbounded growth and unbounded per-call read cost. Partitioning
+    by session bounds both to one session's own remembered decisions, with
+    no new cleanup mechanism: each per-session file still ages out via the
+    same OS temp-dir lifecycle CACHE_DIR already relies on (KTD3).
+
+    Hashed (not the raw session_id) for the same reason `cache_key` hashes
+    its payload: `session_id` is an untrusted, arbitrary agent-supplied
+    string, so using it directly as a filename component would be a path
+    injection vector.
+    """
+    digest = hashlib.sha256(session_id.encode()).hexdigest()[:32]
+    return CACHE_DIR / f"yapermission-cache-{digest}.jsonl"
+
+
 def load_cache(session_id: Optional[str]) -> dict[str, dict]:
     """Load this session's live cache entries, keyed by `cache_key(...)`.
 
@@ -359,11 +379,16 @@ def load_cache(session_id: Optional[str]) -> dict[str, dict]:
     "no cached decisions", never to a crash or a bypass. Also fails open on
     an empty `session_id`: matching it against records would bleed across
     sessions that failed to report one (KTD2).
+
+    The per-record `session_id` check below is defense-in-depth on top of
+    the file-level partition (a hash collision, or a stale file from a
+    reused digest, must not bleed an approval across sessions) — it costs
+    nothing on a file this small.
     """
     if not session_id:
         return {}
 
-    fd = _open_hardened_path(CACHE_PATH, os.O_RDONLY)
+    fd = _open_hardened_path(_cache_path_for_session(session_id), os.O_RDONLY)
     if fd is None:
         return {}
 
@@ -411,9 +436,10 @@ def append_cache_entry(
     human or an audit log must check this rather than assume a
     fire-and-forget append always succeeds.
     """
-    existed = CACHE_PATH.exists()
+    cache_path = _cache_path_for_session(session_id)
+    existed = cache_path.exists()
     fd = _open_hardened_path(
-        CACHE_PATH,
+        cache_path,
         os.O_WRONLY | os.O_APPEND | os.O_CREAT,
         0o600,
     )
@@ -428,7 +454,7 @@ def append_cache_entry(
         "config_path": str(config_path),
         "cwd": str(cwd),
     }
-    return _append_jsonl_record(CACHE_PATH, fd, existed, record)
+    return _append_jsonl_record(cache_path, fd, existed, record)
 
 
 # ---------------------------------------------------------------------------
@@ -463,8 +489,8 @@ def _load_or_create_secret() -> bytes:
     """Load the per-install HMAC secret from SECRET_PATH, creating one on first use.
 
     Lives at ~/.yapermission-secret (persistent, like LOG_PATH — see the
-    module-level comment above SECRET_PATH), hardened the same way
-    CACHE_PATH is (O_NOFOLLOW + owning-uid + regular-file checks via
+    module-level comment above SECRET_PATH), hardened the same way the
+    session cache is (O_NOFOLLOW + owning-uid + regular-file checks via
     `_open_hardened_path`, KTD8).
 
     The create-on-first-use path uses O_EXCL so a race between two

@@ -114,7 +114,7 @@ A `[[ask]]` rule marked `cacheable = true` can have an approved decision remembe
 
 | Detail | Value |
 |---|---|
-| File | A fixed path in the OS temp dir (`yapermission-cache.jsonl`, e.g. `$TMPDIR/yapermission-cache.jsonl`) — deliberately not under `~/`, so the cache never outlives the OS's own temp-file lifecycle. |
+| File | One file per session in the OS temp dir, named from a hash of `session_id` (e.g. `$TMPDIR/yapermission-cache-<hash>.jsonl`) — deliberately not under `~/`, so no cache file outlives the OS's own temp-file lifecycle. Partitioning by session keeps each file's size, and the cost of reading it, bounded to that session's own remembered decisions instead of every session that ever ran. |
 | Format | JSON Lines, one record per remembered call, mode `0600`. |
 | Scope | Session-scoped: every record carries `session_id`; a lookup only ever matches records for the current session. |
 | Key | The tuple (`rule_name`, `tool_name`, `tool_input`, `config_path`, `cwd`) — an exact match on the matched rule, the exact tool call, the active config file, and the calling directory. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it), the config path, or the directory invalidates any old entry for it — the `cwd` component keeps a shared/global config from letting an approved relative-path command in one project auto-allow the same command in another. |

@@ -448,7 +448,7 @@ class TestCacheStore(unittest.TestCase):
         # Redirect the cache to a tmp location so tests don't touch the real
         # OS temp dir, mirroring TestActiveConfigPath's GLOBAL_CONFIG swap.
         self.enterContext(
-            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+            mock.patch.object(yp, "CACHE_DIR", self.tmp)
         )
 
     def test_round_trip(self):
@@ -476,7 +476,7 @@ class TestCacheStore(unittest.TestCase):
 
     def test_load_cache_skips_corrupt_and_non_object_lines(self):
         yp.append_cache_entry("S1", "rule-a", "Bash", {"command": "a"}, "/cfg.toml", "/repo")
-        with yp.CACHE_PATH.open("a") as f:
+        with yp._cache_path_for_session("S1").open("a") as f:
             f.write("not valid json\n")
             f.write("[1, 2]\n")  # valid JSON, but not a record object
         yp.append_cache_entry("S1", "rule-b", "Bash", {"command": "b"}, "/cfg.toml", "/repo")
@@ -502,7 +502,7 @@ class TestCacheStore(unittest.TestCase):
     def test_append_creates_file_with_0600_permissions(self):
         yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
-        mode = yp.CACHE_PATH.stat().st_mode & 0o777
+        mode = yp._cache_path_for_session("S1").stat().st_mode & 0o777
         self.assertEqual(mode, 0o600)
 
     def test_cache_key_differs_for_naive_concatenation_collision(self):
@@ -539,9 +539,8 @@ class TestCacheStore(unittest.TestCase):
     def test_append_refuses_when_cache_path_is_symlink(self):
         target = self.tmp / "target.jsonl"
         target.write_text("")
-        link = self.tmp / "link.jsonl"
+        link = yp._cache_path_for_session("S1")
         link.symlink_to(target)
-        yp.CACHE_PATH = link
 
         yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
@@ -570,9 +569,8 @@ class TestCacheStore(unittest.TestCase):
             )
             + "\n"
         )
-        link = self.tmp / "link.jsonl"
+        link = yp._cache_path_for_session("S1")
         link.symlink_to(target)
-        yp.CACHE_PATH = link
 
         self.assertEqual(yp.load_cache("S1"), {})
 
@@ -619,17 +617,18 @@ class TestCacheStore(unittest.TestCase):
         return result
 
     def test_load_cache_does_not_hang_on_a_planted_fifo(self):
-        # A FIFO pre-planted at CACHE_PATH (e.g. by another process racing
-        # yapermission's first real write) must not block the read path
-        # indefinitely — it must be rejected as "not a regular file".
-        os.mkfifo(yp.CACHE_PATH)
+        # A FIFO pre-planted at the session's cache path (e.g. by another
+        # process racing yapermission's first real write) must not block
+        # the read path indefinitely — it must be rejected as "not a
+        # regular file".
+        os.mkfifo(yp._cache_path_for_session("S1"))
 
         result = self._call_with_timeout(yp.load_cache, "S1")
 
         self.assertEqual(result, {})
 
     def test_append_cache_entry_does_not_hang_on_a_planted_fifo(self):
-        os.mkfifo(yp.CACHE_PATH)
+        os.mkfifo(yp._cache_path_for_session("S1"))
 
         result = self._call_with_timeout(
             yp.append_cache_entry, "S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo"
@@ -646,13 +645,34 @@ class TestCacheStore(unittest.TestCase):
     def test_append_cache_entry_returns_false_when_cache_path_is_symlink(self):
         target = self.tmp / "target.jsonl"
         target.write_text("")
-        link = self.tmp / "link.jsonl"
+        link = yp._cache_path_for_session("S1")
         link.symlink_to(target)
-        yp.CACHE_PATH = link
 
         self.assertIs(
             yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo"),
             False,
+        )
+
+    def test_different_sessions_are_stored_in_separate_cache_files(self):
+        # Finding #7: a single shared cache file makes every load_cache()
+        # call scan every session that ever ran, for as long as the OS temp
+        # dir keeps the file around. Partitioning by session bounds both
+        # growth and per-call scan cost to one session's own entries.
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
+        yp.append_cache_entry("S2", "rule", "Bash", {"command": "y"}, "/cfg.toml", "/repo")
+
+        path_s1 = yp._cache_path_for_session("S1")
+        path_s2 = yp._cache_path_for_session("S2")
+
+        self.assertNotEqual(path_s1, path_s2)
+        self.assertEqual(len(path_s1.read_text().splitlines()), 1)
+        self.assertEqual(len(path_s2.read_text().splitlines()), 1)
+
+    def test_cache_path_for_session_is_deterministic(self):
+        # load_cache and append_cache_entry must resolve to the same file
+        # for a given session_id across separate calls.
+        self.assertEqual(
+            yp._cache_path_for_session("S1"), yp._cache_path_for_session("S1")
         )
 
 
@@ -815,7 +835,7 @@ class TestCmdHook(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         self.enterContext(
-            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+            mock.patch.object(yp, "CACHE_DIR", self.tmp)
         )
         self.enterContext(
             mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
@@ -890,7 +910,7 @@ class TestCmdExplain(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         self.enterContext(
-            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+            mock.patch.object(yp, "CACHE_DIR", self.tmp)
         )
         self.enterContext(
             mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
@@ -1007,7 +1027,7 @@ class TestRemember(unittest.TestCase):
         self.addCleanup(self._tmpdir.cleanup)
         self.tmp = Path(self._tmpdir.name)
         self.enterContext(
-            mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+            mock.patch.object(yp, "CACHE_DIR", self.tmp)
         )
         # Redirect the global-config fallback too: a project dir with no
         # project-level .yapermission.toml would otherwise fall through to
