@@ -117,21 +117,21 @@ A `[[ask]]` rule marked `cacheable = true` can have an approved decision remembe
 | File | A fixed path in the OS temp dir (`yapermission-cache.jsonl`, e.g. `$TMPDIR/yapermission-cache.jsonl`) — deliberately not under `~/`, so the cache never outlives the OS's own temp-file lifecycle. |
 | Format | JSON Lines, one record per remembered call, mode `0600`. |
 | Scope | Session-scoped: every record carries `session_id`; a lookup only ever matches records for the current session. |
-| Key | The tuple (`rule_name`, `tool_name`, `tool_input`, `config_path`) — an exact match on the matched rule, the exact tool call, and the active config file. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it) or the config path invalidates any old entry for it. |
+| Key | The tuple (`rule_name`, `tool_name`, `tool_input`, `config_path`, `cwd`) — an exact match on the matched rule, the exact tool call, the active config file, and the calling directory. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it), the config path, or the directory invalidates any old entry for it — the `cwd` component keeps a shared/global config from letting an approved relative-path command in one project auto-allow the same command in another. |
 
 Record shape:
 
 ```json
-{"session_id":"S1","rule_name":"deploy","tool_name":"Bash","tool_input":{"command":"deploy prod"},"config_path":"/Users/me/proj/.yapermission.toml"}
+{"session_id":"S1","rule_name":"deploy","tool_name":"Bash","tool_input":{"command":"deploy prod"},"config_path":"/Users/me/proj/.yapermission.toml","cwd":"/Users/me/proj"}
 ```
 
 ### `remember` subcommand
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>'
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>' <token>
 ```
 
-Three positional arguments — **no `rule_name` argument**. The matched rule is re-derived from a fresh, live `decide()` call against the current config, not trusted from an agent-supplied claim. `remember` refuses (non-zero exit, nothing cached) when:
+Four positional arguments — **no `rule_name` argument**. The matched rule is re-derived from a fresh, live `decide()` call against the current config, not trusted from an agent-supplied claim. `<token>` is the approval token minted by `decide()` when it emitted the cacheable cue (see the `additionalContext` cue in the caching feature's engine section) — an HMAC-signed, short-lived proof that this exact call (`session_id`, calling directory, matched rule, `tool_name`, `tool_input`) actually reached a genuine `ask` decision. It cannot be forged, reused for a different call, or replayed once it expires. `remember` refuses (non-zero exit, nothing cached) when:
 
 - `session_id` is empty
 - no active config is found, or it fails to parse (fail-closed here, unlike `explain`'s fail-open-to-`ask`)
@@ -139,6 +139,7 @@ Three positional arguments — **no `rule_name` argument**. The matched rule is 
 - no `[[ask]]` rule matches the call
 - the matched rule isn't marked `cacheable = true`
 - the matched rule has no `name` (an unnamed cacheable rule would otherwise collapse its cache key onto any other unnamed cacheable rule)
+- `<token>` is missing, malformed, tampered, expired, or doesn't match this exact call's fields
 
 ## Audit log
 

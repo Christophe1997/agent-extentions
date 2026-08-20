@@ -7,14 +7,17 @@ Two entry points:
 """
 from __future__ import annotations
 
+import base64
 import datetime as _dt
 import hashlib
+import hmac
 import json
 import os
 import re
 import stat
 import sys
 import tempfile
+import time
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,6 +29,10 @@ LOG_PATH = Path.home() / ".yapermission.log"
 # Ephemeral by design (KTD3): lives in the OS temp dir, not ~/, so the OS's
 # own temp-file lifecycle is the cleanup this feature deliberately skips.
 CACHE_PATH = Path(tempfile.gettempdir()) / "yapermission-cache.jsonl"
+# Persistent, unlike CACHE_PATH: regenerating this on every temp-dir clear
+# would silently invalidate every outstanding approval token for no
+# security benefit, so it lives alongside LOG_PATH in the home directory.
+SECRET_PATH = Path.home() / ".yapermission-secret"
 
 
 @dataclass
@@ -131,8 +138,9 @@ _RULE_GROUPS = (
 
 _CACHEABLE_CUE_TEMPLATE = (
     "If this call proceeds to execute, the matched rule is cacheable: you may "
-    "offer to remember this exact call for the rest of this session "
-    "(session_id={session_id})."
+    "offer to remember this exact call for the rest of this session. If the "
+    "human explicitly says yes, invoke remember with session_id={session_id} "
+    "and token={token}."
 )
 
 
@@ -192,8 +200,11 @@ def decide(
                 # entry under "" that the empty-session_id guard in cmd_hook
                 # then refuses to ever look up again — a dead write plus a
                 # cue inviting it.
+                token = _mint_approval_token(
+                    session_id, cwd, rule.get("name"), tool_name, tool_input
+                )
                 additional_context = _CACHEABLE_CUE_TEMPLATE.format(
-                    session_id=session_id
+                    session_id=session_id, token=token
                 )
 
             return Decision(
@@ -303,17 +314,18 @@ def cache_key(rule_name: Any, tool_name: Any, tool_input: Any, config_path: Any,
     ).hexdigest()
 
 
-def _open_cache_path(flags: int, mode: int = 0) -> Optional[int]:
-    """Open CACHE_PATH with O_NOFOLLOW and verify the owning uid and file type.
+def _open_hardened_path(path: Path, flags: int, mode: int = 0) -> Optional[int]:
+    """Open `path` with O_NOFOLLOW and verify the owning uid and file type.
 
     Returns a live fd on success. Returns None — and closes any fd it
     opened — on a missing file, a symlinked path, an owner mismatch, a
-    non-regular file, or any other OSError (KTD8: CACHE_PATH is a fixed
-    name in the world-writable OS temp dir, so both the read and write
-    paths distrust a pre-existing file until its ownership and type are
-    confirmed).
+    non-regular file, or any other OSError (KTD8: a fixed name in a
+    directory this process doesn't otherwise control, so every caller
+    distrusts a pre-existing file until its ownership and type are
+    confirmed). Shared by CACHE_PATH's read/write paths and by
+    SECRET_PATH's approval-token secret.
 
-    O_NONBLOCK guards against a pre-planted FIFO at CACHE_PATH: without it,
+    O_NONBLOCK guards against a pre-planted FIFO at `path`: without it,
     open() on a FIFO with no reader/writer on the other end blocks the
     calling process indefinitely, before the checks below ever run. It has
     no effect on a regular file's open/read/write behavior. The uid check
@@ -321,7 +333,7 @@ def _open_cache_path(flags: int, mode: int = 0) -> Optional[int]:
     ownership alone, without needing to inspect its type.
     """
     try:
-        fd = os.open(CACHE_PATH, flags | os.O_NOFOLLOW | os.O_NONBLOCK, mode)
+        fd = os.open(path, flags | os.O_NOFOLLOW | os.O_NONBLOCK, mode)
     except OSError:
         return None
     try:
@@ -351,7 +363,7 @@ def load_cache(session_id: Optional[str]) -> dict[str, dict]:
     if not session_id:
         return {}
 
-    fd = _open_cache_path(os.O_RDONLY)
+    fd = _open_hardened_path(CACHE_PATH, os.O_RDONLY)
     if fd is None:
         return {}
 
@@ -394,13 +406,14 @@ def append_cache_entry(
     """Append one JSONL cache record for `session_id`. Never raises.
 
     Mirrors `log_decision`'s O_CREAT/0o600 pattern, plus the O_NOFOLLOW and
-    owning-uid check `_open_cache_path` performs (KTD8). Returns whether the
-    record actually landed — callers that report "remembered" to a human or
-    an audit log must check this rather than assume a fire-and-forget append
-    always succeeds.
+    owning-uid check `_open_hardened_path` performs (KTD8). Returns whether
+    the record actually landed — callers that report "remembered" to a
+    human or an audit log must check this rather than assume a
+    fire-and-forget append always succeeds.
     """
     existed = CACHE_PATH.exists()
-    fd = _open_cache_path(
+    fd = _open_hardened_path(
+        CACHE_PATH,
         os.O_WRONLY | os.O_APPEND | os.O_CREAT,
         0o600,
     )
@@ -416,6 +429,150 @@ def append_cache_entry(
         "cwd": str(cwd),
     }
     return _append_jsonl_record(CACHE_PATH, fd, existed, record)
+
+
+# ---------------------------------------------------------------------------
+# Approval tokens
+#
+# Closes findings #1 and #4 from the caching feature's code review: nothing
+# proved a `remember` call corresponded to a call a human actually saw via
+# a genuine PreToolUse `ask` prompt, and `remember`'s `session_id` argument
+# was trusted with no independent verification. A token minted by
+# `decide()` at the moment it emits the cacheable cue, and required (and
+# verified) by `cmd_remember` before it will write a cache entry, closes
+# both gaps at once: the token can only exist if a real `ask` decision
+# fired, and it binds session_id (plus cwd, rule, tool, input), so a forged
+# or mismatched value fails verification instead of being trusted outright.
+#
+# Stateless/self-verifying (HMAC-SHA256 + a short expiry embedded in the
+# signed payload), not a stateful "spent tokens" store: the token is
+# cryptographically bound to the exact call fields, so "replaying" it can
+# only re-write the same already-approved cache entry — no new privilege is
+# reachable that way — and a stateful store would itself become a second
+# unbounded, never-pruned file, echoing the exact growth problem finding #7
+# flags for the cache file. The expiry bounds how long a captured/leaked
+# token stays presentable at all.
+# ---------------------------------------------------------------------------
+
+# 5 minutes: long enough for the agent to relay the token to `remember` in
+# the same turn, short enough to bound a leaked-token replay window.
+_APPROVAL_TOKEN_TTL_SECONDS = 300
+
+
+def _load_or_create_secret() -> bytes:
+    """Load the per-install HMAC secret from SECRET_PATH, creating one on first use.
+
+    Lives at ~/.yapermission-secret (persistent, like LOG_PATH — see the
+    module-level comment above SECRET_PATH), hardened the same way
+    CACHE_PATH is (O_NOFOLLOW + owning-uid + regular-file checks via
+    `_open_hardened_path`, KTD8).
+
+    The create-on-first-use path uses O_EXCL so a race between two
+    processes can't have one silently overwrite the other's secret; the
+    loser of the race falls through to reading back whatever the winner
+    wrote. If every disk operation fails (unwritable home dir, hostile
+    pre-existing file that never passes the hardened-open checks), this
+    falls open to a process-local, non-persisted secret: tokens minted
+    under it simply won't verify in any other process invocation, which
+    degrades the caching feature to "always ask" — never to a bypass.
+    """
+    fd = _open_hardened_path(SECRET_PATH, os.O_RDONLY)
+    if fd is not None:
+        try:
+            with os.fdopen(fd, "rb") as f:
+                data = f.read()
+            if data:
+                return data
+        except OSError:
+            pass
+
+    secret = os.urandom(32)
+    try:
+        fd = os.open(
+            SECRET_PATH, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+        )
+        try:
+            os.write(fd, secret)
+        finally:
+            os.close(fd)
+        return secret
+    except OSError:
+        pass
+
+    fd = _open_hardened_path(SECRET_PATH, os.O_RDONLY)
+    if fd is not None:
+        try:
+            with os.fdopen(fd, "rb") as f:
+                data = f.read()
+            if data:
+                return data
+        except OSError:
+            pass
+
+    return secret
+
+
+def _approval_token_payload(
+    session_id: str, cwd: Any, rule_name: Any, tool_name: str, tool_input: dict
+) -> dict:
+    """Canonical field set both mint and verify sign/check identically."""
+    return {
+        "session_id": session_id,
+        "cwd": str(cwd),
+        "rule": rule_name,
+        "tool": tool_name,
+        "input": tool_input,
+    }
+
+
+def _mint_approval_token(
+    session_id: str, cwd: Any, rule_name: Any, tool_name: str, tool_input: dict
+) -> str:
+    """Mint a token proving this exact call reached a genuine `ask` decision.
+
+    Called from `decide()` only on the branch that already emits the
+    cacheable cue (a matched `[[ask]]` rule, `cacheable = true`, no cache
+    hit) — so minting itself is not the gap; the token's own integrity is.
+    """
+    payload = _approval_token_payload(session_id, cwd, rule_name, tool_name, tool_input)
+    payload["exp"] = int(time.time()) + _APPROVAL_TOKEN_TTL_SECONDS
+    canonical = json.dumps(payload, sort_keys=True, default=str).encode()
+    sig = hmac.new(_load_or_create_secret(), canonical, hashlib.sha256).hexdigest()
+    body = base64.urlsafe_b64encode(canonical).decode()
+    return f"{body}.{sig}"
+
+
+def _verify_approval_token(
+    token: str, session_id: str, cwd: Any, rule_name: Any, tool_name: str, tool_input: dict
+) -> bool:
+    """Verify `token` was genuinely minted for this exact call.
+
+    Called from `cmd_remember` before it is allowed to write a cache
+    entry. Never raises — any malformed, tampered, mismatched, or expired
+    token returns False, which `cmd_remember` treats as an ordinary
+    refusal (logged, non-zero exit), the same way it already treats a
+    non-'ask' resolution or a non-cacheable match.
+    """
+    if not token or "." not in token:
+        return False
+    body, _, sig = token.rpartition(".")
+    try:
+        canonical = base64.urlsafe_b64decode(body.encode())
+        payload = json.loads(canonical)
+    except (ValueError, json.JSONDecodeError):
+        return False
+    if not isinstance(payload, dict):
+        return False
+
+    expected_sig = hmac.new(_load_or_create_secret(), canonical, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected_sig):
+        return False
+
+    if not isinstance(payload.get("exp"), int) or payload["exp"] < int(time.time()):
+        return False
+
+    claimed = _approval_token_payload(session_id, cwd, rule_name, tool_name, tool_input)
+    return all(payload.get(field) == value for field, value in claimed.items())
 
 
 # ---------------------------------------------------------------------------
@@ -611,14 +768,16 @@ def cmd_explain(argv: list[str]) -> int:
 
 
 def cmd_remember(argv: list[str]) -> int:
-    if len(argv) != 3:
+    if len(argv) != 4:
         sys.stderr.write(
-            "usage: yapermission.py remember <session_id> <tool_name> <tool_input_json>\n"
-            'example: yapermission.py remember S1 Bash \'{"command":"deploy prod"}\'\n'
+            "usage: yapermission.py remember <session_id> <tool_name> "
+            "<tool_input_json> <token>\n"
+            'example: yapermission.py remember S1 Bash \'{"command":"deploy prod"}\' '
+            "<token from additionalContext>\n"
         )
         return 2
 
-    session_id, tool_name, tool_input_raw = argv
+    session_id, tool_name, tool_input_raw, token = argv
     try:
         tool_input = json.loads(tool_input_raw)
     except json.JSONDecodeError as exc:
@@ -691,6 +850,21 @@ def cmd_remember(argv: list[str]) -> int:
         return refuse(
             "matched rule has no 'name' — cacheable rules must be named",
             config_path=config_path,
+        )
+
+    # The token proves this exact call reached a genuine `ask` decision —
+    # cmd_remember's own decide() revalidation above proves the call
+    # *currently* resolves to a cacheable ask, but says nothing about
+    # whether a human ever actually saw it prompted. Verify against the
+    # same fields the token was minted over (decision.rule_name here, not
+    # the raw config-file rule the human might edit between mint and
+    # verify — matching what decide() actually signed).
+    if not _verify_approval_token(
+        token, session_id, cwd, decision.rule_name, tool_name, tool_input
+    ):
+        return refuse(
+            "invalid, expired, or mismatched approval token — refusing to cache",
+            config_path=config_path, rule_name=decision.rule_name,
         )
 
     if not append_cache_entry(

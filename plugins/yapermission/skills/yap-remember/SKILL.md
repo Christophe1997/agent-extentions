@@ -21,21 +21,23 @@ If either is missing, do not invoke this skill. If the human says no, or doesn't
 
 ## Process
 
-1. **Recover the session_id from the triggering call's `additionalContext` cue** — never from a guessed value or an environment variable. The cue looks like:
+1. **Recover the session_id and token from the triggering call's `additionalContext` cue** — never from a guessed value or an environment variable. The cue looks like:
 
-   > If this call proceeds to execute, the matched rule is cacheable: you may offer to remember this exact call for the rest of this session (session_id=abc123).
+   > If this call proceeds to execute, the matched rule is cacheable: you may offer to remember this exact call for the rest of this session. If the human explicitly says yes, invoke remember with session_id=abc123 and token=eyJz...a1b2c3.
 
-2. **Re-use the exact `tool_name` and `tool_input`** from the call that triggered the cue — not a paraphrase or a re-typed approximation. The cache key is an exact match on the call; a slightly different `tool_input` will simply never hit.
+   The token proves this exact call actually reached a genuine `ask` decision — it is not optional, and it cannot be reused for a different call, directory, or session.
 
-3. **Shell out to the engine's `remember` subcommand** (3 positional arguments — `session_id`, `tool_name`, `tool_input` JSON; there is no `rule_name` argument, the engine re-derives the matched rule itself via a live re-evaluation):
+2. **Re-use the exact `tool_name` and `tool_input`** from the call that triggered the cue — not a paraphrase or a re-typed approximation. The cache key is an exact match on the call; a slightly different `tool_input` will simply never hit. This also matters for the token: it only verifies against the exact fields it was minted for.
+
+3. **Shell out to the engine's `remember` subcommand** (4 positional arguments — `session_id`, `tool_name`, `tool_input` JSON, `token`; there is no `rule_name` argument, the engine re-derives the matched rule itself via a live re-evaluation):
 
    ```
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>'
+   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>' <token>
    ```
 
 4. **Report the result back to the human**:
    - Exit code `0`: relay the `remembered: rule '<name>' cached for session <id>` line — the human now knows this exact call won't prompt again this session.
-   - Non-zero exit code: relay the refusal reason from stderr verbatim (e.g. the rule lost its `cacheable` flag, resolves to something other than `ask` now, or the config failed to load). Do not retry silently — a refusal here means something changed since the cue was issued, and it deserves the human's attention, not a second silent attempt.
+   - Non-zero exit code: relay the refusal reason from stderr verbatim (e.g. the rule lost its `cacheable` flag, resolves to something other than `ask` now, the config failed to load, or the token is invalid/expired/mismatched). Do not retry silently — a refusal here means something changed since the cue was issued, and it deserves the human's attention, not a second silent attempt.
 
 ## Example Usage
 

@@ -130,6 +130,13 @@ class TestRuleMatches(unittest.TestCase):
 
 
 class TestDecide(unittest.TestCase):
+    def setUp(self):
+        # decide() mints an approval token whenever it emits the cacheable
+        # cue; fix the secret so tests never touch the real ~/.yapermission-secret.
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
+        )
+
     def test_empty_config_returns_ask(self):
         decision = yp.decide({}, "Bash", {"command": "git status"})
         self.assertEqual(decision.permission, "ask")
@@ -649,6 +656,135 @@ class TestCacheStore(unittest.TestCase):
         )
 
 
+class TestApprovalToken(unittest.TestCase):
+    """Contract for yapermission.py's HMAC approval-token scheme.
+
+    _mint_approval_token/_verify_approval_token close findings #1 and #4:
+    a `remember` call must present a token proving the exact call
+    (session_id, cwd, rule, tool, input) reached a genuine `ask` decision.
+    """
+
+    def setUp(self):
+        # Fix the secret so these tests never touch the real
+        # ~/.yapermission-secret and are deterministic across runs.
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
+        )
+
+    def _fields(self, **overrides):
+        base = dict(
+            session_id="S1",
+            cwd="/repo",
+            rule_name="deploy",
+            tool_name="Bash",
+            tool_input={"command": "deploy prod"},
+        )
+        base.update(overrides)
+        return base
+
+    def test_token_minted_for_a_call_verifies_true_for_the_same_call(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        self.assertTrue(yp._verify_approval_token(token, **fields))
+
+    def test_token_does_not_verify_for_a_different_session_id(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        self.assertFalse(
+            yp._verify_approval_token(token, **self._fields(session_id="S2"))
+        )
+
+    def test_token_does_not_verify_for_a_different_cwd(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        self.assertFalse(
+            yp._verify_approval_token(token, **self._fields(cwd="/other-repo"))
+        )
+
+    def test_token_does_not_verify_for_a_different_rule(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        self.assertFalse(
+            yp._verify_approval_token(token, **self._fields(rule_name="other-rule"))
+        )
+
+    def test_token_does_not_verify_for_a_different_tool_input(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        self.assertFalse(
+            yp._verify_approval_token(
+                token, **self._fields(tool_input={"command": "rm -rf /"})
+            )
+        )
+
+    def test_tampered_token_does_not_verify(self):
+        fields = self._fields()
+        token = yp._mint_approval_token(**fields)
+        tampered = token[:-1] + ("0" if token[-1:] != "0" else "1")
+        self.assertFalse(yp._verify_approval_token(tampered, **fields))
+
+    def test_empty_or_malformed_token_does_not_verify(self):
+        fields = self._fields()
+        self.assertFalse(yp._verify_approval_token("", **fields))
+        self.assertFalse(yp._verify_approval_token("not-a-real-token", **fields))
+
+    def test_expired_token_does_not_verify(self):
+        fields = self._fields()
+        with mock.patch("yapermission.time.time", return_value=1_000_000.0):
+            token = yp._mint_approval_token(**fields)
+        with mock.patch(
+            "yapermission.time.time",
+            return_value=1_000_000.0 + yp._APPROVAL_TOKEN_TTL_SECONDS + 1,
+        ):
+            self.assertFalse(yp._verify_approval_token(token, **fields))
+
+    def test_token_signed_under_a_different_secret_does_not_verify(self):
+        fields = self._fields()
+        with mock.patch.object(yp, "_load_or_create_secret", return_value=b"a" * 32):
+            token = yp._mint_approval_token(**fields)
+        with mock.patch.object(yp, "_load_or_create_secret", return_value=b"b" * 32):
+            self.assertFalse(yp._verify_approval_token(token, **fields))
+
+
+class TestApprovalSecret(unittest.TestCase):
+    """_load_or_create_secret persistence and hardening (KTD8-style)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir.cleanup)
+        self.tmp = Path(self._tmpdir.name)
+        self.enterContext(
+            mock.patch.object(yp, "SECRET_PATH", self.tmp / "secret")
+        )
+
+    def test_creates_and_persists_a_32_byte_secret(self):
+        secret = yp._load_or_create_secret()
+        self.assertEqual(len(secret), 32)
+        self.assertTrue(yp.SECRET_PATH.is_file())
+        mode = yp.SECRET_PATH.stat().st_mode & 0o777
+        self.assertEqual(mode, 0o600)
+
+    def test_second_call_returns_the_same_persisted_secret(self):
+        first = yp._load_or_create_secret()
+        second = yp._load_or_create_secret()
+        self.assertEqual(first, second)
+
+    def test_symlinked_secret_path_is_refused(self):
+        target = self.tmp / "target"
+        target.write_bytes(b"x" * 32)
+        link = self.tmp / "secret"
+        link.symlink_to(target)
+        yp.SECRET_PATH = link
+
+        # A hostile pre-existing symlink must not be trusted as the real
+        # secret, and must not be overwritten either — the O_EXCL create
+        # path only fires when the read side found nothing trustworthy,
+        # and O_NOFOLLOW makes that create fail closed on a symlink too.
+        secret = yp._load_or_create_secret()
+        self.assertEqual(len(secret), 32)
+        self.assertNotEqual(secret, b"x" * 32)
+
+
 class TestEmitHookOutput(unittest.TestCase):
     def _capture(self, decision):
         buf = io.StringIO()
@@ -680,6 +816,9 @@ class TestCmdHook(unittest.TestCase):
         self.tmp = Path(self._tmpdir.name)
         self.enterContext(
             mock.patch.object(yp, "CACHE_PATH", self.tmp / "yapermission-cache.jsonl")
+        )
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
         )
 
     def _run_hook(self, event):
@@ -755,6 +894,9 @@ class TestCmdExplain(unittest.TestCase):
         )
         self.enterContext(
             mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
+        )
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
         )
         self.project_dir = self.tmp / "project"
         self.project_dir.mkdir()
@@ -874,6 +1016,9 @@ class TestRemember(unittest.TestCase):
         self.enterContext(
             mock.patch.object(yp, "GLOBAL_CONFIG", self.tmp / "global" / ".yapermission.toml")
         )
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
+        )
         self.project_dir = self.tmp / "project"
         self.project_dir.mkdir()
 
@@ -893,11 +1038,20 @@ class TestRemember(unittest.TestCase):
             rc = yp.cmd_remember(argv)
         return rc, stdout.getvalue(), stderr.getvalue(), mock_log
 
+    def _token(self, session_id="S1", tool_name="Bash", tool_input=None, rule_name="deploy", cwd=None):
+        return yp._mint_approval_token(
+            session_id,
+            cwd if cwd is not None else str(self.project_dir),
+            rule_name,
+            tool_name,
+            tool_input if tool_input is not None else {"command": "deploy prod"},
+        )
+
     def test_successful_remember_persists_cache_entry_and_logs_grant(self):
         config_path = self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), self._token()]
         )
 
         self.assertEqual(rc, 0)
@@ -923,7 +1077,7 @@ class TestRemember(unittest.TestCase):
 
         with mock.patch("yapermission.append_cache_entry", return_value=False):
             rc, stdout, stderr, mock_log = self._remember(
-                ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+                ["S1", "Bash", json.dumps({"command": "deploy prod"}), self._token()]
             )
 
         self.assertNotEqual(rc, 0)
@@ -943,7 +1097,7 @@ class TestRemember(unittest.TestCase):
         )
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -963,7 +1117,7 @@ class TestRemember(unittest.TestCase):
         )
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -979,7 +1133,7 @@ class TestRemember(unittest.TestCase):
         )
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -990,7 +1144,7 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml(cacheable=False))
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1004,7 +1158,7 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml(named=False))
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1031,7 +1185,7 @@ class TestRemember(unittest.TestCase):
         )
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1041,7 +1195,7 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "rm -rf /"})]
+            ["S1", "Bash", json.dumps({"command": "rm -rf /"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1057,7 +1211,7 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml())
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["", "Bash", json.dumps({"command": "deploy prod"})]
+            ["", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1066,7 +1220,7 @@ class TestRemember(unittest.TestCase):
 
     def test_no_active_config_refuses(self):
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
@@ -1078,15 +1232,36 @@ class TestRemember(unittest.TestCase):
         self._write_config("this is not [valid toml\n")
 
         rc, stdout, stderr, mock_log = self._remember(
-            ["S1", "Bash", json.dumps({"command": "deploy prod"})]
+            ["S1", "Bash", json.dumps({"command": "deploy prod"}), "dummy-token"]
         )
 
         self.assertNotEqual(rc, 0)
         self.assertEqual(yp.load_cache("S1"), {})
         self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
 
+    def test_invalid_approval_token_refuses(self):
+        # Even a call that fully revalidates (real ask+cacheable+named rule)
+        # must not be granted with a wrong, expired, or missing token — the
+        # token is what actually proves a human saw this call prompted.
+        self._write_config(_cacheable_deploy_toml())
+
+        for bad_token in ("wrong-token", self._token(session_id="S2"), ""):
+            with self.subTest(bad_token=bad_token):
+                rc, stdout, stderr, mock_log = self._remember(
+                    ["S1", "Bash", json.dumps({"command": "deploy prod"}), bad_token]
+                )
+                self.assertNotEqual(rc, 0)
+                self.assertEqual(yp.load_cache("S1"), {})
+                self.assertEqual(mock_log.call_args[0][0]["event"], "remember-refused")
+
     def test_bad_usage_wrong_arg_count_exits_2(self):
-        for argv in ([], ["S1"], ["S1", "Bash"], ["S1", "Bash", "{}", "extra"]):
+        for argv in (
+            [],
+            ["S1"],
+            ["S1", "Bash"],
+            ["S1", "Bash", "{}"],
+            ["S1", "Bash", "{}", "token", "extra"],
+        ):
             with self.subTest(argv=argv):
                 rc, stdout, stderr, mock_log = self._remember(argv)
                 self.assertEqual(rc, 2)
@@ -1094,7 +1269,9 @@ class TestRemember(unittest.TestCase):
                 mock_log.assert_not_called()
 
     def test_invalid_tool_input_json_exits_2(self):
-        rc, stdout, stderr, mock_log = self._remember(["S1", "Bash", "{not valid json"])
+        rc, stdout, stderr, mock_log = self._remember(
+            ["S1", "Bash", "{not valid json", "dummy-token"]
+        )
 
         self.assertEqual(rc, 2)
         mock_log.assert_not_called()
@@ -1108,7 +1285,9 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml())
         for payload in ("[1, 2]", '"deploy prod"'):
             with self.subTest(payload=payload):
-                rc, stdout, stderr, mock_log = self._remember(["S1", "Bash", payload])
+                rc, stdout, stderr, mock_log = self._remember(
+                    ["S1", "Bash", payload, "dummy-token"]
+                )
                 self.assertEqual(rc, 2)
                 mock_log.assert_not_called()
 
@@ -1120,7 +1299,9 @@ class TestRemember(unittest.TestCase):
         self._write_config(_cacheable_deploy_toml())
         tool_input = {"command": "deploy prod"}
 
-        rc, *_ = self._remember(["S1", "Bash", json.dumps(tool_input)])
+        rc, *_ = self._remember(
+            ["S1", "Bash", json.dumps(tool_input), self._token(tool_input=tool_input)]
+        )
         self.assertEqual(rc, 0)
 
         event = {
@@ -1151,7 +1332,9 @@ class TestRemember(unittest.TestCase):
         yp.GLOBAL_CONFIG.write_text(_cacheable_deploy_toml())
         tool_input = {"command": "deploy prod"}
 
-        rc, *_ = self._remember(["S1", "Bash", json.dumps(tool_input)])
+        rc, *_ = self._remember(
+            ["S1", "Bash", json.dumps(tool_input), self._token(tool_input=tool_input)]
+        )
         self.assertEqual(rc, 0)
 
         other_dir = self.tmp / "other-project"
