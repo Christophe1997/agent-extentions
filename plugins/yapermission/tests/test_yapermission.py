@@ -272,7 +272,7 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.rule_name, "deploy")
 
     def test_cacheable_ask_rule_cache_hit_resolves_to_allow(self):
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml", "/repo")
         cache = {key: {"rule_name": "deploy"}}
         decision = yp.decide(
             self._cacheable_ask_config(),
@@ -280,6 +280,7 @@ class TestDecide(unittest.TestCase):
             {"command": "deploy prod"},
             cache=cache,
             config_path="/cfg.toml",
+            cwd="/repo",
         )
         self.assertEqual(decision.permission, "allow")
         self.assertEqual(decision.rule_name, "deploy")
@@ -288,7 +289,7 @@ class TestDecide(unittest.TestCase):
     def test_deny_rule_beats_a_matching_cache_entry(self):
         config = self._cacheable_ask_config()
         config["deny"] = [{"name": "blocked", "tool": "Bash", "matches": [{}]}]
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml", "/repo")
         cache = {key: {"rule_name": "deploy"}}
         decision = yp.decide(
             config,
@@ -296,6 +297,7 @@ class TestDecide(unittest.TestCase):
             {"command": "deploy prod"},
             cache=cache,
             config_path="/cfg.toml",
+            cwd="/repo",
         )
         self.assertEqual(decision.permission, "deny")
         self.assertEqual(decision.rule_name, "blocked")
@@ -309,7 +311,7 @@ class TestDecide(unittest.TestCase):
                 {"name": "deploy", "tool": "Bash", "matches": [{"command": "^deploy"}]}
             ]
         }
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml", "/repo")
         cache = {key: {"rule_name": "deploy"}}
         decision = yp.decide(
             config,
@@ -317,6 +319,7 @@ class TestDecide(unittest.TestCase):
             {"command": "deploy prod"},
             cache=cache,
             config_path="/cfg.toml",
+            cwd="/repo",
         )
         self.assertEqual(decision.permission, "ask")
         self.assertEqual(decision.rule_name, "deploy")
@@ -324,7 +327,7 @@ class TestDecide(unittest.TestCase):
 
     def test_cache_entry_stops_hitting_once_rule_removed_from_config(self):
         config = {"default": "deny", "ask": []}
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml")
+        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, "/cfg.toml", "/repo")
         cache = {key: {"rule_name": "deploy"}}
         decision = yp.decide(
             config,
@@ -332,6 +335,7 @@ class TestDecide(unittest.TestCase):
             {"command": "deploy prod"},
             cache=cache,
             config_path="/cfg.toml",
+            cwd="/repo",
         )
         # No rule matches at all now, so evaluation falls through to the
         # top-level default rather than granting a stray cache hit.
@@ -441,18 +445,22 @@ class TestCacheStore(unittest.TestCase):
         )
 
     def test_round_trip(self):
-        yp.append_cache_entry("S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+        yp.append_cache_entry(
+            "S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml", "/repo"
+        )
 
         cache = yp.load_cache("S1")
 
-        key = yp.cache_key("my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+        key = yp.cache_key("my-rule", "Bash", {"command": "git push"}, "/cfg.toml", "/repo")
         self.assertIn(key, cache)
         self.assertEqual(cache[key]["rule_name"], "my-rule")
         self.assertEqual(cache[key]["tool_name"], "Bash")
         self.assertEqual(cache[key]["tool_input"], {"command": "git push"})
 
     def test_cross_session_miss(self):
-        yp.append_cache_entry("S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml")
+        yp.append_cache_entry(
+            "S1", "my-rule", "Bash", {"command": "git push"}, "/cfg.toml", "/repo"
+        )
 
         self.assertEqual(yp.load_cache("S2"), {})
 
@@ -460,11 +468,11 @@ class TestCacheStore(unittest.TestCase):
         self.assertEqual(yp.load_cache("S1"), {})
 
     def test_load_cache_skips_corrupt_and_non_object_lines(self):
-        yp.append_cache_entry("S1", "rule-a", "Bash", {"command": "a"}, "/cfg.toml")
+        yp.append_cache_entry("S1", "rule-a", "Bash", {"command": "a"}, "/cfg.toml", "/repo")
         with yp.CACHE_PATH.open("a") as f:
             f.write("not valid json\n")
             f.write("[1, 2]\n")  # valid JSON, but not a record object
-        yp.append_cache_entry("S1", "rule-b", "Bash", {"command": "b"}, "/cfg.toml")
+        yp.append_cache_entry("S1", "rule-b", "Bash", {"command": "b"}, "/cfg.toml", "/repo")
 
         cache = yp.load_cache("S1")
 
@@ -473,37 +481,52 @@ class TestCacheStore(unittest.TestCase):
     def test_cache_key_accepts_path_or_str_config_path_equivalently(self):
         # active_config_path() returns a Path; stored records round-trip
         # through str(). Both must resolve to the same key.
-        k_path = yp.cache_key("r", "Bash", {"command": "x"}, Path("/a/b/.yapermission.toml"))
-        k_str = yp.cache_key("r", "Bash", {"command": "x"}, "/a/b/.yapermission.toml")
+        k_path = yp.cache_key(
+            "r", "Bash", {"command": "x"}, Path("/a/b/.yapermission.toml"), "/repo"
+        )
+        k_str = yp.cache_key("r", "Bash", {"command": "x"}, "/a/b/.yapermission.toml", "/repo")
         self.assertEqual(k_path, k_str)
 
     def test_cache_key_is_stable_regardless_of_field_insertion_order(self):
-        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "2"}, "/cfg.toml")
-        k2 = yp.cache_key("r", "Bash", {"b": "2", "a": "1"}, "/cfg.toml")
+        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "2"}, "/cfg.toml", "/repo")
+        k2 = yp.cache_key("r", "Bash", {"b": "2", "a": "1"}, "/cfg.toml", "/repo")
         self.assertEqual(k1, k2)
 
     def test_append_creates_file_with_0600_permissions(self):
-        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
         mode = yp.CACHE_PATH.stat().st_mode & 0o777
         self.assertEqual(mode, 0o600)
 
     def test_cache_key_differs_for_naive_concatenation_collision(self):
         # "1"+"23" and "12"+"3" would collide under naive string concatenation.
-        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "23"}, "/cfg.toml")
-        k2 = yp.cache_key("r", "Bash", {"a": "12", "b": "3"}, "/cfg.toml")
+        k1 = yp.cache_key("r", "Bash", {"a": "1", "b": "23"}, "/cfg.toml", "/repo")
+        k2 = yp.cache_key("r", "Bash", {"a": "12", "b": "3"}, "/cfg.toml", "/repo")
         self.assertNotEqual(k1, k2)
 
     def test_cache_key_differs_for_swapped_field_values(self):
         # Same values, swapped across keys — a naive per-value join wouldn't
         # necessarily distinguish which field order produced the string.
-        k1 = yp.cache_key("r", "Bash", {"command": "foo", "path": "bar"}, "/cfg.toml")
-        k2 = yp.cache_key("r", "Bash", {"command": "bar", "path": "foo"}, "/cfg.toml")
+        k1 = yp.cache_key("r", "Bash", {"command": "foo", "path": "bar"}, "/cfg.toml", "/repo")
+        k2 = yp.cache_key("r", "Bash", {"command": "bar", "path": "foo"}, "/cfg.toml", "/repo")
         self.assertNotEqual(k1, k2)
 
     def test_cache_key_differs_for_config_path(self):
-        k1 = yp.cache_key("r", "Bash", {"command": "x"}, "/project-a/.yapermission.toml")
-        k2 = yp.cache_key("r", "Bash", {"command": "x"}, "/project-b/.yapermission.toml")
+        k1 = yp.cache_key(
+            "r", "Bash", {"command": "x"}, "/project-a/.yapermission.toml", "/repo"
+        )
+        k2 = yp.cache_key(
+            "r", "Bash", {"command": "x"}, "/project-b/.yapermission.toml", "/repo"
+        )
+        self.assertNotEqual(k1, k2)
+
+    def test_cache_key_differs_for_cwd(self):
+        # A shared (e.g. global) config_path must not let two different
+        # calling directories collide onto the same cache key — the key
+        # must scope on *where* the call ran, not just *which* config it
+        # ran under.
+        k1 = yp.cache_key("r", "Bash", {"command": "x"}, "/cfg.toml", "/project-a")
+        k2 = yp.cache_key("r", "Bash", {"command": "x"}, "/cfg.toml", "/project-b")
         self.assertNotEqual(k1, k2)
 
     def test_append_refuses_when_cache_path_is_symlink(self):
@@ -513,7 +536,7 @@ class TestCacheStore(unittest.TestCase):
         link.symlink_to(target)
         yp.CACHE_PATH = link
 
-        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
         self.assertEqual(target.read_text(), "")
 
@@ -522,7 +545,7 @@ class TestCacheStore(unittest.TestCase):
             st_uid = os.getuid() + 1
 
         with mock.patch("yapermission.os.fstat", return_value=_WrongOwner()):
-            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
         self.assertEqual(yp.load_cache("S1"), {})
 
@@ -547,7 +570,7 @@ class TestCacheStore(unittest.TestCase):
         self.assertEqual(yp.load_cache("S1"), {})
 
     def test_load_cache_fails_open_when_owning_uid_mismatches(self):
-        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml")
+        yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo")
 
         class _WrongOwner:
             st_uid = os.getuid() + 1
@@ -602,14 +625,14 @@ class TestCacheStore(unittest.TestCase):
         os.mkfifo(yp.CACHE_PATH)
 
         result = self._call_with_timeout(
-            yp.append_cache_entry, "S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"
+            yp.append_cache_entry, "S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo"
         )
 
         self.assertIs(result, False)
 
     def test_append_cache_entry_returns_true_on_success(self):
         self.assertIs(
-            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"),
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo"),
             True,
         )
 
@@ -621,7 +644,7 @@ class TestCacheStore(unittest.TestCase):
         yp.CACHE_PATH = link
 
         self.assertIs(
-            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml"),
+            yp.append_cache_entry("S1", "rule", "Bash", {"command": "x"}, "/cfg.toml", "/repo"),
             False,
         )
 
@@ -678,7 +701,7 @@ class TestCmdHook(unittest.TestCase):
         project_dir.mkdir()
         config_path = self._write_cacheable_ask_config(project_dir)
         yp.append_cache_entry(
-            "S1", "deploy", "Bash", {"command": "deploy prod"}, str(config_path)
+            "S1", "deploy", "Bash", {"command": "deploy prod"}, str(config_path), str(project_dir)
         )
 
         event = {
@@ -755,7 +778,8 @@ class TestCmdExplain(unittest.TestCase):
     def test_session_given_with_cache_hit_reports_hit_alongside_trace(self):
         config_path = self._write_cacheable_ask_config()
         yp.append_cache_entry(
-            "S1", "deploy", "Bash", {"command": "deploy prod"}, str(config_path)
+            "S1", "deploy", "Bash", {"command": "deploy prod"},
+            str(config_path), str(self.project_dir),
         )
 
         rc, stdout, stderr = self._explain(
@@ -880,7 +904,9 @@ class TestRemember(unittest.TestCase):
         self.assertIn("deploy", stdout)
 
         cache = yp.load_cache("S1")
-        key = yp.cache_key("deploy", "Bash", {"command": "deploy prod"}, config_path)
+        key = yp.cache_key(
+            "deploy", "Bash", {"command": "deploy prod"}, config_path, str(self.project_dir)
+        )
         self.assertIn(key, cache)
         self.assertEqual(cache[key]["rule_name"], "deploy")
 
@@ -1115,6 +1141,38 @@ class TestRemember(unittest.TestCase):
         record = mock_log.call_args[0][0]
         self.assertEqual(record["source"], "cache")
         self.assertEqual(record["rule"], "deploy")
+
+    def test_remembered_call_does_not_hit_cache_from_a_different_cwd(self):
+        # Regression guard for the global-config cross-project bleed: two
+        # directories sharing the same (global) config_path, same rule, and
+        # the identical tool_input must NOT share a cache entry — only the
+        # directory the human actually approved from should get the hit.
+        yp.GLOBAL_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        yp.GLOBAL_CONFIG.write_text(_cacheable_deploy_toml())
+        tool_input = {"command": "deploy prod"}
+
+        rc, *_ = self._remember(["S1", "Bash", json.dumps(tool_input)])
+        self.assertEqual(rc, 0)
+
+        other_dir = self.tmp / "other-project"
+        other_dir.mkdir()
+        event = {
+            "session_id": "S1",
+            "tool_name": "Bash",
+            "tool_input": tool_input,
+            "cwd": str(other_dir),
+        }
+        stdin = io.StringIO(json.dumps(event))
+        stdout = io.StringIO()
+        with mock.patch("yapermission.sys.stdin", stdin), mock.patch(
+            "yapermission.sys.stdout", stdout
+        ), mock.patch("yapermission.log_decision") as mock_log:
+            yp.cmd_hook()
+        output = json.loads(stdout.getvalue())
+
+        self.assertEqual(output["hookSpecificOutput"]["permissionDecision"], "ask")
+        record = mock_log.call_args[0][0]
+        self.assertNotIn("source", record)
 
 
 if __name__ == "__main__":

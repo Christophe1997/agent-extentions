@@ -143,6 +143,7 @@ def decide(
     cache: Optional[dict] = None,
     config_path: Any = None,
     session_id: Optional[str] = None,
+    cwd: Optional[str] = None,
 ) -> Decision:
     """Evaluate rule groups in `_RULE_GROUPS` order; return the resulting Decision.
 
@@ -170,7 +171,7 @@ def decide(
             cacheable = group_key == "ask" and rule.get("cacheable") is True
 
             if cacheable and cache:
-                key = cache_key(rule.get("name"), tool_name, tool_input, config_path)
+                key = cache_key(rule.get("name"), tool_name, tool_input, config_path, cwd)
                 if key in cache:
                     trace.append(f"cache hit for rule '{name}' — resolving to allow")
                     return Decision(
@@ -276,19 +277,26 @@ def log_decision(record: dict) -> None:
 # (KTD2, KTD3, KTD7, KTD8) for the design rationale.
 # ---------------------------------------------------------------------------
 
-def cache_key(rule_name: Any, tool_name: Any, tool_input: Any, config_path: Any) -> str:
-    """Canonical-JSON hash identifying one (rule, call, config) triple.
+def cache_key(rule_name: Any, tool_name: Any, tool_input: Any, config_path: Any, cwd: Any) -> str:
+    """Canonical-JSON hash identifying one (rule, call, config, cwd) tuple.
 
     Sorted-key JSON, not concatenation (KTD7): the key gates a silent
     `allow`, so an ambiguous encoding would be a bypass vector — a crafted
     `tool_input` could otherwise collide with a different rule's or tool's
     key.
+
+    `cwd` is required, not folded into `config_path`, because a shared
+    (e.g. global) config gives every project directory the identical
+    `config_path` string — without `cwd` in the key, approving a relative
+    command in one project would cache-hit the same command in every other
+    project using that config.
     """
     payload = {
         "rule": rule_name,
         "tool": tool_name,
         "input": tool_input,
         "config": str(config_path),
+        "cwd": str(cwd),
     }
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode()
@@ -367,6 +375,7 @@ def load_cache(session_id: Optional[str]) -> dict[str, dict]:
                     record.get("tool_name"),
                     record.get("tool_input"),
                     record.get("config_path"),
+                    record.get("cwd"),
                 )
                 entries[key] = record
     except OSError:
@@ -380,6 +389,7 @@ def append_cache_entry(
     tool_name: str,
     tool_input: dict,
     config_path: Any,
+    cwd: Any,
 ) -> bool:
     """Append one JSONL cache record for `session_id`. Never raises.
 
@@ -403,6 +413,7 @@ def append_cache_entry(
         "tool_name": tool_name,
         "tool_input": tool_input,
         "config_path": str(config_path),
+        "cwd": str(cwd),
     }
     return _append_jsonl_record(CACHE_PATH, fd, existed, record)
 
@@ -468,6 +479,7 @@ def cmd_hook() -> int:
             cache=cache,
             config_path=config_path,
             session_id=session_id,
+            cwd=cwd,
         )
     except Exception as exc:
         log_decision({
@@ -574,7 +586,13 @@ def cmd_explain(argv: list[str]) -> int:
     has_cacheable = any(r.get("cacheable") is True for r in config.get("ask") or [])
     cache = load_cache(session_id) if has_cacheable else {}
     decision = decide(
-        config, tool_name, tool_input, cache=cache, config_path=config_path, session_id=session_id
+        config,
+        tool_name,
+        tool_input,
+        cache=cache,
+        config_path=config_path,
+        session_id=session_id,
+        cwd=cwd,
     )
     print(f"tool:   {tool_name}")
     print(f"input:  {json.dumps(tool_input)}")
@@ -643,7 +661,9 @@ def cmd_remember(argv: list[str]) -> int:
     # pre-existing cache hit — otherwise a repeat `remember` for an
     # already-cached call would resolve to "allow" and skip the cacheable
     # check entirely.
-    decision = decide(config, tool_name, tool_input, cache={}, config_path=config_path)
+    decision = decide(
+        config, tool_name, tool_input, cache={}, config_path=config_path, cwd=cwd
+    )
 
     if decision.permission != "ask":
         return refuse(
@@ -674,7 +694,7 @@ def cmd_remember(argv: list[str]) -> int:
         )
 
     if not append_cache_entry(
-        session_id, decision.rule_name, tool_name, tool_input, config_path
+        session_id, decision.rule_name, tool_name, tool_input, config_path, cwd
     ):
         return refuse(
             "failed to persist cache entry — refusing to report success",
