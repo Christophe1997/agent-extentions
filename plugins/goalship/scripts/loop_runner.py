@@ -236,3 +236,116 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
         trunk_branch=trunk_branch,
         failures=failures,
     )
+
+
+# ---------------------------------------------------------------------------
+# Branch operations (KTD3, KTD4, R4, R5, R8).
+#
+# Every operation below is additive-only: create a branch, commit, push,
+# reset a branch this script itself created back to a clean base. There is
+# no merge, approve, force-push, arbitrary branch-delete, or publish code
+# path anywhere in this module (R8) — asserted directly against the source
+# in tests/test_branching.py, not just documented here.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class DependencyPR:
+    """A predecessor ticket's linked PR, as recorded in its closing note (R5)."""
+    ticket_id: str
+    branch: str
+    state: str  # "open" | "merged" | "closed"
+
+
+def resolve_branch_base(trunk_branch: str, dependency_prs: list) -> str:
+    """Dependency-aware branch model (Product Contract Key Decision, R4/R6):
+    trunk by default; a single still-open predecessor's branch when exactly
+    one predecessor has an open PR; trunk on fan-in (two or more
+    simultaneously open predecessors) or when no predecessor has an open PR
+    (merged, closed, or no dependencies at all) — git supports only one base
+    per branch, and trunk is the only base every predecessor's eventual
+    merge converges on.
+    """
+    open_preds = [d for d in dependency_prs if d.state == "open"]
+    if len(open_preds) == 1:
+        return open_preds[0].branch
+    return trunk_branch
+
+
+def slugify(text: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return re.sub(r"-{2,}", "-", slug)
+
+
+def _all_branch_names(repo_root: Path) -> set:
+    """Local branch names plus origin/* remote-tracking branch names,
+    short-formed — so a branch that exists only on origin (e.g. left by a
+    prior run) still counts as taken."""
+    result = subprocess.run(
+        ["git", "branch", "-a", "--format=%(refname:short)"],
+        cwd=repo_root, capture_output=True, text=True, check=True,
+    )
+    names = set()
+    for line in result.stdout.splitlines():
+        name = line.strip()
+        if name.startswith("origin/"):
+            name = name[len("origin/"):]
+        if name and name != "HEAD":
+            names.add(name)
+    return names
+
+
+def branch_name_for_ticket(repo_root: Path, ticket_type: str, title: str) -> str:
+    """`<type>/<slug>`, with a numeric collision suffix checked against
+    local and origin/ refs (KTD3)."""
+    base = f"{ticket_type}/{slugify(title)}"
+    existing = _all_branch_names(Path(repo_root))
+    if base not in existing:
+        return base
+    suffix = 2
+    while f"{base}-{suffix}" in existing:
+        suffix += 1
+    return f"{base}-{suffix}"
+
+
+def create_branch(repo_root: Path, branch_name: str, base_ref: str) -> None:
+    """Create branch_name off base_ref and check it out. Called at claim
+    time, before implementation starts (KTD4), so a crash mid-implementation
+    never leaves work sitting on trunk."""
+    subprocess.run(
+        ["git", "checkout", "-b", branch_name, base_ref],
+        cwd=repo_root, check=True, capture_output=True,
+    )
+
+
+def commit_all(repo_root: Path, message: str) -> str:
+    """Stage everything and commit; returns the new head SHA."""
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", message], cwd=repo_root, check=True, capture_output=True)
+    return head_sha(repo_root)
+
+
+def push_branch(repo_root: Path, branch_name: str) -> None:
+    """Push branch_name and set it to track origin. Never force."""
+    subprocess.run(
+        ["git", "push", "-u", "origin", branch_name],
+        cwd=repo_root, check=True, capture_output=True,
+    )
+
+
+def head_sha(repo_root: Path) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root, capture_output=True, text=True, check=True,
+    )
+    return result.stdout.strip()
+
+
+def reset_to_clean_base(repo_root: Path, base_branch: str) -> None:
+    """Abort cleanup (KTD4): on a gate failure or interruption, return to a
+    clean checkout of base_branch (trunk, or a stacked ticket's parent
+    branch) before the loop claims its next ticket. Resets and cleans only
+    the working tree the script itself was using for the aborted ticket's
+    branch — it never deletes that branch."""
+    subprocess.run(["git", "checkout", base_branch], cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(["git", "clean", "-fd"], cwd=repo_root, check=True, capture_output=True)

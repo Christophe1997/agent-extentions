@@ -1,0 +1,204 @@
+"""Tests for goalship's branch operations and dependency-aware branching
+(R4, R5, R8; KTD3, KTD4, and the Product Contract's dependency-aware
+branch model Key Decision).
+
+Run from the repo root:
+    python3 -m pytest plugins/goalship/tests/test_branching.py -v
+"""
+from __future__ import annotations
+
+import ast
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+_SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
+sys.path.insert(0, str(_SCRIPTS))
+import loop_runner as lr  # noqa: E402
+
+
+def _run(args, cwd):
+    subprocess.run(args, cwd=cwd, check=True, capture_output=True)
+
+
+class BranchingTestCase(unittest.TestCase):
+    """A repo_root clone of a bare `origin`, with an initial commit on main."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.bare_dir = root / "origin.git"
+        self.repo_root = root / "work"
+        self.repo_root.mkdir()
+
+        _run(["git", "init", "-q", "--bare", str(self.bare_dir)], root)
+        _run(["git", "init", "-q"], self.repo_root)
+        _run(["git", "config", "user.email", "test@example.com"], self.repo_root)
+        _run(["git", "config", "user.name", "Test"], self.repo_root)
+        (self.repo_root / "README.md").write_text("placeholder\n")
+        _run(["git", "add", "README.md"], self.repo_root)
+        _run(["git", "commit", "-q", "-m", "init"], self.repo_root)
+        _run(["git", "branch", "-m", "main"], self.repo_root)
+        _run(["git", "remote", "add", "origin", str(self.bare_dir)], self.repo_root)
+        _run(["git", "push", "-q", "-u", "origin", "main"], self.repo_root)
+        _run(["git", "fetch", "-q", "origin"], self.repo_root)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _local_branches(self):
+        result = subprocess.run(
+            ["git", "branch", "--format=%(refname:short)"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        )
+        return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+class TestResolveBranchBase(unittest.TestCase):
+    """Pure decision logic — the dependency-aware branch model Key Decision."""
+
+    def test_no_dependencies_uses_trunk(self):
+        self.assertEqual(lr.resolve_branch_base("main", []), "main")
+
+    def test_single_open_dependency_uses_its_branch(self):
+        deps = [lr.DependencyPR(ticket_id="T-1", branch="feat/dep-a", state="open")]
+        self.assertEqual(lr.resolve_branch_base("main", deps), "feat/dep-a")
+
+    def test_merged_dependency_uses_trunk_not_stale_branch(self):
+        deps = [lr.DependencyPR(ticket_id="T-1", branch="feat/dep-a", state="merged")]
+        self.assertEqual(lr.resolve_branch_base("main", deps), "main")
+
+    def test_closed_unmerged_dependency_uses_trunk(self):
+        deps = [lr.DependencyPR(ticket_id="T-1", branch="feat/dep-a", state="closed")]
+        self.assertEqual(lr.resolve_branch_base("main", deps), "main")
+
+    def test_fan_in_two_simultaneously_open_dependencies_uses_trunk(self):
+        deps = [
+            lr.DependencyPR(ticket_id="T-1", branch="feat/dep-a", state="open"),
+            lr.DependencyPR(ticket_id="T-2", branch="feat/dep-b", state="open"),
+        ]
+        self.assertEqual(lr.resolve_branch_base("main", deps), "main")
+
+
+class TestBranchNaming(BranchingTestCase):
+    def test_slugifies_type_and_title(self):
+        name = lr.branch_name_for_ticket(self.repo_root, "feat", "Add input validation!")
+        self.assertEqual(name, "feat/add-input-validation")
+
+    def test_collision_applies_numeric_suffix(self):
+        first = lr.branch_name_for_ticket(self.repo_root, "feat", "Add login form")
+        lr.create_branch(self.repo_root, first, "origin/main")
+
+        second = lr.branch_name_for_ticket(self.repo_root, "feat", "Add login form")
+        self.assertNotEqual(first, second)
+        self.assertEqual(second, f"{first}-2")
+
+    def test_collision_checked_against_remote_refs_too(self):
+        # A branch that exists only on origin (e.g. from a prior run) must
+        # still be treated as taken.
+        _run(["git", "checkout", "-b", "feat/existing-remote-only"], self.repo_root)
+        _run(["git", "push", "-q", "-u", "origin", "feat/existing-remote-only"], self.repo_root)
+        _run(["git", "checkout", "main"], self.repo_root)
+        _run(["git", "branch", "-D", "feat/existing-remote-only"], self.repo_root)
+        _run(["git", "fetch", "-q", "origin"], self.repo_root)
+
+        name = lr.branch_name_for_ticket(self.repo_root, "feat", "existing remote only")
+        self.assertEqual(name, "feat/existing-remote-only-2")
+
+
+class TestBranchLifecycle(BranchingTestCase):
+    def test_create_branch_off_trunk(self):
+        lr.create_branch(self.repo_root, "feat/off-trunk", "origin/main")
+        result = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=self.repo_root,
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(result.stdout.strip(), "feat/off-trunk")
+
+    def test_commit_and_push(self):
+        lr.create_branch(self.repo_root, "feat/ship-me", "origin/main")
+        (self.repo_root / "new-file.txt").write_text("content\n")
+        sha = lr.commit_all(self.repo_root, "feat: add new-file")
+        self.assertTrue(sha)
+        lr.push_branch(self.repo_root, "feat/ship-me")
+
+        remote_log = subprocess.run(
+            ["git", "log", "-1", "--format=%H", "origin/feat/ship-me"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(remote_log.stdout.strip(), sha)
+
+    def test_gate_failure_resets_working_tree_to_clean_trunk(self):
+        lr.create_branch(self.repo_root, "feat/will-fail", "origin/main")
+        (self.repo_root / "half-done.txt").write_text("broken\n")
+        self.assertNotEqual(lr.dirty_paths(self.repo_root), [])
+
+        lr.reset_to_clean_base(self.repo_root, "main")
+
+        current = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=self.repo_root,
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(current.stdout.strip(), "main")
+        self.assertEqual(lr.dirty_paths(self.repo_root), [])
+        self.assertFalse((self.repo_root / "half-done.txt").exists())
+
+
+class TestNoDestructiveOperations(unittest.TestCase):
+    """R8: the script exposes no merge, approve, force-push, arbitrary
+    branch-delete, or publish code path. Asserted against the actual
+    source, not just documented behavior."""
+
+    FORBIDDEN_FUNCTION_SUBSTRINGS = (
+        "merge", "approve", "force", "delete", "publish", "release",
+    )
+    # git/gh/glab argv tokens that would perform a forbidden operation.
+    FORBIDDEN_ARGV_TOKENS = {
+        "merge", "--force", "-f", "-D", "--delete", "publish", "approve",
+    }
+    # `-f` legitimately appears as a non-git-verb flag in a few commands
+    # (none currently); keep an explicit allowlist of (command, flag)
+    # pairs that are known-safe if this ever needs one.
+
+    def setUp(self):
+        source_path = _SCRIPTS / "loop_runner.py"
+        self.source = source_path.read_text()
+        self.tree = ast.parse(self.source, filename=str(source_path))
+
+    def _public_function_names(self):
+        return [
+            node.name
+            for node in ast.walk(self.tree)
+            if isinstance(node, ast.FunctionDef) and not node.name.startswith("_")
+        ]
+
+    def test_no_public_function_names_a_forbidden_operation(self):
+        for name in self._public_function_names():
+            lowered = name.lower()
+            for forbidden in self.FORBIDDEN_FUNCTION_SUBSTRINGS:
+                self.assertNotIn(
+                    forbidden, lowered,
+                    f"public function {name!r} suggests a forbidden operation ({forbidden!r})",
+                )
+
+    def test_no_subprocess_call_carries_a_forbidden_argv_token(self):
+        for node in ast.walk(self.tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "run"):
+                continue
+            if not node.args or not isinstance(node.args[0], ast.List):
+                continue
+            argv = [
+                elt.value for elt in node.args[0].elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            ]
+            hit = self.FORBIDDEN_ARGV_TOKENS.intersection(argv)
+            self.assertFalse(
+                hit, f"subprocess call {argv!r} carries forbidden token(s) {hit!r}",
+            )
+
+
+if __name__ == "__main__":
+    unittest.main()
