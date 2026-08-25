@@ -12,11 +12,14 @@ This is a Claude Code extensions marketplace repository. It distributes plugins 
 
 See [docs/agents/progressive-disclosure.md](docs/agents/progressive-disclosure.md) for detailed patterns.
 
-## Code Comments
+## Comments & Citations
 
 - **Self-explanatory code first; comments are a last resort.** A comment may state only a design constraint, invariant,
-  or non-obvious *why* — never narrate what the code does or restate the diff. **Never cite a plan/RFC section ID**
-  (`KTD-N`, `R-N`, `U-N`, `M-N`, `D-N`, `§N.N`, `RFC 2026-NNN`, …)
+  or non-obvious *why* — never narrate what the code does or restate the diff.
+- **Never cite a numbered section ID** — in code comments or Markdown docs (`SKILL.md`, `references/`, READMEs)
+  alike, external (`KTD-N`, `R-N`, `U-N`, `M-N`, `D-N`, `§N.N`, `RFC 2026-NNN`, …) or same-document (`§5`, "step 5").
+  Name the section instead (e.g. "the claim step") — numbering drifts, and a marketplace install has no git history
+  to resolve an external one against.
 
 ## Repository Structure
 
