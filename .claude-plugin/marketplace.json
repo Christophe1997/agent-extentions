@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Marketplace for Claude Code extensions",
-    "version": "1.11.0"
+    "version": "1.12.0"
   },
   "plugins": [
     {
@@ -98,6 +98,15 @@
       "category": "developer-tools",
       "keywords": ["best-of-three", "best-of-n", "compete", "worktree", "parallel-agents", "orchestration", "subagent"],
       "tags": ["competitive implementation"]
+    },
+    {
+      "name": "goal-to-ticket-loop",
+      "source": "./plugins/goal-to-ticket-loop",
+      "homepage": "https://github.com/Christophe1997/agent-extentions/tree/main/plugins/goal-to-ticket-loop",
+      "description": "Decompose a goal into a tk ticket graph and drive it to merge-ready pull requests unattended — tiered decomposition, gated implementation, dependency-aware branching, and a self-pacing execution loop.",
+      "category": "developer-tools",
+      "keywords": ["goal", "ticket", "tk", "orchestration", "autonomous", "pull-request", "self-pacing"],
+      "tags": ["goal-to-ticket loop"]
     }
   ]
 }

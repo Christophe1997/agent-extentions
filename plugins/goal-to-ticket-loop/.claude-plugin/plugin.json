@@ -1,0 +1,9 @@
+{
+  "name": "goal-to-ticket-loop",
+  "version": "0.1.0",
+  "description": "Decompose a goal into a tk ticket graph and drive it to merge-ready pull requests unattended — tiered decomposition, gated implementation, dependency-aware branching, and a self-pacing execution loop.",
+  "author": {
+    "name": "Christophe1997",
+    "email": "hey_christophe@outlook.com"
+  }
+}
