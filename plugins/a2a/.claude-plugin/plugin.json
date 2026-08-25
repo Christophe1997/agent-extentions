@@ -1,6 +1,6 @@
 {
   "name": "a2a",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A2A (Agent-to-Agent) protocol client — communicate with any A2A-compliant agent by URL or alias",
   "author": {
     "name": "Christophe1997",
