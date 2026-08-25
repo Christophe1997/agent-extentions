@@ -309,6 +309,40 @@ class TestCreatePullRequest(unittest.TestCase):
                 lr.create_pull_request(Path("/repo"), "gh", "feat/x", "main", "t", "b")
 
 
+class TestRetargetPullRequest(unittest.TestCase):
+    """KTD8's retarget_base_merged outcome: a stacked ticket's dependency
+    merged out from under its already-open PR, so the PR must repoint at
+    trunk instead of the now-gone dependency branch."""
+
+    def test_gh_builds_expected_argv(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            lr.retarget_pull_request(Path("/repo"), "gh", "42", "main")
+
+        self.assertEqual(captured["argv"], ["gh", "pr", "edit", "42", "--base", "main"])
+
+    def test_glab_builds_expected_argv(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return mock.Mock(returncode=0, stdout="", stderr="")
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            lr.retarget_pull_request(Path("/repo"), "glab", "7", "main")
+
+        self.assertEqual(captured["argv"], ["glab", "mr", "update", "7", "--target-branch", "main"])
+
+    def test_unsupported_host_tool_raises(self):
+        with self.assertRaises(ValueError):
+            lr.retarget_pull_request(Path("/repo"), "hub", "1", "main")
+
+
 class TestNoDestructiveOperations(unittest.TestCase):
     """R8: the script exposes no merge, approve, force-push, arbitrary
     branch-delete, or publish code path. Asserted against the actual

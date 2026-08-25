@@ -419,6 +419,20 @@ def create_pull_request(
     raise RuntimeError(f"{host_tool} pr create did not print a URL: {result.stdout!r}")
 
 
+def retarget_pull_request(repo_root: Path, host_tool: str, pr_ref: str, new_base: str) -> None:
+    """Change an already-open PR/MR's base branch. KTD8's
+    retarget_base_merged outcome: a stacked ticket's dependency merged out
+    from under its open PR, so the PR must repoint at trunk (or a further
+    dependency) instead of the now-gone branch."""
+    if host_tool == "gh":
+        argv = ["gh", "pr", "edit", pr_ref, "--base", new_base]
+    elif host_tool == "glab":
+        argv = ["glab", "mr", "update", pr_ref, "--target-branch", new_base]
+    else:
+        raise ValueError(f"unsupported host_tool: {host_tool!r}")
+    subprocess.run(argv, cwd=repo_root, check=True, capture_output=True)
+
+
 def head_sha(repo_root: Path) -> str:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -675,6 +689,7 @@ USAGE = """Usage:
   loop_runner.py commit <repo_root> <message>
   loop_runner.py push <repo_root> <branch_name>
   loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> <title> <body>
+  loop_runner.py retarget-pr <repo_root> <host_tool> <pr_ref> <new_base>
   loop_runner.py ship <repo_root> <ticket_id> <branch> <pr_url> <sha>
   loop_runner.py reset <repo_root> <base_branch>
 """
@@ -811,6 +826,13 @@ def cmd_create_pr(args: list) -> None:
     print(create_pull_request(Path(repo_root), host_tool, branch, base, title, body))
 
 
+def cmd_retarget_pr(args: list) -> None:
+    if len(args) < 4:
+        print("error: usage: retarget-pr <repo_root> <host_tool> <pr_ref> <new_base>", file=sys.stderr)
+        sys.exit(1)
+    retarget_pull_request(Path(args[0]), args[1], args[2], args[3])
+
+
 def cmd_ship(args: list) -> None:
     if len(args) < 5:
         print("error: usage: ship <repo_root> <ticket_id> <branch> <pr_url> <sha>", file=sys.stderr)
@@ -838,6 +860,7 @@ _COMMANDS = {
     "commit": cmd_commit,
     "push": cmd_push,
     "create-pr": cmd_create_pr,
+    "retarget-pr": cmd_retarget_pr,
     "ship": cmd_ship,
     "reset": cmd_reset,
 }

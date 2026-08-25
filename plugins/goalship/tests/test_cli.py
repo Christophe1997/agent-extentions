@@ -50,6 +50,11 @@ class TestDispatcherContract(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("usage: preflight", result.stderr)
 
+    def test_retarget_pr_missing_args_exits_1_with_usage(self):
+        result = _cli("retarget-pr")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("usage: retarget-pr", result.stderr)
+
     def test_git_failure_reports_stderr_and_exits_1_instead_of_a_traceback(self):
         result = _cli("commit", "/nonexistent-repo-path-xyz", "feat: nothing")
         self.assertEqual(result.returncode, 1)
