@@ -1,5 +1,5 @@
 """Tests for loop_runner.py's CLI dispatcher — the invocation surface the
-goalship skill actually shells out to (KTD1). Covers the dispatcher's own
+goalship skill actually shells out to. Covers the dispatcher's own
 argv contract and the JSON shape of the three structured commands the skill
 parses (preflight, reconcile, ledger); every other subcommand is a
 one-line delegation to a function already covered by the other test files,

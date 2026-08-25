@@ -1,9 +1,9 @@
 # Execution Loop
 
 Drives a decomposed ticket graph (`decomposition.md`) to merge-ready pull
-requests, one ticket per cycle, until a terminal state is reached (R3, R6,
-R7, R9, R13). Every git/`tk`/`gh` operation below goes through
-`${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py <subcommand> ...` (KTD1) —
+requests, one ticket per cycle, until a terminal state is reached. Every
+git/`tk`/`gh` operation below goes through
+`${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py <subcommand> ...` —
 the skill classifies, decomposes, implements ticket content, and interprets
 gate output; the script performs every deterministic operation. Generic
 ticket bookkeeping (`tk create`, `tk dep`, `tk start`, `tk reopen`,
@@ -14,7 +14,7 @@ designed to ignore prose notes.
 `will_create_prs` is always `true` for this loop — opening a PR is the
 whole point — so every preflight call passes `true`.
 
-## Self-pacing model (KTD10)
+## Self-pacing model
 
 This skill does not run as one long call. After each cycle, schedule the
 next turn with `ScheduleWakeup` (`delaySeconds: 60` — the floor; there is
@@ -31,7 +31,7 @@ Bedrock, and AWS/GCP/Azure-hosted Claude Platform variants) — unattended
 goalship runs require a harness where it's available; without it, the loop
 has no way to resume itself across turns.
 
-## Once per run: preflight (KTD5, R11)
+## Once per run: preflight
 
 Before the first ticket claim only — not on every self-paced turn:
 
@@ -41,7 +41,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py preflight <repo_root> true
 
 Prints `{"ok", "remote_url", "trunk_branch", "host_tool", "failures"}`.
 `ok: false` stops the run immediately — report `failures` verbatim. This
-failure is never counted against R9's failure cap; it fails the whole run,
+failure is never counted against the failure cap; it fails the whole run,
 not one ticket. On `ok: true`, report the resolved `remote_url` and
 `trunk_branch` before touching any ticket, so a human watching notices
 immediately if this is the wrong repo. Keep `trunk_branch` and `host_tool`
@@ -50,7 +50,7 @@ subcommand that needs them, never re-derived.
 
 ## Every cycle
 
-### 1. Reconcile (KTD8, R12)
+### 1. Reconcile
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py reconcile <repo_root>
@@ -79,9 +79,9 @@ Otherwise, handle each action by `outcome` before moving to picking:
 
 **Retry PR creation** (`retry_pr_creation`, `detail` = branch): re-derive
 everything fresh — across self-paced turns there is no guarantee of
-surviving in-context memory (KTD10). `reconcile()` emits this outcome for
+surviving in-context memory. `reconcile()` emits this outcome for
 *any* crash after the claim note was written (§5's `claim` writes it
-before implementation starts, KTD4) but before a ship note exists — that
+before implementation starts) but before a ship note exists — that
 includes a crash mid-implementation, on a branch with no commits at all.
 Check which case this actually is before assuming there's a PR to open:
 
@@ -148,7 +148,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 so a persistently-failing retarget also counts toward `FAILURE_CAP` instead
 of retrying unbounded every cycle.
 
-### 2. Read the ledger and check caps (R9, KTD9)
+### 2. Read the ledger and check caps
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id>
@@ -158,13 +158,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 stop: report the classified summary (below) with that reason. Otherwise
 keep `claimed_ticket_ids` for the pick step next.
 
-### 3. Check for a stop request (R13, KTD10)
+### 3. Check for a stop request
 
 Between tickets only, never mid-ticket. If the user has asked to stop this
 run since the last cycle, stop here and report the partial-run summary —
 this is the only stop mechanism; there is no bespoke stop command.
 
-### 4. Pick the next ticket (R3)
+### 4. Pick the next ticket
 
 ```
 tk ready
@@ -174,7 +174,7 @@ Plain-text lines, already sorted highest-priority first (`P0` = highest).
 Take the first ticket ID not in `claimed_ticket_ids` and not already
 handled by this cycle's reconciliation pass (§1's table).
 
-**Nothing left** — distinguish exhausted from deadlocked (AE6):
+**Nothing left** — distinguish exhausted from deadlocked:
 
 ```
 tk blocked
@@ -189,7 +189,7 @@ tk blocked
   externally-unresolvable dependency is the only way this state occurs).
   Report and stop, naming it "deadlocked" distinctly from "exhausted."
 
-### 5. Claim and branch (KTD4, KTD5)
+### 5. Claim and branch
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --claim <ticket_id>
@@ -197,13 +197,13 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 
 Claim in the ledger *first* — before anything else touches git — so even a
 crash on the very next step still keeps this ticket out of re-picking this
-run (R5).
+run.
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py dirty <repo_root>
 ```
 
-Non-empty → stop: report the dirty paths (KTD5 defense-in-depth; this
+Non-empty → stop: report the dirty paths (defense-in-depth; this
 should never fire if the prior cycle reset cleanly, so a nonempty result
 means something outside this loop's control touched the tree).
 
@@ -224,14 +224,14 @@ Read the ticket (`tk show <ticket_id>`) for its acceptance criteria and
 implement it following the target repo's existing conventions. This is
 ordinary implementation work, not a re-invention of it.
 
-### 7. Gate (KTD1, KTD3 — see `gate-discovery.md`)
+### 7. Gate (see `gate-discovery.md`)
 
 Run and interpret the target repo's own gates directly — the script never
 wraps gate execution, so gate output stays visible in the transcript.
 
 **On pass** → §8 (ship). **On fail** → §9 (note and reset).
 
-### 8. Ship (R4, R5)
+### 8. Ship
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py commit <repo_root> "<type>: <subject>"
@@ -241,10 +241,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ship <repo_root> <ticket_id
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --ship
 ```
 
-`ship` writes the closing note (branch, PR URL, head SHA — R5) and closes
+`ship` writes the closing note (branch, PR URL, head SHA) and closes
 the ticket in one step. Continue to §10.
 
-### 9. Note and reset on gate failure (R3, R5, KTD4)
+### 9. Note and reset on gate failure
 
 ```
 tk add-note <ticket_id> "Gate failed: <failing command>
@@ -256,12 +256,12 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 
 Redact common secret-shaped patterns (`KEY=value` env assignments,
 bearer/API-token-shaped strings) and cap the excerpt's length before
-writing it (KTD1) — target-repo gate failures routinely surface secrets in
+writing it — target-repo gate failures routinely surface secrets in
 stack traces or env dumps. Do not retry this ticket again this run — the
 ledger claim from §5 already guarantees `tk ready` won't surface it as
 unclaimed. Continue to §10.
 
-### 10. Scope-creep check (R6)
+### 10. Scope-creep check
 
 If implementation surfaced clearly out-of-scope work, file it rather than
 expanding the ticket just processed:
@@ -284,10 +284,10 @@ needed). If capped, stop and report. Otherwise schedule the next wakeup
 (self-pacing model, above) with `noop: false` — this cycle shipped, failed,
 or blocked a ticket, which is never a no-op tick.
 
-## Terminal states and summary (R7)
+## Terminal states and summary
 
-Every terminal path — exhausted, deadlocked, a cap hit (R9), or a user stop
-(R13) — ends with a summary classifying every ticket touched this run:
+Every terminal path — exhausted, deadlocked, a cap hit, or a user stop —
+ends with a summary classifying every ticket touched this run:
 
 - **Shipped** — PR opened, ticket closed (§8, or `closed_merged` from
   reconciliation).

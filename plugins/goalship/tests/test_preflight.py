@@ -1,4 +1,4 @@
-"""Tests for goalship's preflight precondition checks (KTD5, R11).
+"""Tests for goalship's preflight precondition checks.
 
 Run from the repo root:
     python3 -m pytest plugins/goalship/tests/test_preflight.py -v

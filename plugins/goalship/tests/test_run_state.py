@@ -1,4 +1,4 @@
-"""Tests for the goalship run-state ledger (KTD2, R9, R12).
+"""Tests for the goalship run-state ledger.
 
 Run from the repo root:
     python3 -m pytest plugins/goalship/tests/test_run_state.py -v

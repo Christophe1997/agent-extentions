@@ -1,4 +1,4 @@
-"""Tests for goalship's loop-start reconciliation pass (R5, R12; KTD8).
+"""Tests for goalship's loop-start reconciliation pass.
 
 Run from the repo root:
     python3 -m pytest plugins/goalship/tests/test_reconciliation.py -v
@@ -61,8 +61,8 @@ class TestNoOpAndLedgerIndependence(ReconciliationTestCase):
 
     def test_reconciliation_never_reads_the_run_state_ledger(self):
         # No ledger file exists anywhere under repo_root; reconcile() must
-        # not require one — R12's ledger-fallback is trivially satisfied
-        # because this function queries tk directly, not the ledger.
+        # not require one — this is trivially satisfied because the
+        # function queries tk directly, not the ledger.
         self.assertFalse((self.repo_root / lr.LEDGER_DIR_NAME).exists())
         ticket_id = self._tk_create("In progress, no notes yet")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)

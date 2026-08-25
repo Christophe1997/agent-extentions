@@ -2,9 +2,9 @@
 
 Turns a stated goal into a `tk` ticket graph (tickets plus `tk dep` edges).
 This is prompt-authored judgment, not deterministic logic — no backing
-script involvement (R1, R2).
+script involvement.
 
-## Classify size and ambiguity (KTD12)
+## Classify size and ambiguity
 
 A goal stays **lightweight** — decompose inline — when all three hold:
 
@@ -38,36 +38,36 @@ For a lightweight goal, decompose in a single reasoning pass:
    between tickets that could ship in either order; an over-constrained
    graph serializes work the execution loop could otherwise run through
    faster.
-4. Do not invoke `ce-plan` or `ce-brainstorm` for this path (AE1) — that's
+4. Do not invoke `ce-plan` or `ce-brainstorm` for this path — that's
    what makes it "inline."
 
 ## Escalation path
 
 For a large or ambiguous goal:
 
-1. **Check availability first (KTD6).** Look for `compound-engineering:ce-plan`
+1. **Check availability first.** Look for `compound-engineering:ce-plan`
    in the skills available this session (the harness's skill listing, or a
    `Skill` tool invocation with `skill="ce-plan"` that fails to resolve). If
    absent, the target repo/session doesn't have `compound-engineering`
    installed — fall back to the inline path even for a large goal, and note
-   the degradation explicitly in the eventual run summary (R10, KTD6). Do
+   the degradation explicitly in the eventual run summary. Do
    not silently produce a worse-than-inline decomposition without saying so.
 2. **Invoke `ce-plan`** (via the `Skill` tool) with the goal. It may invoke
    `ce-brainstorm` itself for genuinely ambiguous goals, and either may block
    on their own clarifying questions — that's expected and does not violate
-   the "never blocked" guarantee (A1, KTD7), which scopes to the execution
+   the "never blocked" guarantee, which scopes to the execution
    loop that begins only after decomposition completes.
-3. **Translate Implementation Units to tickets (KTD13).** One Unit maps to
+3. **Translate Implementation Units to tickets.** One Unit maps to
    one ticket by default:
    - `tk create "<Unit title>" -t <type> --acceptance "<criteria>" --external-ref <U-ID>`
-     — the `--external-ref` carries the Unit's ID (e.g. `U3`) for
-     traceability back to the plan document.
+     — the `--external-ref` carries the Unit's ID from the plan document for
+     traceability back to it.
    - Split a Unit into multiple tickets only when its own file list spans
      clearly independent concerns — not merely because it's large.
    - Carry the plan's own Unit dependency ordering into `tk dep` edges
      one-to-one.
 
-## Acceptance criteria (KTD11, R2)
+## Acceptance criteria
 
 Every created ticket's acceptance criteria must be specific enough for a
 later, context-free pass to implement and verify it — not a restatement of
@@ -84,7 +84,7 @@ the title.
   form rejects an empty password field with a visible error", not "add
   validation").
 
-This binding is what makes AE1/AE2's tickets mechanically verifiable rather
-than only descriptive — the execution loop (`execution-loop.md`) treats a
+This binding is what makes a ticket's acceptance criteria mechanically
+verifiable rather than only descriptive — the execution loop (`execution-loop.md`) treats a
 ticket's gate run as the arbiter of "done," and a vague acceptance criterion
 gives that gate run nothing concrete to check.

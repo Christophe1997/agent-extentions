@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backing script for goalship (KTD1): deterministic git/tk/gh mechanics
+"""Backing script for goalship: deterministic git/tk/gh mechanics
 and the durable run-state ledger. The skill runs and interprets the
 target repo's gate commands itself — this script never wraps gate
 execution, so gate output stays visible in the transcript.
@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# KTD9: fixed v1 caps, not user-configurable, reset per invocation (not persisted).
+# Fixed v1 caps, not user-configurable, reset per invocation (not persisted).
 SHIP_CAP = 10
 FAILURE_CAP = 3
 
@@ -32,7 +32,7 @@ FAILURE_CAP = 3
 # interactive credential prompt.
 HOST_TOOL_TIMEOUT_SECONDS = 30
 
-# KTD2: ledger lives inside the target repo's own working tree, excluded
+# The ledger lives inside the target repo's own working tree, excluded
 # from git via .git/info/exclude rather than relying on the repo's .gitignore.
 LEDGER_DIR_NAME = ".goalship"
 
@@ -40,7 +40,7 @@ LEDGER_DIR_NAME = ".goalship"
 # commit staging for the same reason as LEDGER_DIR_NAME: `tk start`/`tk
 # add-note` mutate it as a routine side effect of running this very loop,
 # unrelated to a ticket's implementation diff. Whether the target repo
-# tracks .tickets/ at all is that repo's own decision (R10) — this only
+# tracks .tickets/ at all is that repo's own decision — this only
 # keeps the loop's own commits and clean-tree checks from reacting to it.
 TICKETS_DIR_NAME = ".tickets"
 
@@ -78,7 +78,7 @@ def resolve_ledger_path(repo_root: Path, run_id: str) -> Path:
     lost-update race between concurrent invocations (two processes each
     read the old file, then each write back a version missing the
     other's update) — this repo's own yapermission plugin hit exactly
-    that class of bug twice (KTD2) before landing on per-partition files.
+    that class of bug twice before landing on per-partition files.
     One file per run_id makes the race structurally impossible: distinct
     run_ids never contend for the same inode.
     """
@@ -105,13 +105,13 @@ def save_run_state(repo_root: Path, state: RunState) -> None:
 
 
 def record_ship(state: RunState) -> None:
-    """A successful ship resets the consecutive-failure count (KTD9)."""
+    """A successful ship resets the consecutive-failure count."""
     state.shipped_count += 1
     state.consecutive_failures = 0
 
 
 def record_failure(state: RunState) -> None:
-    """A gate failure or a block both count toward the consecutive-failure cap (KTD9)."""
+    """A gate failure or a block both count toward the consecutive-failure cap."""
     state.consecutive_failures += 1
 
 
@@ -121,7 +121,7 @@ def claim_ticket(state: RunState, ticket_id: str) -> None:
 
 
 def caps_exceeded(state: RunState) -> Optional[str]:
-    """None when under both caps; otherwise the human-readable reason to stop (R9)."""
+    """None when under both caps; otherwise the human-readable reason to stop."""
     if state.shipped_count >= SHIP_CAP:
         return f"ship cap reached ({SHIP_CAP} tickets shipped this run)"
     if state.consecutive_failures >= FAILURE_CAP:
@@ -130,7 +130,7 @@ def caps_exceeded(state: RunState) -> Optional[str]:
 
 
 def ensure_ledger_excluded(repo_root: Path) -> None:
-    """Add the ledger dir to .git/info/exclude if it isn't already there (KTD2)."""
+    """Add the ledger dir to .git/info/exclude if it isn't already there."""
     exclude_file = Path(repo_root) / ".git" / "info" / "exclude"
     entry = f"/{LEDGER_DIR_NAME}/"
     existing = exclude_file.read_text() if exclude_file.exists() else ""
@@ -148,7 +148,7 @@ _IGNORED_DIRTY_DIR_NAMES = (LEDGER_DIR_NAME, TICKETS_DIR_NAME)
 
 def dirty_paths(repo_root: Path) -> list:
     """Repo-relative paths git considers dirty, excluding the ledger dir and
-    tk's own state dir (KTD5 defense-in-depth: writing the ledger, or tk
+    tk's own state dir (defense-in-depth: writing the ledger, or tk
     mutating its own files, must never trip this check)."""
     result = subprocess.run(
         ["git", "status", "--short", "--untracked-files=all"],
@@ -223,9 +223,9 @@ class PreflightResult:
 
 
 def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
-    """KTD5 preconditions: tk present, remote configured, clean tree, and
+    """Preconditions: tk present, remote configured, clean tree, and
     (only when PR creation will run) an authenticated gh/glab. Never
-    counted against R9's failure cap — this fails the whole run, not one ticket."""
+    counted against the failure cap — this fails the whole run, not one ticket."""
     repo_root = Path(repo_root)
     failures = []
 
@@ -260,25 +260,25 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
 
 
 # ---------------------------------------------------------------------------
-# Branch operations (KTD3, KTD4, R4, R5, R8).
+# Branch operations.
 #
 # Every operation below is additive-only: create a branch, commit, push,
 # reset a branch this script itself created back to a clean base. There is
 # no merge, approve, force-push, arbitrary branch-delete, or publish code
-# path anywhere in this module (R8) — asserted directly against the source
+# path anywhere in this module — asserted directly against the source
 # in tests/test_branching.py, not just documented here.
 # ---------------------------------------------------------------------------
 
 @dataclass
 class DependencyPR:
-    """A predecessor ticket's linked PR, as recorded in its closing note (R5)."""
+    """A predecessor ticket's linked PR, as recorded in its closing note."""
     ticket_id: str
     branch: str
     state: str  # "open" | "merged" | "closed"
 
 
 def resolve_branch_base(trunk_branch: str, dependency_prs: list) -> str:
-    """Dependency-aware branch model (Product Contract Key Decision, R4/R6):
+    """Dependency-aware branch model:
     trunk by default; a single still-open predecessor's branch when exactly
     one predecessor has an open PR; trunk on fan-in (two or more
     simultaneously open predecessors) or when no predecessor has an open PR
@@ -357,7 +357,7 @@ def _all_branch_names(repo_root: Path) -> set:
 
 def branch_name_for_ticket(repo_root: Path, ticket_type: str, title: str) -> str:
     """`<type>/<slug>`, with a numeric collision suffix checked against
-    local and origin/ refs (KTD3)."""
+    local and origin/ refs."""
     base = f"{ticket_type}/{slugify(title)}"
     existing = _all_branch_names(Path(repo_root))
     if base not in existing:
@@ -378,7 +378,7 @@ def _local_branch_exists(repo_root: Path, branch_name: str) -> bool:
 
 def create_branch(repo_root: Path, branch_name: str, base_ref: str) -> None:
     """Create branch_name off base_ref and check it out. Called at claim
-    time, before implementation starts (KTD4), so a crash mid-implementation
+    time, before implementation starts, so a crash mid-implementation
     never leaves work sitting on trunk."""
     subprocess.run(
         ["git", "checkout", "-b", branch_name, base_ref],
@@ -392,12 +392,12 @@ def commit_all(repo_root: Path, message: str) -> str:
     ticket's PR carries only its own implementation diff, never this
     loop's or tk's own bookkeeping churn.
 
-    .goalship/ is excluded by ensuring it's git-ignored (KTD2) rather than
+    .goalship/ is excluded by ensuring it's git-ignored rather than
     with an explicit `git add` negative pathspec: once an entry is in
     .git/info/exclude, git's own "ignored file" advice makes `git add`
     exit nonzero for any pathspec that names that path explicitly, even a
     negative one — confirmed against a real repo. .tickets/ is never made
-    git-ignored (that's the target repo's own call, R10), so it still
+    git-ignored (that's the target repo's own call), so it still
     needs the explicit negative pathspec.
     """
     ensure_ledger_excluded(repo_root)
@@ -427,7 +427,7 @@ def create_pull_request(
 ) -> str:
     """Open a pull/merge request for `branch` against `base`; returns its
     URL. `branch` must already be pushed (push_branch) — this only opens
-    the request, it never pushes. KTD1: PR creation is a safety-critical
+    the request, it never pushes. PR creation is a safety-critical
     mechanical operation, so it lives here rather than in skill prose."""
     if host_tool == "gh":
         argv = [
@@ -456,7 +456,7 @@ def create_pull_request(
 
 
 def retarget_pull_request(repo_root: Path, host_tool: str, pr_ref: str, new_base: str) -> None:
-    """Change an already-open PR/MR's base branch. KTD8's
+    """Change an already-open PR/MR's base branch — the
     retarget_base_merged outcome: a stacked ticket's dependency merged out
     from under its open PR, so the PR must repoint at trunk (or a further
     dependency) instead of the now-gone branch."""
@@ -473,7 +473,7 @@ def retarget_pull_request(repo_root: Path, host_tool: str, pr_ref: str, new_base
 
 
 def branch_has_commits(repo_root: Path, base: str, branch: str) -> bool:
-    """Whether `branch` carries any commits not on `base`. KTD1: backs the
+    """Whether `branch` carries any commits not on `base`. Backs the
     retry_pr_creation crash-recovery check — empty means nothing was ever
     implemented on this branch (a fresh implementation cycle, not a PR
     retry); non-empty means the commit survived and only push/PR-creation
@@ -494,14 +494,14 @@ def head_sha(repo_root: Path, ref: str = "HEAD") -> str:
 
 
 def reset_to_clean_base(repo_root: Path, base_branch: str) -> None:
-    """Abort cleanup (KTD4): on a gate failure or interruption, return to a
+    """Abort cleanup: on a gate failure or interruption, return to a
     clean checkout of base_branch (trunk, or a stacked ticket's parent
     branch) before the loop claims its next ticket. Resets and cleans only
     the working tree the script itself was using for the aborted ticket's
     branch — it never deletes that branch.
 
     `git clean -fd` alone would delete .tickets/ along with any other
-    untracked scratch: .tickets/ is never git-ignored by this tool (R10),
+    untracked scratch: .tickets/ is never git-ignored by this tool,
     so a plain clean wipes out the entire ticket store on the very first
     gate failure — confirmed against a real repo. -e excludes it from the
     sweep the same way `.goalship/`'s own .git/info/exclude entry already
@@ -516,7 +516,7 @@ def reset_to_clean_base(repo_root: Path, base_branch: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# tk mechanics and loop-start reconciliation (KTD8, R5, R12).
+# tk mechanics and loop-start reconciliation.
 #
 # `tk` auto-discovers `.tickets/` by walking up from cwd (same mechanism
 # git uses for `.git/`), so every wrapper below just runs with cwd=repo_root
@@ -553,7 +553,7 @@ def tk_reopen(repo_root: Path, ticket_id: str) -> None:
 
 
 def record_claim_note(repo_root: Path, ticket_id: str, branch: str, base: Optional[str] = None) -> None:
-    """Written at claim time (KTD4), before implementation starts — the only
+    """Written at claim time, before implementation starts — the only
     record of a ticket's branch that survives a crash before any later note."""
     lines = [f"branch: {branch}"]
     if base:
@@ -562,7 +562,7 @@ def record_claim_note(repo_root: Path, ticket_id: str, branch: str, base: Option
 
 
 def record_ship_note(repo_root: Path, ticket_id: str, branch: str, pr_url: str, sha: str) -> None:
-    """R5: on success, the closing note records branch, PR URL, and head SHA."""
+    """On success, the closing note records branch, PR URL, and head SHA."""
     tk_add_note(repo_root, ticket_id, f"branch: {branch}\npr: {pr_url}\nsha: {sha}")
 
 
@@ -680,7 +680,7 @@ class ReconciliationReport:
 def _reconcile_stacked_base(
     repo_root: Path, host_tool: Optional[str], ticket_id: str, base: str, pr_ref: str,
 ) -> Optional[ReconciliationAction]:
-    """KTD8: a ticket's PR is open and stacked on `base` — check whether
+    """A ticket's PR is open and stacked on `base` — check whether
     that base's own PR has since resolved out from under it. `pr_ref` is
     `ticket_id`'s own PR (not `base`'s) — carried onto the resulting action
     so a caller can retarget it without a second lookup (#5)."""
@@ -700,12 +700,12 @@ def _reconcile_stacked_base(
 
 
 def reconcile(repo_root: Path) -> ReconciliationReport:
-    """KTD8: cross-check every in-progress ticket against git/PR state
+    """Cross-check every in-progress ticket against git/PR state
     before the next `tk ready` pick.
 
     Always queries tk directly for the in-progress set — the durable
     source of truth for ticket status — rather than the run-state ledger,
-    so R12's "fall back to tk's own in-progress tickets when the ledger is
+    so "fall back to tk's own in-progress tickets when the ledger is
     missing or corrupted" holds by construction: this function has no
     ledger dependency to fall back from in the first place.
     """
@@ -722,7 +722,7 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
     if needs_host_lookup:
         host_tool = _detect_host_tool()
         if host_tool is None or not _host_tool_authenticated(host_tool):
-            # KTD8: a credential that keeps failing routes to a
+            # A credential that keeps failing routes to a
             # preflight-class stop instead of retrying per ticket without limit.
             return ReconciliationReport(auth_failure=host_tool or "gh/glab")
 

@@ -3,14 +3,14 @@
 A **gate** is any project-defined check that must pass before a ticket's
 implementation is committed: linters, formatters, type checkers, unit tests,
 build steps, pre-commit hooks. Discover gates from the target repo itself —
-never assume a fixed command (R10, R3).
+never assume a fixed command.
 
-This restates KTD3, sourced from the `ship` plugin's own gate-discovery
-policy (`git show a9e42ea~1:plugins/ship/skills/ship/references/gates.md`,
+This restates the same policy, sourced from the `ship` plugin's own
+gate-discovery policy (`git show a9e42ea~1:plugins/ship/skills/ship/references/gates.md`,
 before `ship` was removed from this repo) — there is no live cross-plugin
 reference to point to instead, so the algorithm lives here as goalship's own
 copy. One change from `ship`'s original: `ship` asked the user when a gate
-was ambiguous. goalship's execution loop is unattended once it starts (A1);
+was ambiguous. goalship's execution loop is unattended once it starts;
 an ambiguous case below always resolves to a documented default instead of a
 question.
 
@@ -58,14 +58,14 @@ changed files when the tooling supports scoping; fall back to whole-tree
 when it doesn't. Note which scope was used in the ticket's failure note (if
 any) so the result isn't over-trusted later.
 
-## Failure policy (R3, R5)
+## Failure policy
 
 - **Any gate fails → no commit.** Record the failing command and a redacted,
-  length-capped output excerpt as the ticket's failure note (KTD1 — common
+  length-capped output excerpt as the ticket's failure note (common
   secret-shaped patterns like `KEY=value` env assignments and bearer-token
   strings are stripped before the note is written), leave the ticket open,
   and move to the next ready ticket. Do not retry the same ticket again this
-  run (R5) — see `execution-loop.md`.
+  run — see `execution-loop.md`.
 - **No gate found** → state that plainly ("no project gates detected for
   `<repo>`") and treat it as a pass — the ticket proceeds to commit. Silence
   would read as "gates ran and passed" when they never ran at all.

@@ -1,6 +1,4 @@
-"""Tests for goalship's branch operations and dependency-aware branching
-(R4, R5, R8; KTD3, KTD4, and the Product Contract's dependency-aware
-branch model Key Decision).
+"""Tests for goalship's branch operations and dependency-aware branching.
 
 Run from the repo root:
     python3 -m pytest plugins/goalship/tests/test_branching.py -v
@@ -292,7 +290,7 @@ class TestBranchLifecycle(BranchingTestCase):
         self.assertFalse((self.repo_root / "half-done.txt").exists())
 
     def test_gate_failure_reset_never_deletes_the_untracked_tickets_dir(self):
-        # .tickets/ is never tracked or git-ignored by this tool (R10) — a
+        # .tickets/ is never tracked or git-ignored by this tool — a
         # plain `git clean -fd` on abort would wipe out the entire ticket
         # store the moment any gate ever fails.
         lr.create_branch(self.repo_root, "feat/will-fail-2", "origin/main")
@@ -307,7 +305,7 @@ class TestBranchLifecycle(BranchingTestCase):
 
 
 class TestBranchHasCommits(BranchingTestCase):
-    """Crash-recovery check (retry_pr_creation, KTD1): whether `branch` has
+    """Crash-recovery check (retry_pr_creation): whether `branch` has
     any commits not on `base`, distinguishing a fresh-implementation crash
     (nothing to retry-push) from a push/PR-creation-only crash (commit
     survived, only the network step failed)."""
@@ -347,8 +345,8 @@ class TestHeadShaForRef(BranchingTestCase):
 
 
 class TestCreatePullRequest(unittest.TestCase):
-    """KTD1: PR creation is a safety-critical mechanical operation, so it
-    lives in the script (covered by the R8 AST guardrail) rather than in
+    """PR creation is a safety-critical mechanical operation, so it
+    lives in the script (covered by the AST guardrail below) rather than in
     skill prose that shells out directly."""
 
     def _fake_run(self, stdout):
@@ -412,7 +410,7 @@ class TestCreatePullRequest(unittest.TestCase):
 
 
 class TestRetargetPullRequest(unittest.TestCase):
-    """KTD8's retarget_base_merged outcome: a stacked ticket's dependency
+    """The retarget_base_merged outcome: a stacked ticket's dependency
     merged out from under its already-open PR, so the PR must repoint at
     trunk instead of the now-gone dependency branch."""
 
@@ -521,7 +519,7 @@ class TestPrState(unittest.TestCase):
 
 
 class TestNoDestructiveOperations(unittest.TestCase):
-    """R8: the script exposes no merge, approve, force-push, arbitrary
+    """The script exposes no merge, approve, force-push, arbitrary
     branch-delete, or publish code path. Asserted against the actual
     source, not just documented behavior."""
 
@@ -618,7 +616,7 @@ class TestNoDestructiveOperations(unittest.TestCase):
             )
 
     def test_local_variable_argv_with_forbidden_token_is_detected(self):
-        """R8 covers argv built into a local variable before being passed
+        """The guardrail above also covers argv built into a local variable before being passed
         to subprocess.run(argv, ...) — the pattern create_pull_request and
         retarget_pull_request use — not just an inline list literal passed
         directly as the call's first argument."""
