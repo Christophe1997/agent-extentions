@@ -69,20 +69,37 @@ Otherwise, handle each action by `outcome` before moving to picking:
 | `blocked_stale_base` (`detail` = old base) | wrote a blocked note | nothing further — leave it; it's excluded from `tk ready` picking below by virtue of staying `in_progress` with no forward path |
 | `pr_state_unresolved` | nothing | treat like a transient lookup failure — leave it for the next cycle's reconcile pass rather than guessing at its state |
 
-**Retry PR creation** (`retry_pr_creation`): re-derive everything fresh —
-across self-paced turns there is no guarantee of surviving in-context
-memory (KTD10).
+**Retry PR creation** (`retry_pr_creation`, `detail` = branch): re-derive
+everything fresh — across self-paced turns there is no guarantee of
+surviving in-context memory (KTD10). `reconcile()` emits this outcome for
+*any* crash after the claim note was written (§5's `claim` writes it
+before implementation starts, KTD4) but before a ship note exists — that
+includes a crash mid-implementation, on a branch with no commits at all.
+Check which case this actually is before assuming there's a PR to open:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> <host_tool>
+git -C <repo_root> log <base>..<branch> --oneline
+```
+
+- **Empty** (no output) → nothing was ever implemented on this branch.
+  This is a fresh implementation cycle on the existing branch/base, not a
+  PR retry — skip §5 (the branch and claim note already exist) and go
+  straight to §6 (implement), §7 (gate), and §8/§9 as normal.
+- **Non-empty** → the implementation and commit survived; only the push or
+  PR creation failed. Push is safe to repeat (a no-op if it already
+  succeeded), then retry creation:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py push <repo_root> <branch>
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> "<title>" "<body>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ship <repo_root> <ticket_id> <branch> "<pr_url>" "<sha>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --ship
 ```
 
 `<title>`/`<body>` come from `tk show <ticket_id>` (Conventional Commits
-subject as title); `<sha>` is `git rev-parse HEAD` on that branch — the
-commit already exists from the crashed attempt, only PR creation failed.
+subject as title); `<sha>` is `git rev-parse <branch>` — no need to
+re-commit, the commit already exists from the crashed attempt.
 
 **Retarget a stale-base PR** (`retarget_base_merged`):
 
