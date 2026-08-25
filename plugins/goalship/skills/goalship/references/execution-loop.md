@@ -26,6 +26,11 @@ turn's in-context memory. A wakeup that drops `run_id` starts a fresh ledger
 and re-picks already-shipped tickets; treat `run_id` as required state, not
 a convenience.
 
+`ScheduleWakeup` is unavailable on some harness deployments (e.g. Amazon
+Bedrock, and AWS/GCP/Azure-hosted Claude Platform variants) — unattended
+goalship runs require a harness where it's available; without it, the loop
+has no way to resume itself across turns.
+
 ## Once per run: preflight (KTD5, R11)
 
 Before the first ticket claim only — not on every self-paced turn:
