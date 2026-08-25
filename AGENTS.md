@@ -19,17 +19,12 @@ agent-extentions/
 ├── .claude-plugin/
 │   └── marketplace.json       # Central plugin registry
 ├── plugins/
-│   ├── a2a/                   # Agent-to-Agent protocol client
-│   ├── agentic-doc/           # AGENTS.md & commit message standards
-│   ├── permission-notification/ # macOS permission notifications
-│   ├── review-blog/           # Chinese blog post style reviewer
-│   ├── show-me-the-session/   # Session transcript HTML exporter
-│   └── tdd/                   # TDD workflow (Kent Beck's Red/Green/Refactor)
+│   └── <plugin-name>/         # One directory per plugin — see Plugin Architecture below
 └── .claude/
     └── settings.local.json    # Local Claude settings
 ```
 
-See [docs/agents/show-me-the-session.md](docs/agents/show-me-the-session.md) for the session exporter architecture.
+`marketplace.json` is the source of truth for which plugins are installed — don't duplicate that list here.
 
 ## Plugin Architecture
 
@@ -88,7 +83,7 @@ See [docs/agents/readme-template.md](docs/agents/readme-template.md) for the ful
 
 Before publishing, verify:
 - [ ] `plugin.json` has required fields (name, version, description)
-- [ ] `version` field in related `plugin.json`, `marketplace.json` have updated correctly for changes
+- [ ] `version` field bumped in `plugin.json`/`marketplace.json` for changes
 - [ ] Skills have clear trigger phrases in description
 - [ ] Agents have "When to Use" section with examples
 - [ ] README follows unified structure (Features, Examples, Installation, Usage, License)
