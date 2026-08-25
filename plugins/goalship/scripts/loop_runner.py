@@ -366,10 +366,19 @@ def commit_all(repo_root: Path, message: str) -> str:
     """Stage everything except this tool's own state dirs and commit;
     returns the new head SHA. .goalship/ and .tickets/ are excluded so a
     ticket's PR carries only its own implementation diff, never this
-    loop's or tk's own bookkeeping churn."""
-    exclude_pathspecs = [f":!{name}" for name in _IGNORED_DIRTY_DIR_NAMES]
+    loop's or tk's own bookkeeping churn.
+
+    .goalship/ is excluded by ensuring it's git-ignored (KTD2) rather than
+    with an explicit `git add` negative pathspec: once an entry is in
+    .git/info/exclude, git's own "ignored file" advice makes `git add`
+    exit nonzero for any pathspec that names that path explicitly, even a
+    negative one — confirmed against a real repo. .tickets/ is never made
+    git-ignored (that's the target repo's own call, R10), so it still
+    needs the explicit negative pathspec.
+    """
+    ensure_ledger_excluded(repo_root)
     subprocess.run(
-        ["git", "add", "-A", "--", ".", *exclude_pathspecs],
+        ["git", "add", "-A", "--", ".", f":!{TICKETS_DIR_NAME}"],
         cwd=repo_root, check=True, capture_output=True,
     )
     subprocess.run(["git", "commit", "-m", message], cwd=repo_root, check=True, capture_output=True)
@@ -446,10 +455,21 @@ def reset_to_clean_base(repo_root: Path, base_branch: str) -> None:
     clean checkout of base_branch (trunk, or a stacked ticket's parent
     branch) before the loop claims its next ticket. Resets and cleans only
     the working tree the script itself was using for the aborted ticket's
-    branch — it never deletes that branch."""
+    branch — it never deletes that branch.
+
+    `git clean -fd` alone would delete .tickets/ along with any other
+    untracked scratch: .tickets/ is never git-ignored by this tool (R10),
+    so a plain clean wipes out the entire ticket store on the very first
+    gate failure — confirmed against a real repo. -e excludes it from the
+    sweep the same way `.goalship/`'s own .git/info/exclude entry already
+    protects it.
+    """
     subprocess.run(["git", "checkout", base_branch], cwd=repo_root, check=True, capture_output=True)
     subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_root, check=True, capture_output=True)
-    subprocess.run(["git", "clean", "-fd"], cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "clean", "-fd", "-e", TICKETS_DIR_NAME],
+        cwd=repo_root, check=True, capture_output=True,
+    )
 
 
 # ---------------------------------------------------------------------------

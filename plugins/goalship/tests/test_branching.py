@@ -228,6 +228,27 @@ class TestBranchLifecycle(BranchingTestCase):
         self.assertEqual(committed, ["feature.txt"])
         self.assertTrue((self.repo_root / ".tickets" / "T-1.md").exists())
 
+    def test_commit_all_succeeds_once_the_ledger_dir_is_already_git_excluded(self):
+        # Every real invocation calls ensure_ledger_excluded (via the
+        # `ledger` CLI subcommand) long before the first commit. Once
+        # .goalship/ is listed in .git/info/exclude, git's own "ignored
+        # file" advice fires — and exits nonzero — for any *explicit*
+        # negative pathspec naming an already-ignored path, even though
+        # the staging itself is correct either way.
+        lr.ensure_ledger_excluded(self.repo_root)
+        lr.create_branch(self.repo_root, "feat/already-excluded", "origin/main")
+        (self.repo_root / ".goalship").mkdir()
+        (self.repo_root / ".goalship" / "state.json").write_text("{}\n")
+        (self.repo_root / "feature.txt").write_text("impl\n")
+
+        lr.commit_all(self.repo_root, "feat: add feature")
+
+        committed = subprocess.run(
+            ["git", "show", "--name-only", "--format=", "HEAD"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        ).stdout.split()
+        self.assertEqual(committed, ["feature.txt"])
+
     def test_gate_failure_resets_working_tree_to_clean_trunk(self):
         lr.create_branch(self.repo_root, "feat/will-fail", "origin/main")
         (self.repo_root / "half-done.txt").write_text("broken\n")
@@ -241,6 +262,20 @@ class TestBranchLifecycle(BranchingTestCase):
         )
         self.assertEqual(current.stdout.strip(), "main")
         self.assertEqual(lr.dirty_paths(self.repo_root), [])
+        self.assertFalse((self.repo_root / "half-done.txt").exists())
+
+    def test_gate_failure_reset_never_deletes_the_untracked_tickets_dir(self):
+        # .tickets/ is never tracked or git-ignored by this tool (R10) — a
+        # plain `git clean -fd` on abort would wipe out the entire ticket
+        # store the moment any gate ever fails.
+        lr.create_branch(self.repo_root, "feat/will-fail-2", "origin/main")
+        (self.repo_root / ".tickets").mkdir()
+        (self.repo_root / ".tickets" / "T-1.md").write_text("# T-1\n")
+        (self.repo_root / "half-done.txt").write_text("broken\n")
+
+        lr.reset_to_clean_base(self.repo_root, "main")
+
+        self.assertTrue((self.repo_root / ".tickets" / "T-1.md").exists())
         self.assertFalse((self.repo_root / "half-done.txt").exists())
 
 
