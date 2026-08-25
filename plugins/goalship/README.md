@@ -1,11 +1,11 @@
-# goal-to-ticket-loop
+# goalship
 
 Hand a goal to this plugin and get merge-ready pull requests back, without babysitting each individual change. The goal is decomposed into a tracked, dependency-ordered `tk` ticket graph and driven to completion unattended: each ready ticket is implemented, gated against the target repo's own checks, branched, committed, pushed, and opened as a pull request.
 
 ## Features
 
 ### Skills
-- **goal-to-ticket-loop** - Decomposes a goal into a `tk` ticket graph (inline for small goals, or via `ce-plan`/`ce-brainstorm` escalation for large ones), then runs a self-pacing loop that implements, gates, and ships each ready ticket as its own pull request until the graph is exhausted, deadlocked, a run cap is hit, or the user stops it.
+- **goalship** - Decomposes a goal into a `tk` ticket graph (inline for small goals, or via `ce-plan`/`ce-brainstorm` escalation for large ones), then runs a self-pacing loop that implements, gates, and ships each ready ticket as its own pull request until the graph is exhausted, deadlocked, a run cap is hit, or the user stops it.
 
 ## Installation
 
@@ -16,7 +16,7 @@ Hand a goal to this plugin and get merge-ready pull requests back, without babys
 - Python 3, for the plugin's backing script
 
 ```bash
-/plugin install goal-to-ticket-loop@agent-extentions
+/plugin install goalship@agent-extentions
 ```
 
 ## Usage
@@ -24,7 +24,7 @@ Hand a goal to this plugin and get merge-ready pull requests back, without babys
 Invoke the skill with a goal:
 
 ```
-/goal-to-ticket-loop add input validation to the login form
+/goalship add input validation to the login form
 ```
 
 The skill classifies the goal, builds a ticket graph, and self-paces through implementation under the harness's `/loop` mechanism. It never merges, approves, force-pushes, or publishes — only opens pull requests for human review. Stop a run between tickets with the `/loop` wrapper's own interrupt mechanism.
