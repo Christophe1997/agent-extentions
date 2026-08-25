@@ -12,6 +12,12 @@ This is a Claude Code extensions marketplace repository. It distributes plugins 
 
 See [docs/agents/progressive-disclosure.md](docs/agents/progressive-disclosure.md) for detailed patterns.
 
+## Code Comments
+
+- **Self-explanatory code first; comments are a last resort.** A comment may state only a design constraint, invariant,
+  or non-obvious *why* — never narrate what the code does or restate the diff. **Never cite a plan/RFC section ID**
+  (`KTD-N`, `R-N`, `U-N`, `M-N`, `D-N`, `§N.N`, `RFC 2026-NNN`, …)
+
 ## Repository Structure
 
 ```
