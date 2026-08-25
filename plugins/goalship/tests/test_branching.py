@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
@@ -130,6 +131,29 @@ class TestBranchLifecycle(BranchingTestCase):
         )
         self.assertEqual(remote_log.stdout.strip(), sha)
 
+    def test_dirty_paths_ignores_tickets_dir(self):
+        (self.repo_root / ".tickets").mkdir()
+        (self.repo_root / ".tickets" / "T-1.md").write_text("# T-1\n")
+        self.assertEqual(lr.dirty_paths(self.repo_root), [])
+
+    def test_commit_all_never_sweeps_in_the_tickets_dir(self):
+        # tk mutates .tickets/ as a routine side effect of `tk start` /
+        # `tk add-note` during this very loop — those writes must never
+        # ride along on a ticket's own implementation commit.
+        lr.create_branch(self.repo_root, "feat/no-tickets-sweep", "origin/main")
+        (self.repo_root / ".tickets").mkdir()
+        (self.repo_root / ".tickets" / "T-1.md").write_text("# T-1\n")
+        (self.repo_root / "feature.txt").write_text("impl\n")
+
+        lr.commit_all(self.repo_root, "feat: add feature")
+
+        committed = subprocess.run(
+            ["git", "show", "--name-only", "--format=", "HEAD"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        ).stdout.split()
+        self.assertEqual(committed, ["feature.txt"])
+        self.assertTrue((self.repo_root / ".tickets" / "T-1.md").exists())
+
     def test_gate_failure_resets_working_tree_to_clean_trunk(self):
         lr.create_branch(self.repo_root, "feat/will-fail", "origin/main")
         (self.repo_root / "half-done.txt").write_text("broken\n")
@@ -144,6 +168,71 @@ class TestBranchLifecycle(BranchingTestCase):
         self.assertEqual(current.stdout.strip(), "main")
         self.assertEqual(lr.dirty_paths(self.repo_root), [])
         self.assertFalse((self.repo_root / "half-done.txt").exists())
+
+
+class TestCreatePullRequest(unittest.TestCase):
+    """KTD1: PR creation is a safety-critical mechanical operation, so it
+    lives in the script (covered by the R8 AST guardrail) rather than in
+    skill prose that shells out directly."""
+
+    def _fake_run(self, stdout):
+        return mock.Mock(returncode=0, stdout=stdout, stderr="")
+
+    def test_gh_builds_expected_argv_and_returns_the_printed_url(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            captured["kwargs"] = kwargs
+            return self._fake_run("https://github.com/acme/widgets/pull/42\n")
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            url = lr.create_pull_request(
+                Path("/repo"), "gh", "feat/thing", "main", "feat: thing", "body text",
+            )
+
+        self.assertEqual(url, "https://github.com/acme/widgets/pull/42")
+        self.assertEqual(
+            captured["argv"],
+            [
+                "gh", "pr", "create",
+                "--head", "feat/thing", "--base", "main",
+                "--title", "feat: thing", "--body", "body text",
+            ],
+        )
+        self.assertEqual(captured["kwargs"]["cwd"], Path("/repo"))
+        self.assertTrue(captured["kwargs"]["check"])
+
+    def test_glab_builds_expected_argv_and_returns_the_printed_url(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return self._fake_run("https://gitlab.com/acme/widgets/-/merge_requests/7\n")
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            url = lr.create_pull_request(
+                Path("/repo"), "glab", "feat/thing", "main", "feat: thing", "body text",
+            )
+
+        self.assertEqual(url, "https://gitlab.com/acme/widgets/-/merge_requests/7")
+        self.assertEqual(
+            captured["argv"],
+            [
+                "glab", "mr", "create",
+                "--source-branch", "feat/thing", "--target-branch", "main",
+                "--title", "feat: thing", "--description", "body text", "--yes",
+            ],
+        )
+
+    def test_unsupported_host_tool_raises(self):
+        with self.assertRaises(ValueError):
+            lr.create_pull_request(Path("/repo"), "hub", "feat/x", "main", "t", "b")
+
+    def test_missing_url_in_output_raises(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run("no url here\n")):
+            with self.assertRaises(RuntimeError):
+                lr.create_pull_request(Path("/repo"), "gh", "feat/x", "main", "t", "b")
 
 
 class TestNoDestructiveOperations(unittest.TestCase):

@@ -23,6 +23,14 @@ FAILURE_CAP = 3
 # from git via .git/info/exclude rather than relying on the repo's .gitignore.
 LEDGER_DIR_NAME = ".goalship"
 
+# tk's own state directory. Excluded from this tool's dirty-tree check and
+# commit staging for the same reason as LEDGER_DIR_NAME: `tk start`/`tk
+# add-note` mutate it as a routine side effect of running this very loop,
+# unrelated to a ticket's implementation diff. Whether the target repo
+# tracks .tickets/ at all is that repo's own decision (R10) — this only
+# keeps the loop's own commits and clean-tree checks from reacting to it.
+TICKETS_DIR_NAME = ".tickets"
+
 
 @dataclass
 class RunState:
@@ -131,9 +139,13 @@ def ensure_ledger_excluded(repo_root: Path) -> None:
         f.write(entry + "\n")
 
 
+_IGNORED_DIRTY_DIR_NAMES = (LEDGER_DIR_NAME, TICKETS_DIR_NAME)
+
+
 def dirty_paths(repo_root: Path) -> list:
-    """Repo-relative paths git considers dirty, excluding the ledger dir itself
-    (KTD5 defense-in-depth: writing the ledger must never trip this check)."""
+    """Repo-relative paths git considers dirty, excluding the ledger dir and
+    tk's own state dir (KTD5 defense-in-depth: writing the ledger, or tk
+    mutating its own files, must never trip this check)."""
     result = subprocess.run(
         ["git", "status", "--short", "--untracked-files=all"],
         cwd=repo_root, capture_output=True, text=True, check=True,
@@ -141,7 +153,7 @@ def dirty_paths(repo_root: Path) -> list:
     paths = []
     for line in result.stdout.splitlines():
         relpath = line[3:].strip()
-        if relpath.startswith(f"{LEDGER_DIR_NAME}/") or relpath == LEDGER_DIR_NAME:
+        if any(relpath == name or relpath.startswith(f"{name}/") for name in _IGNORED_DIRTY_DIR_NAMES):
             continue
         paths.append(relpath)
     return paths
@@ -318,8 +330,15 @@ def create_branch(repo_root: Path, branch_name: str, base_ref: str) -> None:
 
 
 def commit_all(repo_root: Path, message: str) -> str:
-    """Stage everything and commit; returns the new head SHA."""
-    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True, capture_output=True)
+    """Stage everything except this tool's own state dirs and commit;
+    returns the new head SHA. .goalship/ and .tickets/ are excluded so a
+    ticket's PR carries only its own implementation diff, never this
+    loop's or tk's own bookkeeping churn."""
+    exclude_pathspecs = [f":!{name}" for name in _IGNORED_DIRTY_DIR_NAMES]
+    subprocess.run(
+        ["git", "add", "-A", "--", ".", *exclude_pathspecs],
+        cwd=repo_root, check=True, capture_output=True,
+    )
     subprocess.run(["git", "commit", "-m", message], cwd=repo_root, check=True, capture_output=True)
     return head_sha(repo_root)
 
@@ -330,6 +349,41 @@ def push_branch(repo_root: Path, branch_name: str) -> None:
         ["git", "push", "-u", "origin", branch_name],
         cwd=repo_root, check=True, capture_output=True,
     )
+
+
+def create_pull_request(
+    repo_root: Path,
+    host_tool: str,
+    branch: str,
+    base: str,
+    title: str,
+    body: str,
+) -> str:
+    """Open a pull/merge request for `branch` against `base`; returns its
+    URL. `branch` must already be pushed (push_branch) — this only opens
+    the request, it never pushes. KTD1: PR creation is a safety-critical
+    mechanical operation, so it lives here rather than in skill prose."""
+    if host_tool == "gh":
+        argv = [
+            "gh", "pr", "create",
+            "--head", branch, "--base", base,
+            "--title", title, "--body", body,
+        ]
+    elif host_tool == "glab":
+        argv = [
+            "glab", "mr", "create",
+            "--source-branch", branch, "--target-branch", base,
+            "--title", title, "--description", body, "--yes",
+        ]
+    else:
+        raise ValueError(f"unsupported host_tool: {host_tool!r}")
+
+    result = subprocess.run(argv, cwd=repo_root, capture_output=True, text=True, check=True)
+    for line in reversed(result.stdout.strip().splitlines()):
+        line = line.strip()
+        if line.startswith("http://") or line.startswith("https://"):
+            return line
+    raise RuntimeError(f"{host_tool} pr create did not print a URL: {result.stdout!r}")
 
 
 def head_sha(repo_root: Path) -> str:
