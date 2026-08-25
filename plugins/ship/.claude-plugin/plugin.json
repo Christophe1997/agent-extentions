@@ -1,9 +1,0 @@
-{
-  "name": "ship",
-  "version": "0.1.0",
-  "description": "Ship a goal end-to-end on a git repo: apply changes, surface related tasks, commit per project convention (branch-off-trunk + gates), and sync to remote — aborting if any phase fails.",
-  "author": {
-    "name": "Christophe1997",
-    "email": "hey_christophe@outlook.com"
-  }
-}
