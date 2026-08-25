@@ -83,30 +83,9 @@ class TestResolveBranchBase(unittest.TestCase):
         self.assertEqual(lr.resolve_branch_base("main", deps), "main")
 
 
-class TicketBranchingTestCase(unittest.TestCase):
+class TicketBranchingTestCase(BranchingTestCase):
     """A repo_root that is both a git repo (with a bare origin) and a `tk`
     ticket store — resolve_base_for_ticket needs both."""
-
-    def setUp(self) -> None:
-        self._tmp = tempfile.TemporaryDirectory()
-        root = Path(self._tmp.name)
-        self.bare_dir = root / "origin.git"
-        self.repo_root = root / "work"
-        self.repo_root.mkdir()
-
-        _run(["git", "init", "-q", "--bare", str(self.bare_dir)], root)
-        _run(["git", "init", "-q"], self.repo_root)
-        _run(["git", "config", "user.email", "test@example.com"], self.repo_root)
-        _run(["git", "config", "user.name", "Test"], self.repo_root)
-        (self.repo_root / "README.md").write_text("placeholder\n")
-        _run(["git", "add", "README.md"], self.repo_root)
-        _run(["git", "commit", "-q", "-m", "init"], self.repo_root)
-        _run(["git", "branch", "-m", "main"], self.repo_root)
-        _run(["git", "remote", "add", "origin", str(self.bare_dir)], self.repo_root)
-        _run(["git", "push", "-q", "-u", "origin", "main"], self.repo_root)
-
-    def tearDown(self) -> None:
-        self._tmp.cleanup()
 
     def _tk_create(self, title: str) -> str:
         result = subprocess.run(

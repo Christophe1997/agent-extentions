@@ -10,6 +10,7 @@ directly (as the tests do) to use the functions themselves.
 """
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import shutil
@@ -45,12 +46,7 @@ class RunState:
     claimed_ticket_ids: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {
-            "run_id": self.run_id,
-            "shipped_count": self.shipped_count,
-            "consecutive_failures": self.consecutive_failures,
-            "claimed_ticket_ids": list(self.claimed_ticket_ids),
-        }
+        return dataclasses.asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> "RunState":
@@ -115,10 +111,6 @@ def record_failure(state: RunState) -> None:
 def claim_ticket(state: RunState, ticket_id: str) -> None:
     if ticket_id not in state.claimed_ticket_ids:
         state.claimed_ticket_ids.append(ticket_id)
-
-
-def is_claimed(state: RunState, ticket_id: str) -> bool:
-    return ticket_id in state.claimed_ticket_ids
 
 
 def caps_exceeded(state: RunState) -> Optional[str]:
@@ -573,10 +565,15 @@ def note_fields_for_ticket(repo_root: Path, ticket_id: str) -> dict:
     return fields
 
 
-def find_ticket_by_branch(repo_root: Path, branch: str) -> Optional[str]:
+def find_ticket_by_branch(repo_root: Path, branch: str) -> Optional[tuple]:
+    """(ticket_id, note_fields) for the ticket whose branch note matches, or
+    None. Returns the fields alongside the id so a caller that needs them
+    (reconcile's stacked-base lookup) doesn't re-issue an identical `tk
+    show` for the ticket it just found."""
     for ticket in tk_query(repo_root, "."):
-        if note_fields_for_ticket(repo_root, ticket["id"]).get("branch") == branch:
-            return ticket["id"]
+        fields = note_fields_for_ticket(repo_root, ticket["id"])
+        if fields.get("branch") == branch:
+            return ticket["id"], fields
     return None
 
 
@@ -621,6 +618,26 @@ class ReconciliationAction:
 class ReconciliationReport:
     actions: list = field(default_factory=list)
     auth_failure: Optional[str] = None
+
+
+def _reconcile_stacked_base(
+    repo_root: Path, host_tool: Optional[str], ticket_id: str, base: str,
+) -> Optional[ReconciliationAction]:
+    """KTD8: a ticket's PR is open and stacked on `base` — check whether
+    that base's own PR has since resolved out from under it."""
+    found = find_ticket_by_branch(repo_root, base)
+    base_fields = found[1] if found else {}
+    base_pr = base_fields.get("pr")
+    base_state = pr_state(repo_root, host_tool, base_pr) if base_pr else None
+    if base_state == "merged":
+        return ReconciliationAction(ticket_id, "retarget_base_merged", base)
+    if base_state == "closed":
+        tk_add_note(
+            repo_root, ticket_id,
+            f"Reconciliation: base {base} closed without merging; blocked.",
+        )
+        return ReconciliationAction(ticket_id, "blocked_stale_base", base)
+    return None
 
 
 def reconcile(repo_root: Path) -> ReconciliationReport:
@@ -674,18 +691,9 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
             actions.append(ReconciliationAction(ticket_id, "failed_closed_unmerged", pr_ref))
         elif state == "open":
             if base:
-                base_ticket_id = find_ticket_by_branch(repo_root, base)
-                base_fields = note_fields_for_ticket(repo_root, base_ticket_id) if base_ticket_id else {}
-                base_pr = base_fields.get("pr")
-                base_state = pr_state(repo_root, host_tool, base_pr) if base_pr else None
-                if base_state == "merged":
-                    actions.append(ReconciliationAction(ticket_id, "retarget_base_merged", base))
-                elif base_state == "closed":
-                    tk_add_note(
-                        repo_root, ticket_id,
-                        f"Reconciliation: base {base} closed without merging; blocked.",
-                    )
-                    actions.append(ReconciliationAction(ticket_id, "blocked_stale_base", base))
+                action = _reconcile_stacked_base(repo_root, host_tool, ticket_id, base)
+                if action:
+                    actions.append(action)
         else:
             actions.append(ReconciliationAction(ticket_id, "pr_state_unresolved", pr_ref))
 
@@ -763,12 +771,15 @@ def cmd_ledger(args: list) -> None:
     i = 0
     while i < len(rest):
         tok = rest[i]
-        if tok == "--run-id":
+        if tok in ("--run-id", "--claim"):
+            if i + 1 >= len(rest):
+                print(f"error: {tok} requires a value", file=sys.stderr)
+                sys.exit(1)
             i += 1
-            run_id = rest[i]
-        elif tok == "--claim":
-            i += 1
-            claim_id = rest[i]
+            if tok == "--run-id":
+                run_id = rest[i]
+            else:
+                claim_id = rest[i]
         elif tok == "--ship":
             ship = True
         elif tok == "--fail":
