@@ -2,7 +2,7 @@
 name: goalship
 description: This skill should be used when the user asks to "turn this goal into tickets and ship it", "run goalship on this", "decompose this goal and implement it unattended", or "hand this goal off and open PRs for each piece". Decomposes a goal into a tk ticket graph, then runs a self-pacing loop that implements, gates, commits, pushes, and opens a pull request for each ready ticket until the graph is exhausted.
 argument-hint: "<goal description>"
-allowed-tools: [Bash, Read, Write, Edit, Skill, AskUserQuestion, ScheduleWakeup]
+allowed-tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, AskUserQuestion, ScheduleWakeup]
 ---
 
 Take a stated goal from a `tk` ticket graph to merge-ready pull requests,
@@ -72,7 +72,11 @@ skill did not create, or take a package-registry publish action. Every
 git/`tk`/`gh` operation goes through `${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py`
 (see `references/execution-loop.md`), which exposes no code path for any of
 those — this is asserted directly against the script's source in
-`tests/test_branching.py`, not just documented here.
+`tests/test_branching.py`, not just documented here. The one exception is
+the sub-agent that `execution-loop.md`'s implement step delegates
+implementation to: it carries ordinary `Bash` access and is held to this
+same boundary by instruction, not by the script's structural guarantee —
+see that section for the exact restriction it's given.
 
 ## Bundled resources
 

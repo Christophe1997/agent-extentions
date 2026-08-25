@@ -5,14 +5,9 @@ implementation is committed: linters, formatters, type checkers, unit tests,
 build steps, pre-commit hooks. Discover gates from the target repo itself —
 never assume a fixed command.
 
-This restates the same policy, sourced from the `ship` plugin's own
-gate-discovery policy (`git show a9e42ea~1:plugins/ship/skills/ship/references/gates.md`,
-before `ship` was removed from this repo) — there is no live cross-plugin
-reference to point to instead, so the algorithm lives here as goalship's own
-copy. One change from `ship`'s original: `ship` asked the user when a gate
-was ambiguous. goalship's execution loop is unattended once it starts;
-an ambiguous case below always resolves to a documented default instead of a
-question.
+goalship's execution loop is unattended once it starts, so an ambiguous
+case below always resolves to a documented default rather than a question
+to the user.
 
 ## Discovery order
 
