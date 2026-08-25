@@ -72,6 +72,21 @@ class TestPreflightPass(PreflightTestCase):
             result = lr.run_preflight(self.repo_root, will_create_prs=True)
         self.assertTrue(result.ok, result.failures)
 
+    def test_reports_detected_host_tool_when_pr_creation_will_run(self):
+        # Callers (the CLI's `create-pr` invocation) need to know which
+        # tool preflight found, rather than re-detecting it themselves.
+        _init_repo_with_remote(self.repo_root)
+        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
+             mock.patch.object(lr, "_host_tool_authenticated", return_value=True):
+            result = lr.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertEqual(result.host_tool, "gh")
+
+    def test_host_tool_is_none_when_pr_creation_will_not_run(self):
+        _init_repo_with_remote(self.repo_root)
+        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})):
+            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        self.assertIsNone(result.host_tool)
+
 
 class TestPreflightFailures(PreflightTestCase):
     def test_fails_when_tk_missing(self):

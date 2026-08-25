@@ -83,6 +83,80 @@ class TestResolveBranchBase(unittest.TestCase):
         self.assertEqual(lr.resolve_branch_base("main", deps), "main")
 
 
+class TicketBranchingTestCase(unittest.TestCase):
+    """A repo_root that is both a git repo (with a bare origin) and a `tk`
+    ticket store — resolve_base_for_ticket needs both."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.bare_dir = root / "origin.git"
+        self.repo_root = root / "work"
+        self.repo_root.mkdir()
+
+        _run(["git", "init", "-q", "--bare", str(self.bare_dir)], root)
+        _run(["git", "init", "-q"], self.repo_root)
+        _run(["git", "config", "user.email", "test@example.com"], self.repo_root)
+        _run(["git", "config", "user.name", "Test"], self.repo_root)
+        (self.repo_root / "README.md").write_text("placeholder\n")
+        _run(["git", "add", "README.md"], self.repo_root)
+        _run(["git", "commit", "-q", "-m", "init"], self.repo_root)
+        _run(["git", "branch", "-m", "main"], self.repo_root)
+        _run(["git", "remote", "add", "origin", str(self.bare_dir)], self.repo_root)
+        _run(["git", "push", "-q", "-u", "origin", "main"], self.repo_root)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _tk_create(self, title: str) -> str:
+        result = subprocess.run(
+            ["tk", "create", title, "-t", "task"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        )
+        return result.stdout.strip().splitlines()[-1]
+
+
+class TestResolveBaseForTicket(TicketBranchingTestCase):
+    def test_no_dependencies_resolves_to_trunk(self):
+        ticket_id = self._tk_create("Standalone ticket")
+        self.assertEqual(lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main"), "main")
+
+    def test_single_open_dependency_resolves_to_its_branch(self):
+        dep_id = self._tk_create("Dependency")
+        lr.record_claim_note(self.repo_root, dep_id, "feat/dep-branch")
+        lr.record_ship_note(self.repo_root, dep_id, "feat/dep-branch", "https://example.com/pr/1", "sha1")
+
+        ticket_id = self._tk_create("Dependent")
+        subprocess.run(["tk", "dep", ticket_id, dep_id], cwd=self.repo_root, check=True, capture_output=True)
+
+        with mock.patch.object(lr, "pr_state", return_value="open"):
+            base = lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh")
+        self.assertEqual(base, "feat/dep-branch")
+
+    def test_merged_dependency_resolves_to_trunk(self):
+        dep_id = self._tk_create("Dependency")
+        lr.record_claim_note(self.repo_root, dep_id, "feat/dep-branch")
+        lr.record_ship_note(self.repo_root, dep_id, "feat/dep-branch", "https://example.com/pr/1", "sha1")
+
+        ticket_id = self._tk_create("Dependent")
+        subprocess.run(["tk", "dep", ticket_id, dep_id], cwd=self.repo_root, check=True, capture_output=True)
+
+        with mock.patch.object(lr, "pr_state", return_value="merged"):
+            base = lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh")
+        self.assertEqual(base, "main")
+
+    def test_dependency_never_claimed_by_this_tool_resolves_to_trunk(self):
+        # A predecessor with no recorded branch note (closed by hand, or
+        # predates this loop) can't be looked up — treated as resolved.
+        dep_id = self._tk_create("Manually closed dependency")
+        subprocess.run(["tk", "close", dep_id], cwd=self.repo_root, check=True, capture_output=True)
+
+        ticket_id = self._tk_create("Dependent")
+        subprocess.run(["tk", "dep", ticket_id, dep_id], cwd=self.repo_root, check=True, capture_output=True)
+
+        self.assertEqual(lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh"), "main")
+
+
 class TestBranchNaming(BranchingTestCase):
     def test_slugifies_type_and_title(self):
         name = lr.branch_name_for_ticket(self.repo_root, "feat", "Add input validation!")

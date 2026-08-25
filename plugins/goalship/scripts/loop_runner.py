@@ -3,6 +3,10 @@
 and the durable run-state ledger. The skill runs and interprets the
 target repo's gate commands itself — this script never wraps gate
 execution, so gate output stays visible in the transcript.
+
+Run standalone (`loop_runner.py <subcommand> ...`, see USAGE below) for
+the CLI surface skills/goalship/references/execution-loop.md drives; import
+directly (as the tests do) to use the functions themselves.
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -212,6 +217,7 @@ class PreflightResult:
     ok: bool
     remote_url: Optional[str] = None
     trunk_branch: Optional[str] = None
+    host_tool: Optional[str] = None
     failures: list = field(default_factory=list)
 
 
@@ -233,6 +239,7 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
     if dirty:
         failures.append("working tree is dirty: " + ", ".join(dirty))
 
+    host_tool = None
     if will_create_prs:
         host_tool = _detect_host_tool()
         if host_tool is None:
@@ -246,6 +253,7 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
         ok=not failures,
         remote_url=remote_url,
         trunk_branch=trunk_branch,
+        host_tool=host_tool,
         failures=failures,
     )
 
@@ -281,6 +289,31 @@ def resolve_branch_base(trunk_branch: str, dependency_prs: list) -> str:
     if len(open_preds) == 1:
         return open_preds[0].branch
     return trunk_branch
+
+
+def resolve_base_for_ticket(
+    repo_root: Path, ticket_id: str, trunk_branch: str, host_tool: Optional[str] = None,
+) -> str:
+    """Look up `ticket_id`'s tk dependencies (which stay in `deps` even once
+    resolved — closed status, not array membership, marks them resolved)
+    and apply the dependency-aware branch model. A predecessor with no
+    recorded branch note (closed by hand, or predating this loop) can't be
+    looked up and is treated as resolved, same as a merged one."""
+    repo_root = Path(repo_root)
+    matches = tk_query(repo_root, f'select(.id=="{ticket_id}")')
+    dep_ids = matches[0].get("deps", []) if matches else []
+
+    dependency_prs = []
+    for dep_id in dep_ids:
+        fields = note_fields_for_ticket(repo_root, dep_id)
+        branch = fields.get("branch")
+        if not branch:
+            continue
+        pr_ref = fields.get("pr")
+        state = pr_state(repo_root, host_tool, pr_ref) if pr_ref else "closed"
+        dependency_prs.append(DependencyPR(ticket_id=dep_id, branch=branch, state=state or "closed"))
+
+    return resolve_branch_base(trunk_branch, dependency_prs)
 
 
 def slugify(text: str) -> str:
@@ -623,3 +656,211 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
             actions.append(ReconciliationAction(ticket_id, "pr_state_unresolved", pr_ref))
 
     return ReconciliationReport(actions=actions)
+
+
+# ---------------------------------------------------------------------------
+# CLI dispatcher — the skill's invocation surface. Each cmd_* function is a
+# thin argv-to-function-call adapter; the logic itself lives in the tested
+# functions above, mirroring this repo's yapermission/a2a script convention.
+# ---------------------------------------------------------------------------
+
+USAGE = """Usage:
+  loop_runner.py preflight <repo_root> <true|false>
+  loop_runner.py reconcile <repo_root>
+  loop_runner.py ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]
+  loop_runner.py dirty <repo_root>
+  loop_runner.py branch-name <repo_root> <type> <title>
+  loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> [host_tool]
+  loop_runner.py claim <repo_root> <ticket_id> <branch_name> <base_ref> <trunk_branch>
+  loop_runner.py commit <repo_root> <message>
+  loop_runner.py push <repo_root> <branch_name>
+  loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> <title> <body>
+  loop_runner.py ship <repo_root> <ticket_id> <branch> <pr_url> <sha>
+  loop_runner.py reset <repo_root> <base_branch>
+"""
+
+
+def _print_json(data) -> None:
+    print(json.dumps(data))
+
+
+def cmd_preflight(args: list) -> None:
+    if len(args) < 2:
+        print("error: usage: preflight <repo_root> <true|false>", file=sys.stderr)
+        sys.exit(1)
+    result = run_preflight(Path(args[0]), args[1].lower() == "true")
+    _print_json({
+        "ok": result.ok,
+        "remote_url": result.remote_url,
+        "trunk_branch": result.trunk_branch,
+        "host_tool": result.host_tool,
+        "failures": result.failures,
+    })
+
+
+def cmd_reconcile(args: list) -> None:
+    if len(args) < 1:
+        print("error: usage: reconcile <repo_root>", file=sys.stderr)
+        sys.exit(1)
+    report = reconcile(Path(args[0]))
+    _print_json({
+        "actions": [
+            {"ticket_id": a.ticket_id, "outcome": a.outcome, "detail": a.detail}
+            for a in report.actions
+        ],
+        "auth_failure": report.auth_failure,
+    })
+
+
+def cmd_ledger(args: list) -> None:
+    if len(args) < 1:
+        print(
+            "error: usage: ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    repo_root = Path(args[0])
+    run_id = None
+    claim_id = None
+    ship = False
+    fail = False
+    rest = args[1:]
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        if tok == "--run-id":
+            i += 1
+            run_id = rest[i]
+        elif tok == "--claim":
+            i += 1
+            claim_id = rest[i]
+        elif tok == "--ship":
+            ship = True
+        elif tok == "--fail":
+            fail = True
+        else:
+            print(f"error: unknown ledger flag '{tok}'", file=sys.stderr)
+            sys.exit(1)
+        i += 1
+
+    ensure_ledger_excluded(repo_root)
+    state = load_run_state(repo_root, run_id or generate_run_id())
+    if claim_id:
+        claim_ticket(state, claim_id)
+    if ship:
+        record_ship(state)
+    if fail:
+        record_failure(state)
+    save_run_state(repo_root, state)
+
+    data = state.to_dict()
+    data["caps_exceeded"] = caps_exceeded(state)
+    _print_json(data)
+
+
+def cmd_dirty(args: list) -> None:
+    if len(args) < 1:
+        print("error: usage: dirty <repo_root>", file=sys.stderr)
+        sys.exit(1)
+    _print_json(dirty_paths(Path(args[0])))
+
+
+def cmd_branch_name(args: list) -> None:
+    if len(args) < 3:
+        print("error: usage: branch-name <repo_root> <type> <title>", file=sys.stderr)
+        sys.exit(1)
+    print(branch_name_for_ticket(Path(args[0]), args[1], args[2]))
+
+
+def cmd_resolve_base(args: list) -> None:
+    if len(args) < 3:
+        print("error: usage: resolve-base <repo_root> <ticket_id> <trunk_branch> [host_tool]", file=sys.stderr)
+        sys.exit(1)
+    host_tool = args[3] if len(args) > 3 else None
+    print(resolve_base_for_ticket(Path(args[0]), args[1], args[2], host_tool))
+
+
+def cmd_claim(args: list) -> None:
+    if len(args) < 5:
+        print("error: usage: claim <repo_root> <ticket_id> <branch_name> <base_ref> <trunk_branch>", file=sys.stderr)
+        sys.exit(1)
+    repo_root, ticket_id, branch_name, base_ref, trunk_branch = Path(args[0]), args[1], args[2], args[3], args[4]
+    create_branch(repo_root, branch_name, base_ref)
+    record_claim_note(repo_root, ticket_id, branch_name, base=base_ref if base_ref != trunk_branch else None)
+
+
+def cmd_commit(args: list) -> None:
+    if len(args) < 2:
+        print("error: usage: commit <repo_root> <message>", file=sys.stderr)
+        sys.exit(1)
+    print(commit_all(Path(args[0]), args[1]))
+
+
+def cmd_push(args: list) -> None:
+    if len(args) < 2:
+        print("error: usage: push <repo_root> <branch_name>", file=sys.stderr)
+        sys.exit(1)
+    push_branch(Path(args[0]), args[1])
+
+
+def cmd_create_pr(args: list) -> None:
+    if len(args) < 6:
+        print("error: usage: create-pr <repo_root> <host_tool> <branch> <base> <title> <body>", file=sys.stderr)
+        sys.exit(1)
+    repo_root, host_tool, branch, base, title, body = args[0], args[1], args[2], args[3], args[4], args[5]
+    print(create_pull_request(Path(repo_root), host_tool, branch, base, title, body))
+
+
+def cmd_ship(args: list) -> None:
+    if len(args) < 5:
+        print("error: usage: ship <repo_root> <ticket_id> <branch> <pr_url> <sha>", file=sys.stderr)
+        sys.exit(1)
+    repo_root, ticket_id, branch, pr_url, sha = Path(args[0]), args[1], args[2], args[3], args[4]
+    record_ship_note(repo_root, ticket_id, branch, pr_url, sha)
+    tk_close(repo_root, ticket_id)
+
+
+def cmd_reset(args: list) -> None:
+    if len(args) < 2:
+        print("error: usage: reset <repo_root> <base_branch>", file=sys.stderr)
+        sys.exit(1)
+    reset_to_clean_base(Path(args[0]), args[1])
+
+
+_COMMANDS = {
+    "preflight": cmd_preflight,
+    "reconcile": cmd_reconcile,
+    "ledger": cmd_ledger,
+    "dirty": cmd_dirty,
+    "branch-name": cmd_branch_name,
+    "resolve-base": cmd_resolve_base,
+    "claim": cmd_claim,
+    "commit": cmd_commit,
+    "push": cmd_push,
+    "create-pr": cmd_create_pr,
+    "ship": cmd_ship,
+    "reset": cmd_reset,
+}
+
+
+def main() -> None:
+    if len(sys.argv) < 2:
+        print(USAGE, file=sys.stderr)
+        sys.exit(1)
+    handler = _COMMANDS.get(sys.argv[1])
+    if handler is None:
+        print(f"error: unknown command '{sys.argv[1]}'\n{USAGE}", file=sys.stderr)
+        sys.exit(1)
+    try:
+        handler(sys.argv[2:])
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+        print(f"error: `{' '.join(exc.cmd)}` failed: {stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
