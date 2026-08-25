@@ -25,6 +25,13 @@ from typing import Optional
 SHIP_CAP = 10
 FAILURE_CAP = 3
 
+# Every gh/glab call this script makes is a simple auth-status/PR-create/
+# PR-view/PR-edit round trip, not a long-running operation — an unattended,
+# self-pacing loop has no one to notice a hang, so each call gets a
+# watchdog rather than blocking forever on a stalled host or an
+# interactive credential prompt.
+HOST_TOOL_TIMEOUT_SECONDS = 30
+
 # KTD2: ledger lives inside the target repo's own working tree, excluded
 # from git via .git/info/exclude rather than relying on the repo's .gitignore.
 LEDGER_DIR_NAME = ".goalship"
@@ -200,7 +207,9 @@ def _detect_host_tool() -> Optional[str]:
 
 
 def _host_tool_authenticated(tool: str) -> bool:
-    result = subprocess.run([tool, "auth", "status"], capture_output=True)
+    result = subprocess.run(
+        [tool, "auth", "status"], capture_output=True, timeout=HOST_TOOL_TIMEOUT_SECONDS,
+    )
     return result.returncode == 0
 
 
@@ -302,8 +311,23 @@ def resolve_base_for_ticket(
         if not branch:
             continue
         pr_ref = fields.get("pr")
-        state = pr_state(repo_root, host_tool, pr_ref) if pr_ref else "closed"
-        dependency_prs.append(DependencyPR(ticket_id=dep_id, branch=branch, state=state or "closed"))
+        if not pr_ref:
+            # No PR was ever recorded for this predecessor — legitimately
+            # resolved, same as a merged/closed one.
+            state = "closed"
+        else:
+            state = pr_state(repo_root, host_tool, pr_ref)
+            if state is None:
+                # #2: the lookup itself failed (expired credential, host
+                # outage) — distinct from a legitimately closed PR.
+                # Folding this into "closed" would silently rebase
+                # `ticket_id` onto trunk instead of dep_id's still-open
+                # branch, so surface it as a loud error instead.
+                raise RuntimeError(
+                    f"could not resolve base for {ticket_id!r}: pr_state lookup "
+                    f"failed for dependency {dep_id!r} (pr: {pr_ref!r})"
+                )
+        dependency_prs.append(DependencyPR(ticket_id=dep_id, branch=branch, state=state))
 
     return resolve_branch_base(trunk_branch, dependency_prs)
 
@@ -342,6 +366,14 @@ def branch_name_for_ticket(repo_root: Path, ticket_type: str, title: str) -> str
     while f"{base}-{suffix}" in existing:
         suffix += 1
     return f"{base}-{suffix}"
+
+
+def _local_branch_exists(repo_root: Path, branch_name: str) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", f"refs/heads/{branch_name}"],
+        cwd=repo_root, capture_output=True, text=True,
+    )
+    return result.returncode == 0
 
 
 def create_branch(repo_root: Path, branch_name: str, base_ref: str) -> None:
@@ -412,7 +444,10 @@ def create_pull_request(
     else:
         raise ValueError(f"unsupported host_tool: {host_tool!r}")
 
-    result = subprocess.run(argv, cwd=repo_root, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        argv, cwd=repo_root, capture_output=True, text=True, check=True,
+        timeout=HOST_TOOL_TIMEOUT_SECONDS,
+    )
     for line in reversed(result.stdout.strip().splitlines()):
         line = line.strip()
         if line.startswith("http://") or line.startswith("https://"):
@@ -431,12 +466,28 @@ def retarget_pull_request(repo_root: Path, host_tool: str, pr_ref: str, new_base
         argv = ["glab", "mr", "update", pr_ref, "--target-branch", new_base]
     else:
         raise ValueError(f"unsupported host_tool: {host_tool!r}")
-    subprocess.run(argv, cwd=repo_root, check=True, capture_output=True)
+    subprocess.run(
+        argv, cwd=repo_root, check=True, capture_output=True,
+        timeout=HOST_TOOL_TIMEOUT_SECONDS,
+    )
 
 
-def head_sha(repo_root: Path) -> str:
+def branch_has_commits(repo_root: Path, base: str, branch: str) -> bool:
+    """Whether `branch` carries any commits not on `base`. KTD1: backs the
+    retry_pr_creation crash-recovery check — empty means nothing was ever
+    implemented on this branch (a fresh implementation cycle, not a PR
+    retry); non-empty means the commit survived and only push/PR-creation
+    needs retrying."""
     result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
+        ["git", "log", f"{base}..{branch}", "--oneline"],
+        cwd=repo_root, capture_output=True, text=True, check=True,
+    )
+    return bool(result.stdout.strip())
+
+
+def head_sha(repo_root: Path, ref: str = "HEAD") -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", ref],
         cwd=repo_root, capture_output=True, text=True, check=True,
     )
     return result.stdout.strip()
@@ -585,12 +636,14 @@ def pr_state(repo_root: Path, host_tool: Optional[str], pr_ref: str) -> Optional
         result = subprocess.run(
             ["gh", "pr", "view", pr_ref, "--json", "state", "-q", ".state"],
             cwd=repo_root, capture_output=True, text=True,
+            timeout=HOST_TOOL_TIMEOUT_SECONDS,
         )
         raw = result.stdout.strip() if result.returncode == 0 else ""
     elif host_tool == "glab":
         result = subprocess.run(
             ["glab", "mr", "view", pr_ref, "-F", "json"],
             cwd=repo_root, capture_output=True, text=True,
+            timeout=HOST_TOOL_TIMEOUT_SECONDS,
         )
         raw = ""
         if result.returncode == 0:
@@ -612,6 +665,10 @@ class ReconciliationAction:
     ticket_id: str
     outcome: str
     detail: str = ""
+    # #5: for retarget_base_merged, the ticket's own `pr:` ref — carried
+    # here so the skill can retarget it directly instead of re-parsing
+    # `tk show` notes by hand.
+    pr_ref: str = ""
 
 
 @dataclass
@@ -621,16 +678,18 @@ class ReconciliationReport:
 
 
 def _reconcile_stacked_base(
-    repo_root: Path, host_tool: Optional[str], ticket_id: str, base: str,
+    repo_root: Path, host_tool: Optional[str], ticket_id: str, base: str, pr_ref: str,
 ) -> Optional[ReconciliationAction]:
     """KTD8: a ticket's PR is open and stacked on `base` — check whether
-    that base's own PR has since resolved out from under it."""
+    that base's own PR has since resolved out from under it. `pr_ref` is
+    `ticket_id`'s own PR (not `base`'s) — carried onto the resulting action
+    so a caller can retarget it without a second lookup (#5)."""
     found = find_ticket_by_branch(repo_root, base)
     base_fields = found[1] if found else {}
     base_pr = base_fields.get("pr")
     base_state = pr_state(repo_root, host_tool, base_pr) if base_pr else None
     if base_state == "merged":
-        return ReconciliationAction(ticket_id, "retarget_base_merged", base)
+        return ReconciliationAction(ticket_id, "retarget_base_merged", base, pr_ref=pr_ref)
     if base_state == "closed":
         tk_add_note(
             repo_root, ticket_id,
@@ -672,6 +731,7 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
         pr_ref = fields.get("pr")
         branch = fields.get("branch")
         base = fields.get("base")
+        sha = fields.get("sha")
 
         if not pr_ref:
             if branch:
@@ -690,10 +750,22 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
             tk_reopen(repo_root, ticket_id)
             actions.append(ReconciliationAction(ticket_id, "failed_closed_unmerged", pr_ref))
         elif state == "open":
+            action = None
             if base:
-                action = _reconcile_stacked_base(repo_root, host_tool, ticket_id, base)
-                if action:
-                    actions.append(action)
+                action = _reconcile_stacked_base(repo_root, host_tool, ticket_id, base, pr_ref)
+            if action:
+                actions.append(action)
+            elif sha:
+                # #6: the PR is genuinely open (nothing stale to retarget
+                # or block on) and the ship note (record_ship_note) has
+                # already run — sha only ever appears alongside pr, so its
+                # presence means the loop's own work here is done. A crash
+                # between record_ship_note and cmd_ship's follow-up
+                # tk_close is the only way a ticket reaches this shape, so
+                # finish the close the crash interrupted rather than
+                # leaving it stuck in_progress indefinitely.
+                tk_close(repo_root, ticket_id)
+                actions.append(ReconciliationAction(ticket_id, "closed_ship_note_orphaned", branch or "", pr_ref))
         else:
             actions.append(ReconciliationAction(ticket_id, "pr_state_unresolved", pr_ref))
 
@@ -713,8 +785,10 @@ USAGE = """Usage:
   loop_runner.py dirty <repo_root>
   loop_runner.py branch-name <repo_root> <type> <title>
   loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> [host_tool]
+  loop_runner.py branch-has-commits <repo_root> <base> <branch>
   loop_runner.py claim <repo_root> <ticket_id> <branch_name> <base_ref> <trunk_branch>
   loop_runner.py commit <repo_root> <message>
+  loop_runner.py head-sha <repo_root> <branch>
   loop_runner.py push <repo_root> <branch_name>
   loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> <title> <body>
   loop_runner.py retarget-pr <repo_root> <host_tool> <pr_ref> <new_base>
@@ -748,7 +822,7 @@ def cmd_reconcile(args: list) -> None:
     report = reconcile(Path(args[0]))
     _print_json({
         "actions": [
-            {"ticket_id": a.ticket_id, "outcome": a.outcome, "detail": a.detail}
+            {"ticket_id": a.ticket_id, "outcome": a.outcome, "detail": a.detail, "pr_ref": a.pr_ref}
             for a in report.actions
         ],
         "auth_failure": report.auth_failure,
@@ -826,12 +900,27 @@ def cmd_resolve_base(args: list) -> None:
     print(resolve_base_for_ticket(Path(args[0]), args[1], args[2], host_tool))
 
 
+def cmd_branch_has_commits(args: list) -> None:
+    if len(args) < 3:
+        print("error: usage: branch-has-commits <repo_root> <base> <branch>", file=sys.stderr)
+        sys.exit(1)
+    print("yes" if branch_has_commits(Path(args[0]), args[1], args[2]) else "no")
+
+
 def cmd_claim(args: list) -> None:
     if len(args) < 5:
         print("error: usage: claim <repo_root> <ticket_id> <branch_name> <base_ref> <trunk_branch>", file=sys.stderr)
         sys.exit(1)
     repo_root, ticket_id, branch_name, base_ref, trunk_branch = Path(args[0]), args[1], args[2], args[3], args[4]
-    create_branch(repo_root, branch_name, base_ref)
+    if _local_branch_exists(repo_root, branch_name):
+        # #9 crash recovery: a prior claim already created the branch but
+        # crashed before writing the claim note. Retry from here instead
+        # of failing on "branch already exists", checking the branch back
+        # out so implementation resumes on it as create_branch would have
+        # left it.
+        subprocess.run(["git", "checkout", branch_name], cwd=repo_root, check=True, capture_output=True)
+    else:
+        create_branch(repo_root, branch_name, base_ref)
     record_claim_note(repo_root, ticket_id, branch_name, base=base_ref if base_ref != trunk_branch else None)
 
 
@@ -840,6 +929,13 @@ def cmd_commit(args: list) -> None:
         print("error: usage: commit <repo_root> <message>", file=sys.stderr)
         sys.exit(1)
     print(commit_all(Path(args[0]), args[1]))
+
+
+def cmd_head_sha(args: list) -> None:
+    if len(args) < 2:
+        print("error: usage: head-sha <repo_root> <branch>", file=sys.stderr)
+        sys.exit(1)
+    print(head_sha(Path(args[0]), args[1]))
 
 
 def cmd_push(args: list) -> None:
@@ -887,8 +983,10 @@ _COMMANDS = {
     "dirty": cmd_dirty,
     "branch-name": cmd_branch_name,
     "resolve-base": cmd_resolve_base,
+    "branch-has-commits": cmd_branch_has_commits,
     "claim": cmd_claim,
     "commit": cmd_commit,
+    "head-sha": cmd_head_sha,
     "push": cmd_push,
     "create-pr": cmd_create_pr,
     "retarget-pr": cmd_retarget_pr,
@@ -910,6 +1008,13 @@ def main() -> None:
     except subprocess.CalledProcessError as exc:
         stderr = exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         print(f"error: `{' '.join(exc.cmd)}` failed: {stderr.strip()}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired as exc:
+        cmd = exc.cmd if isinstance(exc.cmd, str) else " ".join(exc.cmd)
+        print(f"error: `{cmd}` timed out after {exc.timeout}s", file=sys.stderr)
+        sys.exit(1)
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         sys.exit(1)
     except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)

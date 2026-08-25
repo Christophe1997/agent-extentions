@@ -135,6 +135,23 @@ class TestResolveBaseForTicket(TicketBranchingTestCase):
 
         self.assertEqual(lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh"), "main")
 
+    def test_dependency_pr_lookup_failure_does_not_silently_resolve_to_trunk(self):
+        # #2: pr_state() returning None means the lookup itself failed (an
+        # expired credential, a host outage) — distinct from a
+        # legitimately closed PR. Folding it into "closed" would silently
+        # rebase a dependent ticket onto trunk instead of its still-open
+        # predecessor's branch during a transient outage.
+        dep_id = self._tk_create("Dependency with an unresolvable PR")
+        lr.record_claim_note(self.repo_root, dep_id, "feat/dep-branch")
+        lr.record_ship_note(self.repo_root, dep_id, "feat/dep-branch", "https://example.com/pr/1", "sha1")
+
+        ticket_id = self._tk_create("Dependent")
+        subprocess.run(["tk", "dep", ticket_id, dep_id], cwd=self.repo_root, check=True, capture_output=True)
+
+        with mock.patch.object(lr, "pr_state", return_value=None):
+            with self.assertRaises(RuntimeError):
+                lr.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh")
+
 
 class TestBranchNaming(BranchingTestCase):
     def test_slugifies_type_and_title(self):
@@ -160,6 +177,37 @@ class TestBranchNaming(BranchingTestCase):
 
         name = lr.branch_name_for_ticket(self.repo_root, "feat", "existing remote only")
         self.assertEqual(name, "feat/existing-remote-only-2")
+
+
+class TestClaimIdempotency(TicketBranchingTestCase):
+    """#9: a crash between create_branch and record_claim_note leaves a real
+    branch with zero notes. cmd_claim must self-heal on retry instead of
+    failing on "branch already exists" or leaving the claim note unwritten."""
+
+    def test_claim_retried_after_a_crash_before_the_note_self_heals(self):
+        ticket_id = self._tk_create("Claim retried after a crash")
+        # Simulate the crash: branch already created (and left checked
+        # out), claim note never written — then a fresh process retries.
+        lr.create_branch(self.repo_root, "feat/crash-before-note", "origin/main")
+        _run(["git", "checkout", "main"], self.repo_root)
+
+        lr.cmd_claim([str(self.repo_root), ticket_id, "feat/crash-before-note", "origin/main", "main"])
+
+        fields = lr.note_fields_for_ticket(self.repo_root, ticket_id)
+        self.assertEqual(fields.get("branch"), "feat/crash-before-note")
+        current = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=self.repo_root,
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(current.stdout.strip(), "feat/crash-before-note")
+
+    def test_fresh_claim_still_creates_the_branch_as_normal(self):
+        ticket_id = self._tk_create("Fresh claim")
+        lr.cmd_claim([str(self.repo_root), ticket_id, "feat/fresh-claim", "origin/main", "main"])
+
+        fields = lr.note_fields_for_ticket(self.repo_root, ticket_id)
+        self.assertEqual(fields.get("branch"), "feat/fresh-claim")
+        self.assertIn("feat/fresh-claim", self._local_branches())
 
 
 class TestBranchLifecycle(BranchingTestCase):
@@ -256,6 +304,46 @@ class TestBranchLifecycle(BranchingTestCase):
 
         self.assertTrue((self.repo_root / ".tickets" / "T-1.md").exists())
         self.assertFalse((self.repo_root / "half-done.txt").exists())
+
+
+class TestBranchHasCommits(BranchingTestCase):
+    """Crash-recovery check (retry_pr_creation, KTD1): whether `branch` has
+    any commits not on `base`, distinguishing a fresh-implementation crash
+    (nothing to retry-push) from a push/PR-creation-only crash (commit
+    survived, only the network step failed)."""
+
+    def test_false_when_branch_has_no_commits_past_base(self):
+        lr.create_branch(self.repo_root, "feat/empty", "origin/main")
+        self.assertFalse(lr.branch_has_commits(self.repo_root, "main", "feat/empty"))
+
+    def test_true_when_branch_has_commits_past_base(self):
+        lr.create_branch(self.repo_root, "feat/has-commits", "origin/main")
+        (self.repo_root / "file.txt").write_text("x\n")
+        lr.commit_all(self.repo_root, "feat: add file")
+        self.assertTrue(lr.branch_has_commits(self.repo_root, "main", "feat/has-commits"))
+
+
+class TestHeadShaForRef(BranchingTestCase):
+    """head_sha() defaults to HEAD (its only prior caller, commit_all, needs
+    exactly that) but must also resolve an arbitrary ref — the
+    retry_pr_creation crash-recovery path needs a branch's tip while HEAD is
+    on a different checkout."""
+
+    def test_defaults_to_head(self):
+        expected = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.repo_root, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        self.assertEqual(lr.head_sha(self.repo_root), expected)
+
+    def test_resolves_an_arbitrary_ref_without_checking_it_out(self):
+        lr.create_branch(self.repo_root, "feat/other-branch", "origin/main")
+        (self.repo_root / "file.txt").write_text("x\n")
+        branch_sha = lr.commit_all(self.repo_root, "feat: add file")
+        _run(["git", "checkout", "main"], self.repo_root)
+
+        self.assertEqual(lr.head_sha(self.repo_root, "feat/other-branch"), branch_sha)
+        self.assertNotEqual(lr.head_sha(self.repo_root), branch_sha)
 
 
 class TestCreatePullRequest(unittest.TestCase):
@@ -357,6 +445,81 @@ class TestRetargetPullRequest(unittest.TestCase):
             lr.retarget_pull_request(Path("/repo"), "hub", "1", "main")
 
 
+class TestPrState(unittest.TestCase):
+    """#4: pr_state()'s own gh/glab argv construction, JSON parsing, and
+    state-string mapping — every other test in this suite mocks pr_state
+    itself, so exercise it directly here against a patched subprocess.run."""
+
+    def _fake_run(self, returncode=0, stdout="", stderr=""):
+        return mock.Mock(returncode=returncode, stdout=stdout, stderr=stderr)
+
+    def test_gh_open_maps_to_open_with_expected_argv(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return self._fake_run(stdout="OPEN\n")
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            state = lr.pr_state(Path("/repo"), "gh", "42")
+
+        self.assertEqual(state, "open")
+        self.assertEqual(
+            captured["argv"],
+            ["gh", "pr", "view", "42", "--json", "state", "-q", ".state"],
+        )
+
+    def test_gh_merged_maps_to_merged(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(stdout="MERGED\n")):
+            self.assertEqual(lr.pr_state(Path("/repo"), "gh", "42"), "merged")
+
+    def test_gh_closed_maps_to_closed(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(stdout="CLOSED\n")):
+            self.assertEqual(lr.pr_state(Path("/repo"), "gh", "42"), "closed")
+
+    def test_gh_nonzero_returncode_returns_none(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(returncode=1, stderr="not found")):
+            self.assertIsNone(lr.pr_state(Path("/repo"), "gh", "42"))
+
+    def test_glab_opened_maps_to_open_with_expected_argv(self):
+        captured = {}
+
+        def fake_run(argv, **kwargs):
+            captured["argv"] = argv
+            return self._fake_run(stdout='{"state": "opened"}')
+
+        with mock.patch.object(lr.subprocess, "run", side_effect=fake_run):
+            state = lr.pr_state(Path("/repo"), "glab", "7")
+
+        self.assertEqual(state, "open")
+        self.assertEqual(captured["argv"], ["glab", "mr", "view", "7", "-F", "json"])
+
+    def test_glab_merged_maps_to_merged(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(stdout='{"state": "merged"}')):
+            self.assertEqual(lr.pr_state(Path("/repo"), "glab", "7"), "merged")
+
+    def test_glab_closed_maps_to_closed(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(stdout='{"state": "closed"}')):
+            self.assertEqual(lr.pr_state(Path("/repo"), "glab", "7"), "closed")
+
+    def test_glab_invalid_json_returns_none_not_raises(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(stdout="not json")):
+            self.assertIsNone(lr.pr_state(Path("/repo"), "glab", "7"))
+
+    def test_glab_nonzero_returncode_returns_none(self):
+        with mock.patch.object(lr.subprocess, "run", return_value=self._fake_run(returncode=1)):
+            self.assertIsNone(lr.pr_state(Path("/repo"), "glab", "7"))
+
+    def test_unsupported_host_tool_returns_none_without_calling_subprocess(self):
+        with mock.patch.object(lr.subprocess, "run") as mock_run:
+            state = lr.pr_state(Path("/repo"), "hub", "1")
+        self.assertIsNone(state)
+        mock_run.assert_not_called()
+
+    def test_none_host_tool_returns_none(self):
+        self.assertIsNone(lr.pr_state(Path("/repo"), None, "1"))
+
+
 class TestNoDestructiveOperations(unittest.TestCase):
     """R8: the script exposes no merge, approve, force-push, arbitrary
     branch-delete, or publish code path. Asserted against the actual
@@ -394,21 +557,88 @@ class TestNoDestructiveOperations(unittest.TestCase):
                     f"public function {name!r} suggests a forbidden operation ({forbidden!r})",
                 )
 
-    def test_no_subprocess_call_carries_a_forbidden_argv_token(self):
-        for node in ast.walk(self.tree):
-            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    def _iter_run_calls_with_scope(self, tree):
+        """Yield (call_node, enclosing_scope) for every `*.run(...)` call in
+        `tree`, where `enclosing_scope` is the nearest enclosing
+        FunctionDef (or `tree` itself for module-level calls) — the scope
+        `_resolve_call_argv` searches to resolve a `Name` arg back to the
+        list it was assigned from."""
+        def walk(node, scope):
+            if isinstance(node, ast.FunctionDef):
+                scope = node
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                     and node.func.attr == "run"):
-                continue
-            if not node.args or not isinstance(node.args[0], ast.List):
-                continue
-            argv = [
-                elt.value for elt in node.args[0].elts
-                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+                yield node, scope
+            for child in ast.iter_child_nodes(node):
+                yield from walk(child, scope)
+        yield from walk(tree, tree)
+
+    def _resolve_call_argv(self, call_node, scope):
+        """Best-effort argv token extraction for a `*.run(...)` call: an
+        inline list literal (`subprocess.run(["gh", ...])`), or a `name =
+        [...]` local variable assigned earlier in `scope`
+        (`create_pull_request`/`retarget_pull_request` build argv this way
+        before calling `subprocess.run(argv, ...)`). Returns None for argv
+        this can't statically resolve (e.g. built by list concatenation or
+        passed in as a parameter) rather than guessing.
+        """
+        if not call_node.args:
+            return None
+        arg0 = call_node.args[0]
+        if isinstance(arg0, ast.List):
+            list_nodes = [arg0]
+        elif isinstance(arg0, ast.Name):
+            list_nodes = [
+                stmt.value
+                for stmt in ast.walk(scope)
+                if isinstance(stmt, ast.Assign)
+                and isinstance(stmt.value, ast.List)
+                and any(isinstance(t, ast.Name) and t.id == arg0.id for t in stmt.targets)
             ]
+        else:
+            list_nodes = []
+        if not list_nodes:
+            return None
+        tokens = []
+        for list_node in list_nodes:
+            tokens.extend(
+                elt.value for elt in list_node.elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            )
+        return tokens
+
+    def test_no_subprocess_call_carries_a_forbidden_argv_token(self):
+        for call_node, scope in self._iter_run_calls_with_scope(self.tree):
+            argv = self._resolve_call_argv(call_node, scope)
+            if argv is None:
+                continue
             hit = self.FORBIDDEN_ARGV_TOKENS.intersection(argv)
             self.assertFalse(
                 hit, f"subprocess call {argv!r} carries forbidden token(s) {hit!r}",
             )
+
+    def test_local_variable_argv_with_forbidden_token_is_detected(self):
+        """R8 covers argv built into a local variable before being passed
+        to subprocess.run(argv, ...) — the pattern create_pull_request and
+        retarget_pull_request use — not just an inline list literal passed
+        directly as the call's first argument."""
+        snippet = (
+            "def create_pull_request(repo_root, host_tool, branch, base):\n"
+            "    if host_tool == 'gh':\n"
+            "        argv = ['gh', 'pr', 'merge', branch]\n"
+            "    subprocess.run(argv, check=True)\n"
+        )
+        tree = ast.parse(snippet)
+        call_node, scope = next(iter(self._iter_run_calls_with_scope(tree)))
+
+        argv = self._resolve_call_argv(call_node, scope)
+
+        self.assertIsNotNone(argv, "walker failed to resolve argv from a local variable assignment")
+        assert argv is not None
+        self.assertTrue(
+            self.FORBIDDEN_ARGV_TOKENS.intersection(argv),
+            f"walker resolved {argv!r} but missed its forbidden token",
+        )
 
 
 if __name__ == "__main__":

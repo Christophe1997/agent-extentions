@@ -51,7 +51,9 @@ subcommand that needs them, never re-derived.
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py reconcile <repo_root>
 ```
 
-Prints `{"actions": [{"ticket_id", "outcome", "detail"}], "auth_failure"}`.
+Prints `{"actions": [{"ticket_id", "outcome", "detail", "pr_ref"}], "auth_failure"}`.
+For `retarget_base_merged`, `pr_ref` is the ticket's own recorded `pr:`
+field — read it directly from here instead of re-deriving it by hand.
 
 `auth_failure` non-null means the same credential kept failing — stop with
 a preflight-class report (not a per-ticket failure) naming the tool. Never
@@ -62,10 +64,11 @@ Otherwise, handle each action by `outcome` before moving to picking:
 | outcome | script already did | this cycle also does |
 |---|---|---|
 | `closed_merged` | closed the ticket, wrote the note | nothing — record it "shipped externally" in this run's eventual summary |
+| `closed_ship_note_orphaned` (`detail` = branch, `pr_ref` = this ticket's own PR) | closed the ticket | nothing — the ship note had already completed (`pr:`/`sha:` both recorded) before a crash interrupted the close that should have followed it; this cycle just finishes it |
 | `failed_closed_unmerged` | reopened the ticket, wrote the note | nothing — it's a normal `tk ready` candidate again; its stale `branch:` note is superseded automatically the next time it's claimed (claim notes merge oldest→newest) |
 | `no_recoverable_state` | nothing (signal only) | nothing special — treat `ticket_id` as an ordinary fresh pick when it surfaces from `tk ready` (it has no branch, so there's no git state to lose) |
 | `retry_pr_creation` (`detail` = branch) | nothing (signal only) | retry PR creation now, before picking anything new (below) |
-| `retarget_base_merged` (`detail` = old base) | nothing (signal only) | retarget that ticket's already-open PR now (below) |
+| `retarget_base_merged` (`detail` = old base, `pr_ref` = this ticket's own PR) | nothing (signal only) | retarget that ticket's already-open PR now (below) |
 | `blocked_stale_base` (`detail` = old base) | wrote a blocked note | nothing further — leave it; it's excluded from `tk ready` picking below by virtue of staying `in_progress` with no forward path |
 | `pr_state_unresolved` | nothing | treat like a transient lookup failure — leave it for the next cycle's reconcile pass rather than guessing at its state |
 
@@ -79,27 +82,45 @@ Check which case this actually is before assuming there's a PR to open:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> <host_tool>
-git -C <repo_root> log <base>..<branch> --oneline
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-has-commits <repo_root> <base> <branch>
 ```
 
-- **Empty** (no output) → nothing was ever implemented on this branch.
-  This is a fresh implementation cycle on the existing branch/base, not a
-  PR retry — skip §5 (the branch and claim note already exist) and go
-  straight to §6 (implement), §7 (gate), and §8/§9 as normal.
-- **Non-empty** → the implementation and commit survived; only the push or
-  PR creation failed. Push is safe to repeat (a no-op if it already
+- **`no`** → nothing was ever implemented on this branch. This is a fresh
+  implementation cycle on the existing branch/base, not a PR retry — skip
+  §5 (the branch and claim note already exist) and go straight to §6
+  (implement), §7 (gate), and §8/§9 as normal.
+- **`yes`** → the implementation and commit survived; only the push or PR
+  creation failed. Push is safe to repeat (a no-op if it already
   succeeded), then retry creation:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py push <repo_root> <branch>
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> "<title>" "<body>"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py head-sha <repo_root> <branch>
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ship <repo_root> <ticket_id> <branch> "<pr_url>" "<sha>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --ship
 ```
 
 `<title>`/`<body>` come from `tk show <ticket_id>` (Conventional Commits
-subject as title); `<sha>` is `git rev-parse <branch>` — no need to
-re-commit, the commit already exists from the crashed attempt.
+subject as title); `<sha>` is `head-sha`'s output — no need to re-commit,
+the commit already exists from the crashed attempt.
+
+If the retried `push` or `create-pr` call itself fails (non-zero exit), the
+branch and commit are still fine but this retry attempt failed — mirror
+§9's gate-failure bookkeeping (without the reset; there's nothing to reset,
+the working tree was never touched this cycle) so it counts toward the
+run's failure cap:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --fail
+```
+
+Leave the ticket as-is (still `in_progress`, still no `pr:` note) — the
+next cycle's reconcile pass will surface this same `retry_pr_creation`
+outcome again. Without this call, a persistently-failing retry (bad
+credentials, a network partition to the host) would never increment
+`consecutive_failures`, so `FAILURE_CAP` would never fire for this failure
+class.
 
 **Retarget a stale-base PR** (`retarget_base_merged`):
 
@@ -107,9 +128,20 @@ re-commit, the commit already exists from the crashed attempt.
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py retarget-pr <repo_root> <host_tool> <pr_ref> <trunk_branch>
 ```
 
-`<pr_ref>` is the ticket's own recorded `pr:` field (`tk show <ticket_id>`,
-Notes section). Retargeting doesn't close the loop on this ticket — it
-still has its own gate/ship lifecycle; this only repoints its open PR.
+`<pr_ref>` is this action's own `pr_ref` field from step 1's reconcile
+output — no need to re-derive it via `tk show`. Retargeting doesn't close
+the loop on this ticket — it still has its own gate/ship lifecycle; this
+only repoints its open PR.
+
+If `retarget-pr` itself fails (non-zero exit), mirror §9's gate-failure
+bookkeeping the same way — the PR is unaffected, only the repoint failed:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --fail
+```
+
+so a persistently-failing retarget also counts toward `FAILURE_CAP` instead
+of retrying unbounded every cycle.
 
 ### 2. Read the ledger and check caps (R9, KTD9)
 

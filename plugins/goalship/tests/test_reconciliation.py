@@ -5,6 +5,9 @@ Run from the repo root:
 """
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -173,6 +176,9 @@ class TestStackedBaseOutcomes(ReconciliationTestCase):
         self.assertEqual(len(dep_actions), 1)
         self.assertEqual(dep_actions[0].outcome, "retarget_base_merged")
         self.assertEqual(dep_actions[0].detail, "feat/base")
+        # #5: the ticket's own PR ref rides along on the action so the
+        # skill can retarget it without re-parsing `tk show` notes by hand.
+        self.assertEqual(dep_actions[0].pr_ref, "https://example.com/pr/11")
 
     def test_stacked_ticket_blocked_when_base_closed_unmerged(self):
         base_id, dep_id = self._setup_stacked_pair()
@@ -204,6 +210,89 @@ class TestAuthFailureRoutesToPreflightClassStop(ReconciliationTestCase):
 
         self.assertEqual(report.auth_failure, "gh")
         self.assertEqual(report.actions, [])
+
+
+class TestReconcileCommandJson(unittest.TestCase):
+    """#5: cmd_reconcile's JSON serialization must carry the new pr_ref
+    field the doc now reads directly, instead of only asserting it on the
+    ReconciliationAction dataclass."""
+
+    def test_serializes_pr_ref_alongside_outcome_and_detail(self):
+        fake_report = lr.ReconciliationReport(
+            actions=[
+                lr.ReconciliationAction(
+                    ticket_id="T-1", outcome="retarget_base_merged",
+                    detail="feat/base", pr_ref="https://example.com/pr/11",
+                ),
+            ],
+        )
+        stdout = io.StringIO()
+        with mock.patch.object(lr, "reconcile", return_value=fake_report), \
+             contextlib.redirect_stdout(stdout):
+            lr.cmd_reconcile(["/repo"])
+
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(
+            data["actions"],
+            [{
+                "ticket_id": "T-1", "outcome": "retarget_base_merged",
+                "detail": "feat/base", "pr_ref": "https://example.com/pr/11",
+            }],
+        )
+
+
+class TestShipNoteOrphanedOutcome(ReconciliationTestCase):
+    """#6: cmd_ship writes the ship note (record_ship_note, setting pr:/sha:)
+    then calls tk_close as a separate effect. A crash between them leaves a
+    ticket in_progress with a complete ship note and an open PR that
+    reconcile()'s plain `state == "open"` handling takes no action on —
+    it sits stuck until the PR happens to externally merge or close."""
+
+    def test_ship_note_written_but_not_closed_gets_closed_by_reconcile(self):
+        ticket_id = self._tk_create("Crashed between ship note and tk close")
+        subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
+        lr.record_claim_note(self.repo_root, ticket_id, "feat/orphaned-ship")
+        lr.record_ship_note(self.repo_root, ticket_id, "feat/orphaned-ship", "https://example.com/pr/99", "sha999")
+        # No tk_close call here — simulates the crash between
+        # record_ship_note and tk_close inside cmd_ship. The PR itself is
+        # genuinely still open (under review) — closed_merged and
+        # failed_closed_unmerged already handle the merged/closed-unmerged
+        # cases via the normal pr_state dispatch; this covers the
+        # remaining "still open, nothing else to do" gap.
+        self.assertEqual(self._tk_status(ticket_id), "in_progress")
+
+        with mock.patch.object(lr, "pr_state", return_value="open"):
+            report = lr.reconcile(self.repo_root)
+
+        self.assertEqual(len(report.actions), 1)
+        self.assertEqual(report.actions[0].outcome, "closed_ship_note_orphaned")
+        self.assertEqual(report.actions[0].ticket_id, ticket_id)
+        self.assertEqual(report.actions[0].detail, "feat/orphaned-ship")
+        self.assertEqual(report.actions[0].pr_ref, "https://example.com/pr/99")
+        self.assertEqual(self._tk_status(ticket_id), "closed")
+
+    def test_stacked_ship_note_orphaned_when_base_pr_also_still_open(self):
+        # A stacked ticket whose own PR is open and whose base's PR is
+        # ALSO still open (nothing for _reconcile_stacked_base to retarget
+        # or block on) must still fall through to the same close — proves
+        # this outcome isn't gated behind "no base field at all".
+        base_id = self._tk_create("Base ticket, still open")
+        subprocess.run(["tk", "start", base_id], cwd=self.repo_root, check=True, capture_output=True)
+        lr.record_claim_note(self.repo_root, base_id, "feat/base-open")
+        lr.record_ship_note(self.repo_root, base_id, "feat/base-open", "https://example.com/pr/20", "shaBase")
+
+        dep_id = self._tk_create("Stacked, crashed before close")
+        subprocess.run(["tk", "start", dep_id], cwd=self.repo_root, check=True, capture_output=True)
+        lr.record_claim_note(self.repo_root, dep_id, "feat/stacked-open", base="feat/base-open")
+        lr.record_ship_note(self.repo_root, dep_id, "feat/stacked-open", "https://example.com/pr/21", "shaDep")
+
+        with mock.patch.object(lr, "pr_state", return_value="open"):
+            report = lr.reconcile(self.repo_root)
+
+        dep_actions = [a for a in report.actions if a.ticket_id == dep_id]
+        self.assertEqual(len(dep_actions), 1)
+        self.assertEqual(dep_actions[0].outcome, "closed_ship_note_orphaned")
+        self.assertEqual(self._tk_status(dep_id), "closed")
 
 
 if __name__ == "__main__":

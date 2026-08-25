@@ -27,7 +27,7 @@ Invoke the skill with a goal:
 /goalship add input validation to the login form
 ```
 
-The skill classifies the goal, builds a ticket graph, and self-paces through implementation under the harness's `/loop` mechanism. It never merges, approves, force-pushes, or publishes — only opens pull requests for human review. Stop a run between tickets with the `/loop` wrapper's own interrupt mechanism.
+The skill classifies the goal, builds a ticket graph, and self-paces across turns to implement each ready ticket in turn — the user is never blocked on a per-ticket confirmation. It never merges, approves, force-pushes, or publishes — only opens pull requests for human review. Stop a run by interrupting between tickets (never mid-ticket); there is no dedicated stop command.
 
 ## License
 

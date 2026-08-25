@@ -2,7 +2,7 @@
 name: goalship
 description: This skill should be used when the user asks to "turn this goal into tickets and ship it", "run goalship on this", "decompose this goal and implement it unattended", or "hand this goal off and open PRs for each piece". Decomposes a goal into a tk ticket graph, then runs a self-pacing loop that implements, gates, commits, pushes, and opens a pull request for each ready ticket until the graph is exhausted.
 argument-hint: "<goal description>"
-allowed-tools: [Bash, Read, Write, Skill, AskUserQuestion]
+allowed-tools: [Bash, Read, Write, Edit, Skill, AskUserQuestion, ScheduleWakeup]
 ---
 
 Take a stated goal from a `tk` ticket graph to merge-ready pull requests,
