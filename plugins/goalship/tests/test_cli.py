@@ -88,7 +88,7 @@ class TestDispatcherContract(unittest.TestCase):
 
 
 class TestTimeoutHandling(unittest.TestCase):
-    """#1: gh/glab calls carry an explicit timeout so a hung host tool
+    """gh/glab calls carry an explicit timeout so a hung host tool
     can't block an unattended loop forever; main() must report the
     resulting subprocess.TimeoutExpired as a clean CLI error, not a
     traceback — mirrors TestDispatcherContract's CalledProcessError test,
@@ -114,7 +114,7 @@ class TestTimeoutHandling(unittest.TestCase):
 
 
 class TestRuntimeErrorHandling(unittest.TestCase):
-    """#2: resolve_base_for_ticket raises RuntimeError when a dependency's
+    """resolve_base_for_ticket raises RuntimeError when a dependency's
     pr_state() lookup fails (see test_branching.py's TestResolveBaseForTicket
     for that case) — main() must surface it as a clean CLI error too."""
 
@@ -313,6 +313,59 @@ class TestLedgerCommand(CliRepoTestCase):
                 _cli("ledger", str(self.repo_root), "--run-id", run_id, "--fail").stdout
             )
         self.assertIn("consecutive-failure cap", data["caps_exceeded"])
+
+    def test_goal_and_ticket_mode_persist_and_round_trip(self):
+        result = _cli(
+            "ledger", str(self.repo_root),
+            "--goal", "ship the widget", "--ticket-mode", "commit",
+        )
+        data = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(data["goal"], "ship the widget")
+        self.assertEqual(data["ticket_mode"], "commit")
+
+        again = json.loads(_cli("ledger", str(self.repo_root), "--run-id", data["run_id"]).stdout)
+        self.assertEqual(again["goal"], "ship the widget")
+        self.assertEqual(again["ticket_mode"], "commit")
+
+    def test_invalid_ticket_mode_exits_1(self):
+        result = _cli("ledger", str(self.repo_root), "--ticket-mode", "sideways")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("sideways", result.stderr)
+
+    def test_terminal_flag_persists_and_invalid_reason_exits_1(self):
+        run_id = json.loads(_cli("ledger", str(self.repo_root)).stdout)["run_id"]
+        result = _cli("ledger", str(self.repo_root), "--run-id", run_id, "--terminal", "exhausted")
+        data = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(data["terminal_state"], "exhausted")
+
+        bad = _cli("ledger", str(self.repo_root), "--run-id", run_id, "--terminal", "on_fire")
+        self.assertEqual(bad.returncode, 1)
+        self.assertIn("terminal", bad.stderr)
+
+
+class TestResumeCandidatesCommand(CliRepoTestCase):
+    def test_empty_when_no_ledger_dir_yet(self):
+        result = _cli("resume-candidates", str(self.repo_root))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [])
+
+    def test_lists_an_in_progress_run_with_goal_and_mode(self):
+        _cli("ledger", str(self.repo_root), "--goal", "ship the widget", "--ticket-mode", "branch")
+
+        result = _cli("resume-candidates", str(self.repo_root))
+        data = json.loads(result.stdout)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["goal"], "ship the widget")
+        self.assertEqual(data[0]["ticket_mode"], "branch")
+
+    def test_excludes_a_run_marked_terminal(self):
+        run_id = json.loads(_cli("ledger", str(self.repo_root)).stdout)["run_id"]
+        _cli("ledger", str(self.repo_root), "--run-id", run_id, "--terminal", "deadlocked")
+
+        result = _cli("resume-candidates", str(self.repo_root))
+        self.assertEqual(json.loads(result.stdout), [])
 
 
 if __name__ == "__main__":

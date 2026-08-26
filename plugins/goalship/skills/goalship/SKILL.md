@@ -2,11 +2,17 @@
 name: goalship
 description: This skill should be used when the user asks to "turn this goal into tickets and ship it", "run goalship on this", "decompose this goal and implement it unattended", or "hand this goal off and open PRs for each piece". Decomposes a goal into a tk ticket graph, then runs a self-pacing loop that implements, gates, commits, pushes, and opens a pull request for each ready ticket until the graph is exhausted.
 argument-hint: "<goal description>"
-allowed-tools: [Bash, Read, Write, Edit, Glob, Grep, Skill, Agent, AskUserQuestion, ScheduleWakeup]
+allowed-tools: [Bash, Read, Glob, Grep, Skill, Agent, AskUserQuestion, ScheduleWakeup]
 ---
 
 Take a stated goal from a `tk` ticket graph to merge-ready pull requests,
-unattended, across as many self-paced turns as the graph needs.
+unattended, across as many self-paced turns as the graph needs — self-
+resuming via `ScheduleWakeup` where this session's harness supports it,
+and via a plain re-invocation of this skill in the same repo otherwise
+(the run's own ledger makes that re-invocation pick the run back up
+automatically, no run ID or special phrasing needed); see
+`references/execution-loop.md`'s Self-pacing model section for both
+paths.
 
 ## Preconditions
 
@@ -22,23 +28,31 @@ Confirm before doing anything else:
 
 ### Phase 1: Decompose the goal into tickets
 
-1. **Classify and decompose** the goal into a `tk` ticket graph — see
+1. **Check for a resumable run** before decomposing anything —
+   `references/execution-loop.md`'s "Once per run: preflight" section's
+   resume check. A candidate found means this repo already has an
+   in-flight ticket graph from an earlier, paused invocation of this
+   skill; skip decomposition entirely and go straight to Phase 2 using its
+   `run_id`, goal, and `ticket_mode`, saying so plainly in the opening
+   report. Decompose fresh only when none is found.
+2. **Classify and decompose** the goal into a `tk` ticket graph — see
    `references/decomposition.md` for the size/ambiguity heuristic, the
    inline `tk create`/`tk dep` path, the `ce-plan`/`ce-brainstorm`
    escalation path, and how acceptance criteria get authored. This phase
    may block on `ce-plan`/`ce-brainstorm`'s own clarifying questions for a
    large or ambiguous goal — that's expected; the "never blocked"
-   guarantee below applies only to Phase 2, which begins once
-   decomposition has produced a ticket graph.
+   guarantee below applies only to the self-pacing execution loop, which
+   begins once decomposition has produced a ticket graph.
 
 ### Phase 2: Preflight and the self-pacing execution loop
 
-2. **Run preflight once**, before claiming any ticket: `tk` present, a
+1. **Run preflight once**, before claiming any ticket: `tk` present, a
    configured remote, a clean tree, and an authenticated `gh`/`glab`. Stop
-   immediately on failure — see `references/execution-loop.md`'s Preflight
-   section. This is never blocked on user input; a failure here is reported
-   and the run stops rather than asking what to do.
-3. **Run the self-pacing loop** — reconcile in-progress tickets against
+   immediately on failure — see `references/execution-loop.md`'s "Once
+   per run: preflight" section. This is never blocked on user input; a
+   failure here is reported and the run stops rather than asking what
+   to do.
+2. **Run the self-pacing loop** — reconcile in-progress tickets against
    git/PR state, pick the highest-priority unclaimed ready ticket,
    implement it, run the target repo's own gates (`references/gate-discovery.md`),
    and on a pass branch/commit/push/open-or-reuse-a-PR/close-with-note or,
@@ -58,12 +72,11 @@ same summary format as any other terminal state.
 ## Terminal summary
 
 Every run ends by reporting which of four terminal states was reached —
-**exhausted** (no ready or blocked work left), **deadlocked** (remaining
-tickets are mutually blocked with no forward path), a **run cap** reached
-(ships or consecutive failures), or a **user stop** — plus a classification
-of every ticket touched this run as shipped, failed/blocked, or not-reached.
-See `references/execution-loop.md`'s Terminal states section for the exact
-classification rules.
+**exhausted**, **deadlocked**, a **run cap** reached, or a **user stop** —
+plus a classification of every ticket touched this run as shipped,
+failed/blocked, or not-reached. See `references/execution-loop.md`'s
+Terminal states and summary section for what each term means and how
+it's determined.
 
 ## Safety guardrails
 
@@ -87,10 +100,10 @@ see that section for the exact restriction it's given.
   acceptance-criteria authoring.
 - `references/gate-discovery.md` — how to find and run the target repo's
   own gates, and the pass/fail/no-gates-found policy.
-- `references/execution-loop.md` — the full per-cycle protocol: preflight,
-  reconciliation, ticket pick, claim/branch, implement, gate, ship-or-note,
-  scope-creep handling, cap/stop checks, and the self-pacing wakeup
-  mechanism.
+- `references/execution-loop.md` — the full per-cycle protocol: preflight
+  (including the resume check), reconciliation, ticket pick, claim/branch,
+  implement, gate, ship-or-note, scope-creep handling, cap/stop checks, and
+  the self-pacing wakeup mechanism with its cold-resume fallback.
 - `references/run-state-schema.md` — the run-state ledger's on-disk shape
   and lifecycle, for anyone inspecting or debugging a run's `.goalship/`
   directory directly.

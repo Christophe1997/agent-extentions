@@ -111,6 +111,75 @@ class TestConcurrentRunIsolation(RunStateTestCase):
         self.assertEqual(reloaded_b.claimed_ticket_ids, ["T-beta"])
 
 
+class TestGoalAndTicketModePersist(RunStateTestCase):
+    def test_fresh_state_has_no_goal_or_mode_or_terminal_state(self):
+        state = run_state.load_run_state(self.repo_root, "run-h")
+        self.assertEqual(state.goal, "")
+        self.assertIsNone(state.ticket_mode)
+        self.assertIsNone(state.terminal_state)
+
+    def test_goal_and_ticket_mode_round_trip_through_save_and_load(self):
+        state = run_state.load_run_state(self.repo_root, "run-i")
+        state.goal = "ship the widget"
+        state.ticket_mode = "commit"
+        run_state.save_run_state(self.repo_root, state)
+
+        resumed = run_state.load_run_state(self.repo_root, "run-i")
+        self.assertEqual(resumed.goal, "ship the widget")
+        self.assertEqual(resumed.ticket_mode, "commit")
+
+
+class TestMarkTerminal(RunStateTestCase):
+    def test_mark_terminal_sets_the_reason(self):
+        state = run_state.RunState(run_id="run-j")
+        run_state.mark_terminal(state, run_state.TERMINAL_EXHAUSTED)
+        self.assertEqual(state.terminal_state, run_state.TERMINAL_EXHAUSTED)
+
+    def test_mark_terminal_rejects_an_unknown_reason(self):
+        state = run_state.RunState(run_id="run-k")
+        with self.assertRaises(ValueError):
+            run_state.mark_terminal(state, "not_a_real_reason")
+
+    def test_mark_terminal_accepts_aborted_for_non_ticket_graph_stops(self):
+        state = run_state.RunState(run_id="run-abort")
+        run_state.mark_terminal(state, run_state.TERMINAL_ABORTED)
+        self.assertEqual(state.terminal_state, run_state.TERMINAL_ABORTED)
+
+
+class TestFindResumableRuns(RunStateTestCase):
+    def test_no_ledger_dir_yet_returns_empty(self):
+        self.assertEqual(run_state.find_resumable_runs(self.repo_root), [])
+
+    def test_in_progress_run_is_resumable(self):
+        state = run_state.load_run_state(self.repo_root, "run-l")
+        state.goal = "ship the widget"
+        state.ticket_mode = "branch"
+        run_state.save_run_state(self.repo_root, state)
+
+        candidates = run_state.find_resumable_runs(self.repo_root)
+        self.assertEqual([s.run_id for s in candidates], ["run-l"])
+        self.assertEqual(candidates[0].goal, "ship the widget")
+        self.assertEqual(candidates[0].ticket_mode, "branch")
+
+    def test_terminal_run_is_excluded(self):
+        state = run_state.load_run_state(self.repo_root, "run-m")
+        run_state.mark_terminal(state, run_state.TERMINAL_DEADLOCKED)
+        run_state.save_run_state(self.repo_root, state)
+
+        self.assertEqual(run_state.find_resumable_runs(self.repo_root), [])
+
+    def test_mixed_runs_only_surfaces_the_unfinished_one(self):
+        done = run_state.load_run_state(self.repo_root, "run-done")
+        run_state.mark_terminal(done, run_state.TERMINAL_CAPPED)
+        run_state.save_run_state(self.repo_root, done)
+
+        live = run_state.load_run_state(self.repo_root, "run-live")
+        run_state.save_run_state(self.repo_root, live)
+
+        candidates = run_state.find_resumable_runs(self.repo_root)
+        self.assertEqual([s.run_id for s in candidates], ["run-live"])
+
+
 class TestLedgerExcludedFromDirtyCheck(RunStateTestCase):
     def test_writing_ledger_does_not_trip_dirty_tree_check(self):
         self.assertEqual(preflight.dirty_paths(self.repo_root), [])

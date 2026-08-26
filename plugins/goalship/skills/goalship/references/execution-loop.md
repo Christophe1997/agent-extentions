@@ -35,25 +35,46 @@ marked applies to both.
 
 ## Self-pacing model
 
-This skill does not run as one long call. After each cycle, schedule the
-next turn with `ScheduleWakeup` (`delaySeconds: 60` — the floor; there is
-real forward progress to make, not an external event to wait on) instead of
-looping in-context. **The wakeup `prompt` must carry the run's identity
-forward explicitly** — `repo_root`, the `run_id` from the last `ledger`
-call, the original goal, and `ticket_mode` (branch or commit — Shipping
-mode, above) — since a resumed turn does not inherit this turn's in-context
-memory. A wakeup that drops `run_id` starts a fresh ledger and re-picks
-already-shipped tickets; treat `run_id` and `ticket_mode` both as required
-state, not a convenience.
+This skill does not run as one long call — each cycle ends at a decision
+point (Loop or stop, below) that either schedules the next turn or ends
+this one. Which it does depends on whether `ScheduleWakeup` is available
+in this session, checked once in preflight (below); nothing about a
+cycle's own mechanics changes either way.
 
-A wakeup or manual re-invocation that arrives without `ticket_mode` (an
-older wakeup authored before this run's tooling knew about it, or a human
-re-invoking the skill cold) must recover it before picking anything, not
-guess:
+**The first `ledger` call of a run** — preflight's resume check finding no
+candidate, then the ledger-and-caps read's first call — has no `run_id` yet and
+also passes `--goal "<goal>" --ticket-mode <branch|commit>` (Shipping
+mode, above), persisting both on the ledger from the start. Every later
+call for this run passes `--run-id` alone; `goal` and `ticket_mode`
+carry forward from the persisted ledger rather than needing to be
+resupplied.
 
-- Two or more of `claimed_ticket_ids` (step 2, below) sharing an identical
-  `branch:` note → commit mode, unambiguously — branch mode never lets two
-  tickets share a branch.
+**Where `ScheduleWakeup` is available**: schedule the next turn at the end
+of every cycle (`delaySeconds: 60` — the floor; there is real forward
+progress to make, not an external event to wait on) instead of looping
+in-context. **The wakeup `prompt` must carry the run's identity forward
+explicitly** — `repo_root`, the `run_id` from the last `ledger` call, the
+original goal, and `ticket_mode` — since a resumed turn does not inherit
+this turn's in-context memory. A wakeup that drops `run_id` starts a fresh
+ledger and re-picks already-shipped tickets; treat `run_id` and
+`ticket_mode` both as required state, not a convenience.
+
+**Where it isn't** (e.g. Amazon Bedrock, and AWS/GCP/Azure-hosted Claude
+Platform variants): end the turn after this cycle instead of attempting to
+loop through more tickets in-context. Report that continuing this run
+requires a fresh invocation of this skill in the same repo, and rely on
+the resume check (preflight, below) to pick it up without needing
+`run_id`, the goal, or `ticket_mode` restated — that's exactly what
+persisting `goal` and `ticket_mode` on the ledger (above) is for.
+
+A wakeup or cold re-invocation that arrives without `ticket_mode` set on
+the ledger (a run started before this field existed, or an older wakeup
+prompt authored before this run's tooling knew about it) must recover it
+before picking anything, not guess:
+
+- Two or more of `claimed_ticket_ids` (kept from the ledger-and-caps read,
+  below) sharing an identical `branch:` note → commit mode, unambiguously —
+  branch mode never lets two tickets share a branch.
 - Two or more with *different* `branch:` notes → branch mode,
   unambiguously.
 - Fewer than two tickets claimed so far → not yet observable from `tk`
@@ -62,32 +83,69 @@ guess:
   own size/ambiguity classification to the original goal again — the same
   judgment call decomposition already made, not a fresh guess.
 
-`ScheduleWakeup` is unavailable on some harness deployments (e.g. Amazon
-Bedrock, and AWS/GCP/Azure-hosted Claude Platform variants) — unattended
-goalship runs require a harness where it's available; without it, the loop
-has no way to resume itself across turns.
-
-Even where available, a scheduled wakeup only fires into a session whose
-process is still alive to receive it — closing the terminal (or otherwise
-ending a local CLI session) pauses the run rather than continuing it. This
-is safe, not fatal: reconciliation (below) picks up cleanly from the ledger
-the next time the skill runs, whether that's a surviving wakeup or a human
-manually re-invoking it later. State this plainly in the run's opening
-report — "unattended" here means unattended while the session stays
-reachable, not unattended if the user walks away.
+Even where `ScheduleWakeup` is available, a scheduled wakeup only fires
+into a session whose process is still alive to receive it — closing the
+terminal (or otherwise ending a local CLI session) pauses the run rather
+than continuing it. This is safe, not fatal, and no different in effect
+from `ScheduleWakeup` being unavailable in the first place: reconciliation
+(below) and the resume check pick up cleanly from the ledger the next time
+the skill runs, whether that's a surviving wakeup or a human manually
+re-invoking it later. State this plainly in the run's opening report —
+"unattended" means self-resuming only where `ScheduleWakeup` is available
+and the session stays reachable; everywhere else it means no per-ticket
+confirmation is needed, but continuing past a paused turn takes one fresh
+invocation, which the resume check makes a plain re-run rather than
+something requiring any special phrasing.
 
 ## Once per run: preflight
 
-Before the first ticket claim only — not on every self-paced turn:
+Before the first ticket claim — and, for the resume check specifically,
+before Phase 1's decomposition even starts (SKILL.md), since a resumable
+run's ticket graph must not be decomposed a second time — not on every
+self-paced turn:
+
+**Check for a resumable run:**
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py resume-candidates <repo_root>
+```
+
+Empty → this is a fresh run; proceed to decomposition (`decomposition.md`)
+as normal. One candidate → resume it instead: skip decomposition
+entirely (its ticket graph already exists in `tk`), carry its `run_id`,
+`goal`, and `ticket_mode` into the cycle below, and say so plainly in the
+opening report rather than silently continuing as if this were a fresh
+run. More than one candidate — two incomplete goalship runs left in the
+same repo — is an ambiguous edge case: list them and ask which to resume,
+or whether to start a new run alongside them, the same way
+`decomposition.md`'s own escalation path already blocks on an ambiguous
+call before a run is underway; the "never blocked" guarantee (SKILL.md)
+applies only once one is.
+
+**Check whether `ScheduleWakeup` is available** in this session — the same
+passive check `decomposition.md` uses for `ce-plan`: look for it among the
+tools available this session. Never call it speculatively to find out —
+a successful call ends the turn immediately, and an unsupported harness
+may silently no-op rather than error, so neither outcome gives a usable
+signal. Carry the result forward for every cycle's Loop-or-stop step
+(below) — Self-pacing model, above, covers both paths.
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py preflight <repo_root> true
 ```
 
 Prints `{"ok", "remote_url", "trunk_branch", "host_tool", "failures"}`.
-`ok: false` stops the run immediately — report `failures` verbatim. This
-failure is never counted against the failure cap; it fails the whole run,
-not one ticket. On `ok: true`, report the resolved `remote_url` and
+`ok: false` stops the run immediately — a fixable environment problem, not
+one another invocation can retry past on its own, so mark it terminal
+before reporting `failures` verbatim (skip this on a fresh run with no
+`run_id` yet — there's no ledger for it to apply to):
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal aborted
+```
+
+This failure is never counted against the failure cap; it fails the whole
+run, not one ticket. On `ok: true`, report the resolved `remote_url` and
 `trunk_branch` before touching any ticket, so a human watching notices
 immediately if this is the wrong repo. Keep `trunk_branch` and `host_tool`
 in context for every later step — they're passed explicitly to every
@@ -105,9 +163,19 @@ Prints `{"actions": [{"ticket_id", "outcome", "detail", "pr_ref"}], "auth_failur
 For `retarget_base_merged`, `pr_ref` is the ticket's own recorded `pr:`
 field — read it directly from here instead of re-deriving it by hand.
 
-`auth_failure` non-null means the same credential kept failing — stop with
-a preflight-class report (not a per-ticket failure) naming the tool. Never
-retry into this state per-ticket.
+`auth_failure` non-null means the same credential kept failing — a broken
+credential won't fix itself on the next invocation either, so mark it
+terminal (skip this on a fresh run's first cycle — Reconcile runs before
+the ledger-and-caps read that mints `run_id` there, so on a fresh run
+there's no ledger yet for it to apply to; a resumed run already has
+`run_id` from the resume check, above):
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal aborted
+```
+
+then stop with a preflight-class report (not a per-ticket failure) naming
+the tool. Never retry into this state per-ticket.
 
 Otherwise, handle each action by `outcome` before moving to picking:
 
@@ -214,15 +282,28 @@ of retrying unbounded every cycle.
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id>
 ```
 
-(No mutation flags — a bare status read.) If `caps_exceeded` is non-null,
-stop: report the classified summary (below) with that reason. Otherwise
+(A bare status read on every call but the run's very first, which also
+carries `--goal`/`--ticket-mode` — Self-pacing model, above.) If
+`caps_exceeded` is non-null, stop:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal capped
+```
+
+then report the classified summary (below) with that reason. Otherwise
 keep `claimed_ticket_ids` for the pick step next.
 
 ### 3. Check for a stop request
 
 Between tickets only, never mid-ticket. If the user has asked to stop this
-run since the last cycle, stop here and report the partial-run summary —
-this is the only stop mechanism; there is no bespoke stop command.
+run since the last cycle, stop here:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal user_stop
+```
+
+then report the partial-run summary — this is the only stop mechanism;
+there is no bespoke stop command.
 
 ### 4. Pick the next ticket
 
@@ -240,14 +321,16 @@ handled by this cycle's reconciliation pass (the table above).
 tk blocked
 ```
 
-- `tk ready` empty **and** `tk blocked` empty → **exhausted**: report and
-  stop.
+- `tk ready` empty **and** `tk blocked` empty → **exhausted**:
+  `ledger <repo_root> --run-id <run_id> --terminal exhausted`, then report
+  and stop.
 - `tk ready` empty **and** `tk blocked` non-empty → **deadlocked**: every
   remaining ticket has an unresolved dependency and nothing can make
   forward progress (reconciliation already ran this cycle, so no
   currently-claimable ticket is merely "in flight" — a genuine cycle or an
   externally-unresolvable dependency is the only way this state occurs).
-  Report and stop, naming it "deadlocked" distinctly from "exhausted."
+  `ledger <repo_root> --run-id <run_id> --terminal deadlocked`, then report
+  and stop, naming it "deadlocked" distinctly from "exhausted."
 
 ### 5. Claim and branch
 
@@ -263,9 +346,16 @@ run.
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py dirty <repo_root>
 ```
 
-Non-empty → stop: report the dirty paths (defense-in-depth; this
-should never fire if the prior cycle reset cleanly, so a nonempty result
-means something outside this loop's control touched the tree).
+Non-empty → stop: mark it terminal —
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal aborted
+```
+
+— then report the dirty paths (defense-in-depth; this should never fire
+if the prior cycle reset cleanly, so a nonempty result means something
+outside this loop's control touched the tree, which a bare re-invocation
+can't clean up on its own).
 
 ```
 tk start <ticket_id>
@@ -285,9 +375,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-name <repo_root> <ty
 
 - **commit mode**: `base_ref` is always `trunk_branch` — no `resolve-base`
   call. Reuse the run's branch if one already exists, discovered from
-  `claimed_ticket_ids` (step 2, above — the tickets this run has already
-  claimed) rather than a new ledger field, so a lost/corrupted ledger
-  doesn't strand this discovery:
+  `claimed_ticket_ids` (kept from the ledger-and-caps read, above — the
+  tickets this run has already claimed) rather than a new ledger field, so
+  a lost/corrupted ledger doesn't strand this discovery:
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py run-branch <repo_root> <claimed_ticket_ids...>
@@ -295,7 +385,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py run-branch <repo_root> <cla
 
   A result is `branch_name` — reuse it. No result means this is the run's
   first ticket: compute a fresh name off the *goal itself*, not this
-  ticket, since every later ticket this run will share it —
+  ticket, since every later ticket this run will share it — on a run
+  resumed cold (preflight's resume check, above), `<goal title>` is the
+  ledger's own `goal` field, not anything restated by this invocation —
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-name <repo_root> goal "<goal title>"
@@ -446,9 +538,19 @@ like any other ticket — never implemented inline as part of this cycle.
 
 Re-check `caps_exceeded` from the ledger-and-caps read after this cycle's
 `--ship` or `--fail` (it was recomputed as part of that same call — no
-extra read needed). If capped, stop and report. Otherwise schedule the next wakeup
-(self-pacing model, above) with `noop: false` — this cycle shipped, failed,
-or blocked a ticket, which is never a no-op tick.
+extra read needed). If capped:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --terminal capped
+```
+
+then stop and report. Otherwise, if `ScheduleWakeup` is available (checked
+once in preflight, above), schedule the next wakeup (Self-pacing model,
+above) with `noop: false` — this cycle shipped, failed, or blocked a
+ticket, which is never a no-op tick. If it isn't available, end the turn
+here instead: report this cycle's outcome and that continuing requires a
+fresh invocation of this skill in the same repo — the resume check
+(preflight, above) picks it up automatically from there.
 
 ## Terminal states and summary
 

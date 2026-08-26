@@ -37,6 +37,8 @@ USAGE = """Usage:
   loop_runner.py preflight <repo_root> <true|false>
   loop_runner.py reconcile <repo_root>
   loop_runner.py ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]
+                        [--goal TEXT] [--ticket-mode branch|commit] [--terminal REASON]
+  loop_runner.py resume-candidates <repo_root>
   loop_runner.py dirty <repo_root>
   loop_runner.py branch-name <repo_root> <type> <title>
   loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> [host_tool]
@@ -89,7 +91,8 @@ def cmd_reconcile(args: list) -> None:
 def cmd_ledger(args: list) -> None:
     if len(args) < 1:
         print(
-            "error: usage: ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]",
+            "error: usage: ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]\n"
+            "                     [--goal TEXT] [--ticket-mode branch|commit] [--terminal REASON]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -98,19 +101,28 @@ def cmd_ledger(args: list) -> None:
     claim_id = None
     ship = False
     fail = False
+    goal = None
+    ticket_mode = None
+    terminal = None
     rest = args[1:]
     i = 0
     while i < len(rest):
         tok = rest[i]
-        if tok in ("--run-id", "--claim"):
+        if tok in ("--run-id", "--claim", "--goal", "--ticket-mode", "--terminal"):
             if i + 1 >= len(rest):
                 print(f"error: {tok} requires a value", file=sys.stderr)
                 sys.exit(1)
             i += 1
             if tok == "--run-id":
                 run_id = rest[i]
-            else:
+            elif tok == "--claim":
                 claim_id = rest[i]
+            elif tok == "--goal":
+                goal = rest[i]
+            elif tok == "--ticket-mode":
+                ticket_mode = rest[i]
+            else:
+                terminal = rest[i]
         elif tok == "--ship":
             ship = True
         elif tok == "--fail":
@@ -120,6 +132,19 @@ def cmd_ledger(args: list) -> None:
             sys.exit(1)
         i += 1
 
+    if ticket_mode is not None and ticket_mode not in run_state.TICKET_MODES:
+        print(
+            f"error: --ticket-mode must be one of {sorted(run_state.TICKET_MODES)}, got {ticket_mode!r}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if terminal is not None and terminal not in run_state.TERMINAL_STATES:
+        print(
+            f"error: --terminal must be one of {sorted(run_state.TERMINAL_STATES)}, got {terminal!r}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     run_state.ensure_ledger_excluded(repo_root)
     state = run_state.load_run_state(repo_root, run_id or run_state.generate_run_id())
     if claim_id:
@@ -128,11 +153,35 @@ def cmd_ledger(args: list) -> None:
         run_state.record_ship(state)
     if fail:
         run_state.record_failure(state)
+    if goal is not None:
+        state.goal = goal
+    if ticket_mode is not None:
+        state.ticket_mode = ticket_mode
+    if terminal is not None:
+        run_state.mark_terminal(state, terminal)
     run_state.save_run_state(repo_root, state)
 
     data = state.to_dict()
     data["caps_exceeded"] = run_state.caps_exceeded(state)
     _print_json(data)
+
+
+def cmd_resume_candidates(args: list) -> None:
+    if len(args) < 1:
+        print("error: usage: resume-candidates <repo_root>", file=sys.stderr)
+        sys.exit(1)
+    candidates = run_state.find_resumable_runs(Path(args[0]))
+    _print_json([
+        {
+            "run_id": s.run_id,
+            "goal": s.goal,
+            "ticket_mode": s.ticket_mode,
+            "shipped_count": s.shipped_count,
+            "consecutive_failures": s.consecutive_failures,
+            "claimed_ticket_ids": s.claimed_ticket_ids,
+        }
+        for s in candidates
+    ])
 
 
 def cmd_dirty(args: list) -> None:
@@ -188,7 +237,7 @@ def cmd_claim(args: list) -> None:
         sys.exit(1)
     repo_root, ticket_id, branch_name, base_ref, trunk_branch = Path(args[0]), args[1], args[2], args[3], args[4]
     if branching.local_branch_exists(repo_root, branch_name):
-        # #9 crash recovery: a prior claim already created the branch but
+        # Crash recovery: a prior claim already created the branch but
         # crashed before writing the claim note. Retry from here instead
         # of failing on "branch already exists", checking the branch back
         # out so implementation resumes on it as create_branch would have
@@ -198,7 +247,7 @@ def cmd_claim(args: list) -> None:
         branching.create_branch(repo_root, branch_name, base_ref)
     # Captured after checkout-or-create so it's correct on both paths: the
     # branch's actual current tip, whether that's a brand-new branch (tip
-    # == base_ref) or a #9 retry resuming an existing one.
+    # == base_ref) or a crash-recovery retry resuming an existing one.
     claim_sha = branching.head_sha(repo_root)
     reconciliation.record_claim_note(
         repo_root, ticket_id, branch_name,
@@ -263,6 +312,7 @@ _COMMANDS = {
     "preflight": cmd_preflight,
     "reconcile": cmd_reconcile,
     "ledger": cmd_ledger,
+    "resume-candidates": cmd_resume_candidates,
     "dirty": cmd_dirty,
     "branch-name": cmd_branch_name,
     "resolve-base": cmd_resolve_base,

@@ -30,6 +30,33 @@ HOST_TOOL_TIMEOUT_SECONDS = 30
 # from git via .git/info/exclude rather than relying on the repo's .gitignore.
 LEDGER_DIR_NAME = ".goalship"
 
+# The four terminal states execution-loop.md's cycle can end on. Persisted
+# on the ledger so a cold re-invocation can tell a finished run from one
+# merely paused mid-cycle (find_resumable_runs, below) without replaying
+# tk/git state to work it out.
+TERMINAL_EXHAUSTED = "exhausted"
+TERMINAL_DEADLOCKED = "deadlocked"
+TERMINAL_CAPPED = "capped"
+TERMINAL_USER_STOP = "user_stop"
+# Preflight/reconcile-auth/dirty-tree stops: none of these can make forward
+# progress on a bare re-invocation without a human fixing the underlying
+# problem first, so they're terminal too — just not one of the four
+# ticket-graph outcomes above.
+TERMINAL_ABORTED = "aborted"
+TERMINAL_STATES = frozenset(
+    {
+        TERMINAL_EXHAUSTED,
+        TERMINAL_DEADLOCKED,
+        TERMINAL_CAPPED,
+        TERMINAL_USER_STOP,
+        TERMINAL_ABORTED,
+    }
+)
+
+# execution-loop.md's two shipping modes (Shipping mode section) — the only
+# valid values for RunState.ticket_mode.
+TICKET_MODES = frozenset({"branch", "commit"})
+
 # tk's own state directory. Excluded from this tool's dirty-tree check and
 # commit staging for the same reason as LEDGER_DIR_NAME: `tk start`/`tk
 # add-note` mutate it as a routine side effect of running this very loop,
@@ -45,6 +72,9 @@ class RunState:
     shipped_count: int = 0
     consecutive_failures: int = 0
     claimed_ticket_ids: list = field(default_factory=list)
+    goal: str = ""
+    ticket_mode: Optional[str] = None
+    terminal_state: Optional[str] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -56,6 +86,9 @@ class RunState:
             shipped_count=data.get("shipped_count", 0),
             consecutive_failures=data.get("consecutive_failures", 0),
             claimed_ticket_ids=list(data.get("claimed_ticket_ids", [])),
+            goal=data.get("goal", ""),
+            ticket_mode=data.get("ticket_mode"),
+            terminal_state=data.get("terminal_state"),
         )
 
 
@@ -121,6 +154,35 @@ def caps_exceeded(state: RunState) -> Optional[str]:
     if state.consecutive_failures >= FAILURE_CAP:
         return f"consecutive-failure cap reached ({FAILURE_CAP} failures in a row)"
     return None
+
+
+def mark_terminal(state: RunState, reason: str) -> None:
+    """Record why this run stopped, so find_resumable_runs can tell a
+    finished run from one merely paused mid-cycle."""
+    if reason not in TERMINAL_STATES:
+        raise ValueError(f"unknown terminal reason: {reason!r}")
+    state.terminal_state = reason
+
+
+def find_resumable_runs(repo_root: Path) -> list:
+    """Every run under this repo's ledger dir that hasn't reached a
+    terminal state yet.
+
+    A cold re-invocation (no ScheduleWakeup on this harness, or a session
+    that died before a scheduled wakeup fired) has no run_id to resume
+    with — the wakeup prompt that would normally carry one forward never
+    ran. Scanning the ledger dir instead of relying on a single well-known
+    pointer file preserves resolve_ledger_path's one-file-per-run_id
+    invariant: concurrent runs still never contend for the same inode.
+    """
+    ledger_dir = Path(repo_root) / LEDGER_DIR_NAME
+    if not ledger_dir.exists():
+        return []
+    states = [
+        RunState.from_dict(json.loads(path.read_text()))
+        for path in sorted(ledger_dir.glob("*.json"))
+    ]
+    return [state for state in states if state.terminal_state is None]
 
 
 def ensure_ledger_excluded(repo_root: Path) -> None:
