@@ -20,7 +20,7 @@ same file and can't lose an update to a concurrent write.
 | Field | Type | Meaning |
 |---|---|---|
 | `run_id` | string | Opaque identifier for this run. Generated once per fresh invocation (`generate_run_id()`), then reused for every subsequent self-pacing turn of the same run. |
-| `shipped_count` | int | Tickets shipped (PR opened) this run. Compared against `SHIP_CAP` (10, fixed). |
+| `shipped_count` | int | Tickets shipped this run — their commit landed on the run's PR, whether this ticket opened it or reused one an earlier ticket opened (commit mode). Compared against `SHIP_CAP` (10, fixed). |
 | `consecutive_failures` | int | Gate failures and blocks, counted together, since the last successful ship. Compared against `FAILURE_CAP` (3, fixed). Resets to `0` on a successful ship; does not reset on a block. |
 | `claimed_ticket_ids` | array of string | Tickets already processed (shipped, failed, or blocked) this run. `tk ready` lists both open and in-progress tickets, so this set — not `tk`'s own status field — is what stops the loop from re-picking a ticket it already handled this run. |
 

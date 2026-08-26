@@ -41,8 +41,8 @@ Confirm before doing anything else:
 3. **Run the self-pacing loop** — reconcile in-progress tickets against
    git/PR state, pick the highest-priority unclaimed ready ticket,
    implement it, run the target repo's own gates (`references/gate-discovery.md`),
-   and on a pass branch/commit/push/open-a-PR/close-with-note or, on a
-   failure, note the reason and move on — repeating across self-paced turns
+   and on a pass branch/commit/push/open-or-reuse-a-PR/close-with-note or,
+   on a failure, note the reason and move on — repeating across self-paced turns
    until a terminal state is reached. The full step-by-step protocol,
    including the exact `loop_runner.py` invocations for every git/`tk`/`gh`
    operation, is `references/execution-loop.md` — follow it exactly rather
@@ -81,8 +81,9 @@ see that section for the exact restriction it's given.
 ## Bundled resources
 
 - `references/decomposition.md` — size/ambiguity classification, the inline
-  and `ce-plan`/`ce-brainstorm`-escalation paths, acceptance-criteria
-  authoring.
+  and `ce-plan`/`ce-brainstorm`-escalation paths (which also fixes the
+  run's shipping mode — see `execution-loop.md`'s Shipping mode section),
+  acceptance-criteria authoring.
 - `references/gate-discovery.md` — how to find and run the target repo's
   own gates, and the pass/fail/no-gates-found policy.
 - `references/execution-loop.md` — the full per-cycle protocol: preflight,

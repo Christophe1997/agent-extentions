@@ -14,6 +14,25 @@ script's `_parse_key_value_note` is designed to ignore prose notes.
 `will_create_prs` is always `true` for this loop — opening a PR is the
 whole point — so every preflight call passes `true`.
 
+## Shipping mode
+
+Two ways a ticket's work reaches a pull request, chosen once by
+`decomposition.md`'s classification and never re-derived mid-run:
+
+- **branch mode** — one ticket, one branch, one commit, one PR. A
+  dependent ticket's branch stacks on its predecessor's. Used by
+  `decomposition.md`'s escalation path (large or ambiguous goals).
+- **commit mode** — one *run* gets one shared branch and one PR; each
+  ticket still contributes exactly one commit, but to that shared branch,
+  always based on `trunk_branch` directly (no stacking). Dependency
+  ordering falls out of commit ancestry for free — `tk ready` already only
+  surfaces tickets whose dependencies are closed, so the pick order is
+  already a valid topological sort. Used by `decomposition.md`'s inline
+  path (small, single-outcome goals).
+
+Every step below that differs by mode says so explicitly; anything not
+marked applies to both.
+
 ## Self-pacing model
 
 This skill does not run as one long call. After each cycle, schedule the
@@ -21,10 +40,27 @@ next turn with `ScheduleWakeup` (`delaySeconds: 60` — the floor; there is
 real forward progress to make, not an external event to wait on) instead of
 looping in-context. **The wakeup `prompt` must carry the run's identity
 forward explicitly** — `repo_root`, the `run_id` from the last `ledger`
-call, and the original goal — since a resumed turn does not inherit this
-turn's in-context memory. A wakeup that drops `run_id` starts a fresh ledger
-and re-picks already-shipped tickets; treat `run_id` as required state, not
-a convenience.
+call, the original goal, and `ticket_mode` (branch or commit — Shipping
+mode, above) — since a resumed turn does not inherit this turn's in-context
+memory. A wakeup that drops `run_id` starts a fresh ledger and re-picks
+already-shipped tickets; treat `run_id` and `ticket_mode` both as required
+state, not a convenience.
+
+A wakeup or manual re-invocation that arrives without `ticket_mode` (an
+older wakeup authored before this run's tooling knew about it, or a human
+re-invoking the skill cold) must recover it before picking anything, not
+guess:
+
+- Two or more of `claimed_ticket_ids` (step 2, below) sharing an identical
+  `branch:` note → commit mode, unambiguously — branch mode never lets two
+  tickets share a branch.
+- Two or more with *different* `branch:` notes → branch mode,
+  unambiguously.
+- Fewer than two tickets claimed so far → not yet observable from `tk`
+  state alone (a single ticket looks the same under either mode when its
+  base happens to be trunk). Fall back to applying `decomposition.md`'s
+  own size/ambiguity classification to the original goal again — the same
+  judgment call decomposition already made, not a fresh guess.
 
 `ScheduleWakeup` is unavailable on some harness deployments (e.g. Amazon
 Bedrock, and AWS/GCP/Azure-hosted Claude Platform variants) — unattended
@@ -93,25 +129,37 @@ surviving in-context memory. `reconcile()` emits this outcome for
 `claim` call writes it before implementation starts) but before a ship
 note exists — that includes a crash mid-implementation, on a branch with
 no commits at all. Check which case this actually is before assuming
-there's a PR to open:
+there's a PR to open. Read this ticket's own `claim_sha` from `tk show
+<ticket_id>`'s notes, then:
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> <host_tool>
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-has-commits <repo_root> <base> <branch>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py commit-landed <repo_root> <branch> <claim_sha>
 ```
 
-- **`no`** → nothing was ever implemented on this branch. This is a fresh
-  implementation cycle on the existing branch/base, not a PR retry — the
-  branch and claim note already exist, so skip claiming again and go
-  straight to implementation, then gate, then ship (or note-and-reset on a
-  gate failure), as normal.
+Ticket-scoped, not branch-wide: in commit mode `branch` also carries every
+earlier ticket this run already shipped, so a "does this branch have any
+commits at all past its base" check would misattribute their work to this
+ticket. Same check for both shipping modes; only what happens next differs.
+
+- **`no`** → nothing was implemented on this branch since this ticket's
+  own claim. This is a fresh implementation cycle on the existing branch,
+  not a PR retry — skip claiming again and go straight to implementation,
+  then gate, then ship (or note-and-reset on a gate failure), as normal.
 - **`yes`** → the implementation and commit survived; only the push or PR
   creation failed. Push is safe to repeat (a no-op if it already
-  succeeded), then retry creation:
+  succeeded):
 
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py push <repo_root> <branch>
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py create-pr <repo_root> <host_tool> <branch> <base> "<title>" "<body>"
+```
+
+  then retry PR creation exactly as the Ship step (below) does — `find-pr`
+  first, `create-pr` only on a miss, using `base_ref` (branch mode:
+  resolve it via `resolve-base`, the same call the claim step makes;
+  commit mode: always `trunk_branch`, no `resolve-base` call) — then
+  finish the same way:
+
+```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py head-sha <repo_root> <branch>
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ship <repo_root> <ticket_id> <branch> "<pr_url>" "<sha>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --ship
@@ -221,14 +269,50 @@ means something outside this loop's control touched the tree).
 
 ```
 tk start <ticket_id>
+```
+
+Branch name and `base_ref` depend on this run's shipping mode (Shipping
+mode, above):
+
+- **branch mode**:
+
+```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py resolve-base <repo_root> <ticket_id> <trunk_branch> <host_tool>
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-name <repo_root> <type> "<ticket title>"
+```
+
+  `resolve-base`'s output is `base_ref`.
+
+- **commit mode**: `base_ref` is always `trunk_branch` — no `resolve-base`
+  call. Reuse the run's branch if one already exists, discovered from
+  `claimed_ticket_ids` (step 2, above — the tickets this run has already
+  claimed) rather than a new ledger field, so a lost/corrupted ledger
+  doesn't strand this discovery:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py run-branch <repo_root> <claimed_ticket_ids...>
+```
+
+  A result is `branch_name` — reuse it. No result means this is the run's
+  first ticket: compute a fresh name off the *goal itself*, not this
+  ticket, since every later ticket this run will share it —
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py branch-name <repo_root> goal "<goal title>"
+```
+
+Either way, `base_ref` and `branch_name` are now defined; claim:
+
+```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py claim <repo_root> <ticket_id> <branch_name> <base_ref> <trunk_branch>
 ```
 
-`claim` creates the branch off `base_ref` and records the claim note
-(`branch:`, plus `base:` only when `base_ref` differs from trunk —
-stacked) in one step, so a crash between the two never happens.
+`claim` creates the branch off `base_ref` — or, on an already-existing
+branch (always the case for commit mode's second-and-later tickets), checks
+it out instead — and records the claim note (`branch:`, plus `base:` only
+when `base_ref` differs from trunk — stacked; never written in commit
+mode, where `base_ref` is always trunk) in one step, so a crash between
+branch setup and the note never happens.
 
 ### 6. Implement (delegated to a fresh sub-agent)
 
@@ -258,7 +342,8 @@ or this conversation — and must carry:
 - `repo_root`, stated explicitly as the working directory to edit in; the
   branch is already checked out, so the sub-agent neither creates nor
   switches branches.
-- The ticket's title and acceptance criteria (`tk show <ticket_id>`).
+- The ticket's title, description (if present), and acceptance criteria
+  (`tk show <ticket_id>`).
 - An instruction to implement it following the target repo's existing
   conventions — ordinary implementation work, not a re-invention of it.
 - **The same boundary this skill holds itself to**: edit files only. Never
@@ -291,7 +376,27 @@ wraps gate execution, so gate output stays visible in the transcript.
 ```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py commit <repo_root> "<type>: <subject>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py push <repo_root> <branch_name>
+```
+
+Check for a PR this run already opened before creating a new one — a no-op
+lookup in branch mode (always empty there, since no other ticket shares
+this branch), and the mechanism that lets commit mode's second-and-later
+tickets land on the run's one shared PR instead of opening their own:
+
+```
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py find-pr <repo_root> <host_tool> <branch_name>
+```
+
+A URL → reuse it, skip `create-pr`. Empty → create one, using `base_ref`
+from the claim step above:
+
+```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py create-pr <repo_root> <host_tool> <branch_name> <base_ref> "<title>" "<body>"
+```
+
+Either way, finish the same:
+
+```
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ship <repo_root> <ticket_id> <branch_name> "<pr_url>" "<sha from commit>"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id <run_id> --ship
 ```
@@ -328,6 +433,11 @@ tk dep <new_id> <ticket_id>          # only if the new work blocks/depends on it
 tk add-note <ticket_id> "Discovered: <new_id> — <one-line reason>"
 ```
 
+`--acceptance` follows the same definable/testable/measurable, one-flag,
+list-of-bullets rule as `decomposition.md`'s Acceptance criteria section —
+scope-creep tickets get held to the same bar as tickets from decomposition,
+not a lighter one just because they're filed mid-loop.
+
 The back-reference note lets the relationship read from either ticket. A
 new ticket filed here is picked up by a later cycle's own `tk ready` pass
 like any other ticket — never implemented inline as part of this cycle.
@@ -345,8 +455,9 @@ or blocked a ticket, which is never a no-op tick.
 Every terminal path — exhausted, deadlocked, a cap hit, or a user stop —
 ends with a summary classifying every ticket touched this run:
 
-- **Shipped** — PR opened, ticket closed (the ship step, or `closed_merged`
-  from reconciliation).
+- **Shipped** — its commit landed on the run's PR (opened by this ticket,
+  or reused from an earlier ticket this run in commit mode) and the ticket
+  closed (the ship step, or `closed_merged` from reconciliation).
 - **Failed / blocked** — gate failure (the note-and-reset step), or a
   reconciliation outcome that left it blocked (`failed_closed_unmerged`,
   `blocked_stale_base`).
