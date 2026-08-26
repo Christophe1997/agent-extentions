@@ -123,6 +123,7 @@ matches = [
 [[ask]]
 name = "destructive-git"
 tool = "Bash"
+cacheable = true
 reason = "Destructive git operation — confirm before running"
 matches = [
   { command = 'git push.*--force\b' },
@@ -137,6 +138,7 @@ matches = [
 [[ask]]
 name = "package-install"
 tool = "Bash"
+cacheable = true
 reason = "Package install (supply-chain risk) — confirm before running"
 matches = [
   { command = '^npm (install|i)\b' },
@@ -156,6 +158,7 @@ matches = [
 [[ask]]
 name = "git-push-protected-branch"
 tool = "Bash"
+cacheable = true
 reason = "Pushing to main/master — confirm before running"
 matches = [
   { command = '^git push\b.*\b(main|master)\b' },
