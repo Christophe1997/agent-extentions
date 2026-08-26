@@ -179,6 +179,26 @@ class TestFindResumableRuns(RunStateTestCase):
         candidates = run_state.find_resumable_runs(self.repo_root)
         self.assertEqual([s.run_id for s in candidates], ["run-live"])
 
+    def test_truncated_json_ledger_file_is_skipped_not_fatal(self):
+        live = run_state.load_run_state(self.repo_root, "run-live")
+        run_state.save_run_state(self.repo_root, live)
+        ledger_dir = self.repo_root / run_state.LEDGER_DIR_NAME
+        (ledger_dir / "corrupt.json").write_text("{not valid json")
+
+        candidates = run_state.find_resumable_runs(self.repo_root)
+
+        self.assertEqual([s.run_id for s in candidates], ["run-live"])
+
+    def test_ledger_file_missing_run_id_is_skipped_not_fatal(self):
+        live = run_state.load_run_state(self.repo_root, "run-live")
+        run_state.save_run_state(self.repo_root, live)
+        ledger_dir = self.repo_root / run_state.LEDGER_DIR_NAME
+        (ledger_dir / "no-run-id.json").write_text('{"shipped_count": 1}')
+
+        candidates = run_state.find_resumable_runs(self.repo_root)
+
+        self.assertEqual([s.run_id for s in candidates], ["run-live"])
+
 
 class TestLedgerExcludedFromDirtyCheck(RunStateTestCase):
     def test_writing_ledger_does_not_trip_dirty_tree_check(self):

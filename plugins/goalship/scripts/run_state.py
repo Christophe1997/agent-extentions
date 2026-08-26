@@ -178,10 +178,14 @@ def find_resumable_runs(repo_root: Path) -> list:
     ledger_dir = Path(repo_root) / LEDGER_DIR_NAME
     if not ledger_dir.exists():
         return []
-    states = [
-        RunState.from_dict(json.loads(path.read_text()))
-        for path in sorted(ledger_dir.glob("*.json"))
-    ]
+    states = []
+    for path in sorted(ledger_dir.glob("*.json")):
+        # A ledger file outside the atomic-write path (interrupted mid-write,
+        # hand-edited) must not take down every other run's resumability with it.
+        try:
+            states.append(RunState.from_dict(json.loads(path.read_text())))
+        except (json.JSONDecodeError, KeyError):
+            continue
     return [state for state in states if state.terminal_state is None]
 
 

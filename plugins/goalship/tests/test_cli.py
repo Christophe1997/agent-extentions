@@ -367,6 +367,17 @@ class TestResumeCandidatesCommand(CliRepoTestCase):
         result = _cli("resume-candidates", str(self.repo_root))
         self.assertEqual(json.loads(result.stdout), [])
 
+    def test_corrupt_ledger_file_does_not_crash_the_scan(self):
+        data = json.loads(_cli("ledger", str(self.repo_root), "--goal", "ship it", "--ticket-mode", "branch").stdout)
+        ledger_dir = self.repo_root / ".goalship"
+        (ledger_dir / "corrupt.json").write_text("{not valid json")
+
+        result = _cli("resume-candidates", str(self.repo_root))
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        candidates = json.loads(result.stdout)
+        self.assertEqual([c["run_id"] for c in candidates], [data["run_id"]])
+
 
 if __name__ == "__main__":
     unittest.main()
