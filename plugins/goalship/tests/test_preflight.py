@@ -14,7 +14,7 @@ from unittest import mock
 
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
-import loop_runner as lr  # noqa: E402
+import preflight  # noqa: E402
 
 
 def _run(args, cwd):
@@ -53,83 +53,83 @@ class PreflightTestCase(unittest.TestCase):
 class TestPreflightPass(PreflightTestCase):
     def test_passes_with_tk_remote_and_clean_tree(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertTrue(result.ok, result.failures)
         self.assertEqual(result.failures, [])
 
     def test_reports_remote_url_and_trunk_branch_on_pass(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertIsNotNone(result.remote_url)
         self.assertEqual(result.trunk_branch, "main")
 
     def test_passes_with_authenticated_gh_when_pr_creation_will_run(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=True):
-            result = lr.run_preflight(self.repo_root, will_create_prs=True)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
         self.assertTrue(result.ok, result.failures)
 
     def test_reports_detected_host_tool_when_pr_creation_will_run(self):
         # Callers (the CLI's `create-pr` invocation) need to know which
         # tool preflight found, rather than re-detecting it themselves.
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=True):
-            result = lr.run_preflight(self.repo_root, will_create_prs=True)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
         self.assertEqual(result.host_tool, "gh")
 
     def test_host_tool_is_none_when_pr_creation_will_not_run(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertIsNone(result.host_tool)
 
 
 class TestPreflightFailures(PreflightTestCase):
     def test_fails_when_tk_missing(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect(set())):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect(set())):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertFalse(result.ok)
         self.assertTrue(any("tk" in f for f in result.failures))
 
     def test_fails_when_no_remote_configured(self):
         _init_repo_with_remote(self.repo_root, with_remote=False)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertFalse(result.ok)
         self.assertTrue(any("remote" in f for f in result.failures))
 
     def test_fails_when_working_tree_dirty_and_lists_paths(self):
         _init_repo_with_remote(self.repo_root)
         (self.repo_root / "dirty.txt").write_text("uncommitted\n")
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertFalse(result.ok)
         self.assertTrue(any("dirty.txt" in f for f in result.failures))
 
     def test_fails_when_gh_unauthenticated_and_pr_creation_will_run(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=False):
-            result = lr.run_preflight(self.repo_root, will_create_prs=True)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=False):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
         self.assertFalse(result.ok)
         self.assertTrue(any("gh" in f and "auth" in f for f in result.failures))
 
     def test_fails_when_neither_gh_nor_glab_found_and_pr_creation_will_run(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=True)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
         self.assertFalse(result.ok)
         self.assertTrue(any("gh" in f or "glab" in f for f in result.failures))
 
     def test_skips_host_tool_check_when_pr_creation_will_not_run(self):
         _init_repo_with_remote(self.repo_root)
-        with mock.patch.object(lr.shutil, "which", side_effect=self._which_side_effect({"tk"})):
-            result = lr.run_preflight(self.repo_root, will_create_prs=False)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertTrue(result.ok, result.failures)
 
 

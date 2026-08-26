@@ -18,6 +18,10 @@ from unittest import mock
 _SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 import loop_runner as lr  # noqa: E402
+import branching  # noqa: E402
+import preflight  # noqa: E402
+import reconciliation  # noqa: E402
+import run_state  # noqa: E402
 
 
 def _run(args, cwd):
@@ -48,14 +52,14 @@ class ReconciliationTestCase(unittest.TestCase):
         return result.stdout.strip().splitlines()[-1]
 
     def _tk_status(self, ticket_id: str) -> str:
-        tickets = lr.tk_query(self.repo_root, f'select(.id=="{ticket_id}")')
+        tickets = reconciliation.tk_query(self.repo_root, f'select(.id=="{ticket_id}")')
         return tickets[0]["status"]
 
 
 class TestNoOpAndLedgerIndependence(ReconciliationTestCase):
     def test_fresh_run_with_no_in_progress_tickets_is_noop(self):
         self._tk_create("Untouched open ticket")
-        report = lr.reconcile(self.repo_root)
+        report = reconciliation.reconcile(self.repo_root)
         self.assertEqual(report.actions, [])
         self.assertIsNone(report.auth_failure)
 
@@ -63,13 +67,13 @@ class TestNoOpAndLedgerIndependence(ReconciliationTestCase):
         # No ledger file exists anywhere under repo_root; reconcile() must
         # not require one — this is trivially satisfied because the
         # function queries tk directly, not the ledger.
-        self.assertFalse((self.repo_root / lr.LEDGER_DIR_NAME).exists())
+        self.assertFalse((self.repo_root / run_state.LEDGER_DIR_NAME).exists())
         ticket_id = self._tk_create("In progress, no notes yet")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
 
-        report = lr.reconcile(self.repo_root)
+        report = reconciliation.reconcile(self.repo_root)
 
-        self.assertFalse((self.repo_root / lr.LEDGER_DIR_NAME).exists())
+        self.assertFalse((self.repo_root / run_state.LEDGER_DIR_NAME).exists())
         self.assertEqual(len(report.actions), 1)
         self.assertEqual(report.actions[0].outcome, "no_recoverable_state")
 
@@ -78,11 +82,11 @@ class TestMergedAndClosedOutcomes(ReconciliationTestCase):
     def test_merged_pr_closes_ticket_with_note(self):
         ticket_id = self._tk_create("Ships a merged PR")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/merged-one")
-        lr.record_ship_note(self.repo_root, ticket_id, "feat/merged-one", "https://example.com/pr/1", "abc123")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/merged-one")
+        reconciliation.record_ship_note(self.repo_root, ticket_id, "feat/merged-one", "https://example.com/pr/1", "abc123")
 
-        with mock.patch.object(lr, "pr_state", return_value="merged"):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", return_value="merged"):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(len(report.actions), 1)
         self.assertEqual(report.actions[0].outcome, "closed_merged")
@@ -91,11 +95,11 @@ class TestMergedAndClosedOutcomes(ReconciliationTestCase):
     def test_closed_unmerged_pr_marks_failed_and_leaves_open(self):
         ticket_id = self._tk_create("PR closed without merging")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/abandoned")
-        lr.record_ship_note(self.repo_root, ticket_id, "feat/abandoned", "https://example.com/pr/2", "def456")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/abandoned")
+        reconciliation.record_ship_note(self.repo_root, ticket_id, "feat/abandoned", "https://example.com/pr/2", "def456")
 
-        with mock.patch.object(lr, "pr_state", return_value="closed"):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", return_value="closed"):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(len(report.actions), 1)
         self.assertEqual(report.actions[0].outcome, "failed_closed_unmerged")
@@ -106,11 +110,11 @@ class TestRetryAndCrashResume(ReconciliationTestCase):
     def test_pushed_branch_no_pr_yet_retries_instead_of_reimplementing(self):
         ticket_id = self._tk_create("Crashed before PR creation")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/crashed")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/crashed")
 
-        with mock.patch.object(lr, "_detect_host_tool", return_value="gh"), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=True):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(preflight, "_detect_host_tool", return_value="gh"), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(len(report.actions), 1)
         self.assertEqual(report.actions[0].outcome, "retry_pr_creation")
@@ -127,20 +131,20 @@ class TestRetryAndCrashResume(ReconciliationTestCase):
 
         _run(["git", "checkout", "-b", "feat/crash-after-push"], self.repo_root)
         (self.repo_root / "shipped.txt").write_text("done\n")
-        # Stage only the intended file, not `git add -A` (lr.commit_all) —
+        # Stage only the intended file, not `git add -A` (branching.commit_all) —
         # the test's own `.tickets/` dir is untracked on purpose here, and
         # sweeping it onto this branch would make it vanish from the
         # working tree on the checkout back below, which is a test-fixture
         # artifact unrelated to what this test verifies.
         _run(["git", "add", "shipped.txt"], self.repo_root)
         _run(["git", "commit", "-q", "-m", "feat: shipped work"], self.repo_root)
-        sha = lr.head_sha(self.repo_root)
+        sha = branching.head_sha(self.repo_root)
         _run(["git", "checkout", "-"], self.repo_root)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/crash-after-push")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/crash-after-push")
 
-        with mock.patch.object(lr, "_detect_host_tool", return_value="gh"), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=True):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(preflight, "_detect_host_tool", return_value="gh"), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(report.actions[0].outcome, "retry_pr_creation")
         branch_sha = subprocess.run(
@@ -154,13 +158,13 @@ class TestStackedBaseOutcomes(ReconciliationTestCase):
     def _setup_stacked_pair(self):
         base_id = self._tk_create("Base ticket")
         subprocess.run(["tk", "start", base_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, base_id, "feat/base")
-        lr.record_ship_note(self.repo_root, base_id, "feat/base", "https://example.com/pr/10", "aaa111")
+        reconciliation.record_claim_note(self.repo_root, base_id, "feat/base")
+        reconciliation.record_ship_note(self.repo_root, base_id, "feat/base", "https://example.com/pr/10", "aaa111")
 
         dep_id = self._tk_create("Stacked on base")
         subprocess.run(["tk", "start", dep_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, dep_id, "feat/stacked", base="feat/base")
-        lr.record_ship_note(self.repo_root, dep_id, "feat/stacked", "https://example.com/pr/11", "bbb222")
+        reconciliation.record_claim_note(self.repo_root, dep_id, "feat/stacked", base="feat/base")
+        reconciliation.record_ship_note(self.repo_root, dep_id, "feat/stacked", "https://example.com/pr/11", "bbb222")
         return base_id, dep_id
 
     def test_stacked_ticket_retargets_when_base_merged(self):
@@ -169,8 +173,8 @@ class TestStackedBaseOutcomes(ReconciliationTestCase):
         def fake_pr_state(_repo_root, _host_tool, pr_ref):
             return "merged" if pr_ref == "https://example.com/pr/10" else "open"
 
-        with mock.patch.object(lr, "pr_state", side_effect=fake_pr_state):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", side_effect=fake_pr_state):
+            report = reconciliation.reconcile(self.repo_root)
 
         dep_actions = [a for a in report.actions if a.ticket_id == dep_id]
         self.assertEqual(len(dep_actions), 1)
@@ -188,8 +192,8 @@ class TestStackedBaseOutcomes(ReconciliationTestCase):
                 return "closed"
             return "open"
 
-        with mock.patch.object(lr, "pr_state", side_effect=fake_pr_state):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", side_effect=fake_pr_state):
+            report = reconciliation.reconcile(self.repo_root)
 
         dep_actions = [a for a in report.actions if a.ticket_id == dep_id]
         self.assertEqual(len(dep_actions), 1)
@@ -201,12 +205,12 @@ class TestAuthFailureRoutesToPreflightClassStop(ReconciliationTestCase):
     def test_unauthenticated_host_tool_stops_without_per_ticket_retries(self):
         ticket_id = self._tk_create("Needs a PR state check")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/needs-auth")
-        lr.record_ship_note(self.repo_root, ticket_id, "feat/needs-auth", "https://example.com/pr/9", "ccc333")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/needs-auth")
+        reconciliation.record_ship_note(self.repo_root, ticket_id, "feat/needs-auth", "https://example.com/pr/9", "ccc333")
 
-        with mock.patch.object(lr, "_detect_host_tool", return_value="gh"), \
-             mock.patch.object(lr, "_host_tool_authenticated", return_value=False):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(preflight, "_detect_host_tool", return_value="gh"), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=False):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(report.auth_failure, "gh")
         self.assertEqual(report.actions, [])
@@ -218,16 +222,16 @@ class TestReconcileCommandJson(unittest.TestCase):
     ReconciliationAction dataclass."""
 
     def test_serializes_pr_ref_alongside_outcome_and_detail(self):
-        fake_report = lr.ReconciliationReport(
+        fake_report = reconciliation.ReconciliationReport(
             actions=[
-                lr.ReconciliationAction(
+                reconciliation.ReconciliationAction(
                     ticket_id="T-1", outcome="retarget_base_merged",
                     detail="feat/base", pr_ref="https://example.com/pr/11",
                 ),
             ],
         )
         stdout = io.StringIO()
-        with mock.patch.object(lr, "reconcile", return_value=fake_report), \
+        with mock.patch.object(reconciliation, "reconcile", return_value=fake_report), \
              contextlib.redirect_stdout(stdout):
             lr.cmd_reconcile(["/repo"])
 
@@ -251,8 +255,8 @@ class TestShipNoteOrphanedOutcome(ReconciliationTestCase):
     def test_ship_note_written_but_not_closed_gets_closed_by_reconcile(self):
         ticket_id = self._tk_create("Crashed between ship note and tk close")
         subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, ticket_id, "feat/orphaned-ship")
-        lr.record_ship_note(self.repo_root, ticket_id, "feat/orphaned-ship", "https://example.com/pr/99", "sha999")
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/orphaned-ship")
+        reconciliation.record_ship_note(self.repo_root, ticket_id, "feat/orphaned-ship", "https://example.com/pr/99", "sha999")
         # No tk_close call here — simulates the crash between
         # record_ship_note and tk_close inside cmd_ship. The PR itself is
         # genuinely still open (under review) — closed_merged and
@@ -261,8 +265,8 @@ class TestShipNoteOrphanedOutcome(ReconciliationTestCase):
         # remaining "still open, nothing else to do" gap.
         self.assertEqual(self._tk_status(ticket_id), "in_progress")
 
-        with mock.patch.object(lr, "pr_state", return_value="open"):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", return_value="open"):
+            report = reconciliation.reconcile(self.repo_root)
 
         self.assertEqual(len(report.actions), 1)
         self.assertEqual(report.actions[0].outcome, "closed_ship_note_orphaned")
@@ -278,16 +282,16 @@ class TestShipNoteOrphanedOutcome(ReconciliationTestCase):
         # this outcome isn't gated behind "no base field at all".
         base_id = self._tk_create("Base ticket, still open")
         subprocess.run(["tk", "start", base_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, base_id, "feat/base-open")
-        lr.record_ship_note(self.repo_root, base_id, "feat/base-open", "https://example.com/pr/20", "shaBase")
+        reconciliation.record_claim_note(self.repo_root, base_id, "feat/base-open")
+        reconciliation.record_ship_note(self.repo_root, base_id, "feat/base-open", "https://example.com/pr/20", "shaBase")
 
         dep_id = self._tk_create("Stacked, crashed before close")
         subprocess.run(["tk", "start", dep_id], cwd=self.repo_root, check=True, capture_output=True)
-        lr.record_claim_note(self.repo_root, dep_id, "feat/stacked-open", base="feat/base-open")
-        lr.record_ship_note(self.repo_root, dep_id, "feat/stacked-open", "https://example.com/pr/21", "shaDep")
+        reconciliation.record_claim_note(self.repo_root, dep_id, "feat/stacked-open", base="feat/base-open")
+        reconciliation.record_ship_note(self.repo_root, dep_id, "feat/stacked-open", "https://example.com/pr/21", "shaDep")
 
-        with mock.patch.object(lr, "pr_state", return_value="open"):
-            report = lr.reconcile(self.repo_root)
+        with mock.patch.object(reconciliation, "pr_state", return_value="open"):
+            report = reconciliation.reconcile(self.repo_root)
 
         dep_actions = [a for a in report.actions if a.ticket_id == dep_id]
         self.assertEqual(len(dep_actions), 1)

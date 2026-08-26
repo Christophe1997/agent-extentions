@@ -70,9 +70,10 @@ classification rules.
 Never merge or approve a pull request, force-push, delete a branch this
 skill did not create, or take a package-registry publish action. Every
 git/`tk`/`gh` operation goes through `${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py`
-(see `references/execution-loop.md`), which exposes no code path for any of
-those — this is asserted directly against the script's source in
-`tests/test_branching.py`, not just documented here. The one exception is
+(see `references/execution-loop.md`) and the sibling modules it dispatches to,
+which expose no code path for any of those — this is asserted directly
+against every `scripts/*.py`'s source in `tests/test_branching.py`, not just
+documented here. The one exception is
 the sub-agent that `execution-loop.md`'s implement step delegates
 implementation to: it carries ordinary `Bash` access and is held to this
 same boundary by instruction, not by the script's structural guarantee —
