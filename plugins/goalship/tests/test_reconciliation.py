@@ -180,7 +180,7 @@ class TestStackedBaseOutcomes(ReconciliationTestCase):
         self.assertEqual(len(dep_actions), 1)
         self.assertEqual(dep_actions[0].outcome, "retarget_base_merged")
         self.assertEqual(dep_actions[0].detail, "feat/base")
-        # #5: the ticket's own PR ref rides along on the action so the
+        # The ticket's own PR ref rides along on the action so the
         # skill can retarget it without re-parsing `tk show` notes by hand.
         self.assertEqual(dep_actions[0].pr_ref, "https://example.com/pr/11")
 
@@ -217,8 +217,8 @@ class TestAuthFailureRoutesToPreflightClassStop(ReconciliationTestCase):
 
 
 class TestReconcileCommandJson(unittest.TestCase):
-    """#5: cmd_reconcile's JSON serialization must carry the new pr_ref
-    field the doc now reads directly, instead of only asserting it on the
+    """cmd_reconcile's JSON serialization must carry the pr_ref field the
+    doc reads directly, instead of only asserting it on the
     ReconciliationAction dataclass."""
 
     def test_serializes_pr_ref_alongside_outcome_and_detail(self):
@@ -246,7 +246,7 @@ class TestReconcileCommandJson(unittest.TestCase):
 
 
 class TestShipNoteOrphanedOutcome(ReconciliationTestCase):
-    """#6: cmd_ship writes the ship note (record_ship_note, setting pr:/sha:)
+    """cmd_ship writes the ship note (record_ship_note, setting pr:/sha:)
     then calls tk_close as a separate effect. A crash between them leaves a
     ticket in_progress with a complete ship note and an open PR that
     reconcile()'s plain `state == "open"` handling takes no action on —

@@ -230,7 +230,7 @@ class ReconciliationAction:
     ticket_id: str
     outcome: str
     detail: str = ""
-    # #5: for retarget_base_merged, the ticket's own `pr:` ref — carried
+    # For retarget_base_merged, the ticket's own `pr:` ref — carried
     # here so the skill can retarget it directly instead of re-parsing
     # `tk show` notes by hand.
     pr_ref: str = ""
@@ -248,7 +248,7 @@ def _reconcile_stacked_base(
     """A ticket's PR is open and stacked on `base` — check whether
     that base's own PR has since resolved out from under it. `pr_ref` is
     `ticket_id`'s own PR (not `base`'s) — carried onto the resulting action
-    so a caller can retarget it without a second lookup (#5)."""
+    so a caller can retarget it without a second lookup."""
     found = find_ticket_by_branch(repo_root, base)
     base_fields = found[1] if found else {}
     base_pr = base_fields.get("pr")
@@ -321,7 +321,7 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
             if action:
                 actions.append(action)
             elif sha:
-                # #6: the PR is genuinely open (nothing stale to retarget
+                # The PR is genuinely open (nothing stale to retarget
                 # or block on) and the ship note (record_ship_note) has
                 # already run — sha only ever appears alongside pr, so its
                 # presence means the loop's own work here is done. A crash

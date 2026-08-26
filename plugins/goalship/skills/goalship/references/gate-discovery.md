@@ -55,11 +55,10 @@ any) so the result isn't over-trusted later.
 
 ## Failure policy
 
-- **Any gate fails → no commit.** Record the failing command and a redacted,
-  length-capped output excerpt as the ticket's failure note (common
-  secret-shaped patterns like `KEY=value` env assignments and bearer-token
-  strings are stripped before the note is written), leave the ticket open,
-  and move to the next ready ticket. Do not retry the same ticket again this
+- **Any gate fails → no commit.** Record the failing command and output
+  excerpt as the ticket's failure note — redacted and length-capped per
+  `execution-loop.md`'s note-and-reset step — leave the ticket open, and
+  move to the next ready ticket. Do not retry the same ticket again this
   run — see `execution-loop.md`.
 - **No gate found** → state that plainly ("no project gates detected for
   `<repo>`") and treat it as a pass — the ticket proceeds to commit. Silence

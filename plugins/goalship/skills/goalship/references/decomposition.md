@@ -37,23 +37,23 @@ For a lightweight goal, decompose in a single reasoning pass:
    otherwise run through faster.
 2. `tk create "<title>" -t <type> --acceptance "<criteria>"` for each piece.
    `<type>` is one of `bug|feature|task|epic|chore`. Add `-p 1` for a piece
-   that blocks at least one other planned piece (per step 1) — it should be
-   picked ahead of unrelated ready work once unblocked — and leave the rest
-   at the default (`2`, omit `-p`). This is what makes the execution loop's
+   that blocks at least one other planned piece (per the ordering
+   constraints identified above) — it should be picked ahead of unrelated
+   ready work once unblocked — and leave the rest at the default (`2`, omit
+   `-p`). This is what makes the execution loop's
    "pick the highest-priority ready ticket" step (`execution-loop.md`)
    mean something beyond a tie: dependencies alone only say what must
    precede what, not which of several simultaneously-ready tickets to run
    first.
-3. `tk dep <id> <dep-id>` for every ordering constraint identified in
-   step 1.
+3. `tk dep <id> <dep-id>` for every ordering constraint identified above.
 4. Do not invoke `ce-plan` or `ce-brainstorm` for this path — that's
    what makes it "inline."
 
 This path always runs in **commit mode** — one shared branch and PR for
 the whole run (see `execution-loop.md`'s Shipping mode). Ticket dependency
-ordering (step 1 and step 3's `tk dep` edges) is what the execution loop
-turns into commit ancestry; there is no separate branch-per-ticket
-decision to make here.
+ordering — the ordering constraints identified above, encoded as `tk dep`
+edges — is what the execution loop turns into commit ancestry; there is no
+separate branch-per-ticket decision to make here.
 
 ## Escalation path
 

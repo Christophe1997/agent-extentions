@@ -138,7 +138,7 @@ class TestResolveBaseForTicket(TicketBranchingTestCase):
         self.assertEqual(branching.resolve_base_for_ticket(self.repo_root, ticket_id, "main", "gh"), "main")
 
     def test_dependency_pr_lookup_failure_does_not_silently_resolve_to_trunk(self):
-        # #2: pr_state() returning None means the lookup itself failed (an
+        # pr_state() returning None means the lookup itself failed (an
         # expired credential, a host outage) — distinct from a
         # legitimately closed PR. Folding it into "closed" would silently
         # rebase a dependent ticket onto trunk instead of its still-open
@@ -182,7 +182,7 @@ class TestBranchNaming(BranchingTestCase):
 
 
 class TestClaimIdempotency(TicketBranchingTestCase):
-    """#9: a crash between create_branch and record_claim_note leaves a real
+    """A crash between create_branch and record_claim_note leaves a real
     branch with zero notes. cmd_claim must self-heal on retry instead of
     failing on "branch already exists" or leaving the claim note unwritten."""
 
@@ -233,7 +233,7 @@ class TestRecordClaimNoteClaimSha(TicketBranchingTestCase):
 
 class TestClaimRecordsClaimSha(TicketBranchingTestCase):
     """cmd_claim must capture the branch's tip as claim_sha on both paths:
-    a fresh branch (tip == base_ref) and the #9 crash-recovery retry
+    a fresh branch (tip == base_ref) and the crash-recovery retry
     (checking out an already-created branch) — nothing has been implemented
     on either branch yet, so both should equal origin/main's own tip."""
 
@@ -245,7 +245,7 @@ class TestClaimRecordsClaimSha(TicketBranchingTestCase):
 
     def test_crash_before_note_retry_records_the_branchs_tip_as_claim_sha(self):
         ticket_id = self._tk_create("Crash-recovery claim records claim_sha")
-        # #9 setup: branch already created and left checked out, note never written.
+        # Crash-recovery setup: branch already created and left checked out, note never written.
         branching.create_branch(self.repo_root, "feat/crash-recovery", "origin/main")
         _run(["git", "checkout", "main"], self.repo_root)
 
@@ -537,7 +537,7 @@ class TestRetargetPullRequest(unittest.TestCase):
 
 
 class TestPrState(unittest.TestCase):
-    """#4: pr_state()'s own gh/glab argv construction, JSON parsing, and
+    """Covers pr_state()'s own gh/glab argv construction, JSON parsing, and
     state-string mapping — every other test in this suite mocks pr_state
     itself, so exercise it directly here against a patched subprocess.run."""
 

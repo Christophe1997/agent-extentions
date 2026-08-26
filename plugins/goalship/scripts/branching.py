@@ -68,7 +68,7 @@ def resolve_base_for_ticket(
         else:
             state = reconciliation.pr_state(repo_root, host_tool, pr_ref)
             if state is None:
-                # #2: the lookup itself failed (expired credential, host
+                # The lookup itself failed (expired credential, host
                 # outage) — distinct from a legitimately closed PR.
                 # Folding this into "closed" would silently rebase
                 # `ticket_id` onto trunk instead of dep_id's still-open
