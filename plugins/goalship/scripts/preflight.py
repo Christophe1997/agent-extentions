@@ -4,6 +4,7 @@ time and by reconciliation's own auth-failure routing.
 """
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -68,7 +69,42 @@ def _resolve_trunk_branch(repo_root: Path) -> Optional[str]:
     return current.stdout.strip() or None
 
 
-def _detect_host_tool() -> Optional[str]:
+_REMOTE_URL_HOST_RE = re.compile(r"^[a-zA-Z][\w+.-]*://(?:[^@/]*@)?([^/:]+)")
+_REMOTE_SCP_HOST_RE = re.compile(r"^(?:[^@/]*@)?([^/:]+):")
+
+
+def _git_host_from_remote(remote_url: Optional[str]) -> Optional[str]:
+    """Hostname from a git remote URL, covering both scp-like
+    (git@host:owner/repo) and URL (scheme://host/...) syntax. None for
+    local/bare paths, which have neither an authority nor a colon-prefixed
+    host segment."""
+    if not remote_url:
+        return None
+    match = _REMOTE_URL_HOST_RE.match(remote_url) or _REMOTE_SCP_HOST_RE.match(remote_url)
+    return match.group(1).lower() if match else None
+
+
+def _preferred_host_tool(remote_url: Optional[str]) -> Optional[str]:
+    host = _git_host_from_remote(remote_url)
+    if host is None:
+        return None
+    if "gitlab" in host:
+        return "glab"
+    if "github" in host:
+        return "gh"
+    return None
+
+
+def _detect_host_tool(remote_url: Optional[str] = None) -> Optional[str]:
+    """Tool to use for host operations. When origin's host classifies as
+    GitHub/GitLab, that tool is required and never silently substituted
+    with whichever tool happens to be on PATH — that would run a PR
+    create/lookup against the wrong host. Falls back to PATH order only
+    when the host can't be classified (local/bare remotes, or an
+    unrecognized self-hosted domain)."""
+    preferred = _preferred_host_tool(remote_url)
+    if preferred:
+        return preferred if shutil.which(preferred) else None
     for tool in ("gh", "glab"):
         if shutil.which(tool):
             return tool
@@ -111,9 +147,13 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
 
     host_tool = None
     if will_create_prs:
-        host_tool = _detect_host_tool()
+        host_tool = _detect_host_tool(remote_url)
         if host_tool is None:
-            failures.append("neither gh nor glab found on PATH")
+            required = _preferred_host_tool(remote_url)
+            if required:
+                failures.append(f"origin host requires {required}, but it is not found on PATH")
+            else:
+                failures.append("neither gh nor glab found on PATH")
         elif not _host_tool_authenticated(host_tool):
             failures.append(f"{host_tool} is not authenticated (run `{host_tool} auth login`)")
 

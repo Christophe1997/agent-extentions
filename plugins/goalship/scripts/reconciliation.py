@@ -285,7 +285,7 @@ def reconcile(repo_root: Path) -> ReconciliationReport:
     )
     host_tool = None
     if needs_host_lookup:
-        host_tool = preflight._detect_host_tool()
+        host_tool = preflight._detect_host_tool(preflight._git_remote_url(repo_root))
         if host_tool is None or not preflight._host_tool_authenticated(host_tool):
             # A credential that keeps failing routes to a
             # preflight-class stop instead of retrying per ticket without limit.

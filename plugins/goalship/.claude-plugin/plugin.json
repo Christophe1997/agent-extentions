@@ -1,6 +1,6 @@
 {
   "name": "goalship",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Decompose a goal into a tk ticket graph and drive it to merge-ready pull requests unattended — tiered decomposition, gated implementation, dependency-aware branching, and a self-pacing execution loop.",
   "author": {
     "name": "Christophe1997",

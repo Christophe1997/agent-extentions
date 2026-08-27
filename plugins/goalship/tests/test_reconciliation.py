@@ -215,6 +215,23 @@ class TestAuthFailureRoutesToPreflightClassStop(ReconciliationTestCase):
         self.assertEqual(report.auth_failure, "gh")
         self.assertEqual(report.actions, [])
 
+    def test_detects_host_tool_from_the_repos_actual_remote_url(self):
+        ticket_id = self._tk_create("Needs a PR state check")
+        subprocess.run(["tk", "start", ticket_id], cwd=self.repo_root, check=True, capture_output=True)
+        reconciliation.record_claim_note(self.repo_root, ticket_id, "feat/needs-remote")
+        reconciliation.record_ship_note(
+            self.repo_root, ticket_id, "feat/needs-remote", "https://example.com/pr/11", "ddd444",
+        )
+
+        with mock.patch.object(preflight, "_git_remote_url", return_value="git@gitlab.com:org/repo.git") as mock_remote, \
+             mock.patch.object(preflight, "_detect_host_tool", return_value="glab") as mock_detect, \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True), \
+             mock.patch.object(reconciliation, "pr_state", return_value="merged"):
+            reconciliation.reconcile(self.repo_root)
+
+        mock_remote.assert_called_once_with(self.repo_root)
+        mock_detect.assert_called_once_with("git@gitlab.com:org/repo.git")
+
 
 class TestReconcileCommandJson(unittest.TestCase):
     """cmd_reconcile's JSON serialization must carry the pr_ref field the

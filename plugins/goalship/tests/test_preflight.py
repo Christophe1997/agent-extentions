@@ -87,6 +87,29 @@ class TestPreflightPass(PreflightTestCase):
             result = preflight.run_preflight(self.repo_root, will_create_prs=False)
         self.assertIsNone(result.host_tool)
 
+    def test_prefers_glab_for_gitlab_remote_when_both_tools_present(self):
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "remote", "set-url", "origin", "git@gitlab.com:org/repo.git"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh", "glab"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertEqual(result.host_tool, "glab")
+
+    def test_prefers_gh_for_github_remote_when_both_tools_present(self):
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "remote", "set-url", "origin", "https://github.com/org/repo.git"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh", "glab"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertEqual(result.host_tool, "gh")
+
+    def test_falls_back_to_path_order_when_remote_host_unrecognized(self):
+        _init_repo_with_remote(self.repo_root)  # bare-dir remote, no github/gitlab host to match
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh", "glab"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated", return_value=True):
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertEqual(result.host_tool, "gh")
+
 
 class TestPreflightFailures(PreflightTestCase):
     def test_fails_when_tk_missing(self):
@@ -118,6 +141,28 @@ class TestPreflightFailures(PreflightTestCase):
             result = preflight.run_preflight(self.repo_root, will_create_prs=True)
         self.assertFalse(result.ok)
         self.assertTrue(any("gh" in f and "auth" in f for f in result.failures))
+
+    def test_fails_when_gitlab_remote_but_only_gh_on_path(self):
+        # glab is required for this origin host — falling back to gh would
+        # run `gh pr create` against a repo gh has no relationship to.
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "remote", "set-url", "origin", "git@gitlab.com:org/repo.git"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "gh"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated") as mock_auth:
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("glab" in f and "PATH" in f for f in result.failures))
+        mock_auth.assert_not_called()
+
+    def test_fails_when_github_remote_but_only_glab_on_path(self):
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "remote", "set-url", "origin", "https://github.com/org/repo.git"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk", "glab"})), \
+             mock.patch.object(preflight, "_host_tool_authenticated") as mock_auth:
+            result = preflight.run_preflight(self.repo_root, will_create_prs=True)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("gh" in f and "PATH" in f for f in result.failures))
+        mock_auth.assert_not_called()
 
     def test_fails_when_neither_gh_nor_glab_found_and_pr_creation_will_run(self):
         _init_repo_with_remote(self.repo_root)
