@@ -34,7 +34,7 @@ import branching
 # ---------------------------------------------------------------------------
 
 USAGE = """Usage:
-  loop_runner.py preflight <repo_root> <true|false>
+  loop_runner.py preflight <repo_root> <true|false> [trunk_branch]
   loop_runner.py reconcile <repo_root>
   loop_runner.py ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]
                         [--goal TEXT] [--ticket-mode branch|commit] [--terminal REASON]
@@ -62,9 +62,10 @@ def _print_json(data) -> None:
 
 def cmd_preflight(args: list) -> None:
     if len(args) < 2:
-        print("error: usage: preflight <repo_root> <true|false>", file=sys.stderr)
+        print("error: usage: preflight <repo_root> <true|false> [trunk_branch]", file=sys.stderr)
         sys.exit(1)
-    result = preflight.run_preflight(Path(args[0]), args[1].lower() == "true")
+    trunk_branch_override = args[2] if len(args) > 2 else None
+    result = preflight.run_preflight(Path(args[0]), args[1].lower() == "true", trunk_branch_override)
     _print_json({
         "ok": result.ok,
         "remote_url": result.remote_url,

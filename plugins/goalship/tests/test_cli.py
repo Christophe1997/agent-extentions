@@ -193,6 +193,15 @@ class TestPreflightCommand(CliRepoTestCase):
         self.assertTrue(data["ok"], data["failures"])
         self.assertEqual(data["trunk_branch"], "main")
 
+    def test_trunk_branch_override_argument_is_forwarded_and_reflected(self):
+        _run(["git", "checkout", "-q", "-b", "develop"], self.repo_root)
+        _run(["git", "checkout", "-q", "main"], self.repo_root)
+        result = _cli("preflight", str(self.repo_root), "false", "develop")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertTrue(data["ok"], data["failures"])
+        self.assertEqual(data["trunk_branch"], "develop")
+
 
 class TestRunBranchCommand(CliRepoTestCase):
     def test_prints_nothing_when_no_ticket_ids_given(self):
