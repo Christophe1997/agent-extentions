@@ -117,6 +117,7 @@ class TestGoalAndTicketModePersist(RunStateTestCase):
         self.assertEqual(state.goal, "")
         self.assertIsNone(state.ticket_mode)
         self.assertIsNone(state.terminal_state)
+        self.assertIsNone(state.trunk_branch)
 
     def test_goal_and_ticket_mode_round_trip_through_save_and_load(self):
         state = run_state.load_run_state(self.repo_root, "run-i")
@@ -127,6 +128,14 @@ class TestGoalAndTicketModePersist(RunStateTestCase):
         resumed = run_state.load_run_state(self.repo_root, "run-i")
         self.assertEqual(resumed.goal, "ship the widget")
         self.assertEqual(resumed.ticket_mode, "commit")
+
+    def test_trunk_branch_round_trips_through_save_and_load(self):
+        state = run_state.load_run_state(self.repo_root, "run-trunk")
+        state.trunk_branch = "develop"
+        run_state.save_run_state(self.repo_root, state)
+
+        resumed = run_state.load_run_state(self.repo_root, "run-trunk")
+        self.assertEqual(resumed.trunk_branch, "develop")
 
 
 class TestMarkTerminal(RunStateTestCase):

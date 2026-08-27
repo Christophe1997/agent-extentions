@@ -37,7 +37,7 @@ USAGE = """Usage:
   loop_runner.py preflight <repo_root> <true|false> [trunk_branch]
   loop_runner.py reconcile <repo_root>
   loop_runner.py ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]
-                        [--goal TEXT] [--ticket-mode branch|commit] [--terminal REASON]
+                        [--goal TEXT] [--ticket-mode branch|commit] [--trunk-branch NAME] [--terminal REASON]
   loop_runner.py resume-candidates <repo_root>
   loop_runner.py dirty <repo_root>
   loop_runner.py branch-name <repo_root> <type> <title>
@@ -93,7 +93,7 @@ def cmd_ledger(args: list) -> None:
     if len(args) < 1:
         print(
             "error: usage: ledger <repo_root> [--run-id ID] [--claim TICKET_ID] [--ship] [--fail]\n"
-            "                     [--goal TEXT] [--ticket-mode branch|commit] [--terminal REASON]",
+            "                     [--goal TEXT] [--ticket-mode branch|commit] [--trunk-branch NAME] [--terminal REASON]",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -104,12 +104,13 @@ def cmd_ledger(args: list) -> None:
     fail = False
     goal = None
     ticket_mode = None
+    trunk_branch = None
     terminal = None
     rest = args[1:]
     i = 0
     while i < len(rest):
         tok = rest[i]
-        if tok in ("--run-id", "--claim", "--goal", "--ticket-mode", "--terminal"):
+        if tok in ("--run-id", "--claim", "--goal", "--ticket-mode", "--trunk-branch", "--terminal"):
             if i + 1 >= len(rest):
                 print(f"error: {tok} requires a value", file=sys.stderr)
                 sys.exit(1)
@@ -122,6 +123,8 @@ def cmd_ledger(args: list) -> None:
                 goal = rest[i]
             elif tok == "--ticket-mode":
                 ticket_mode = rest[i]
+            elif tok == "--trunk-branch":
+                trunk_branch = rest[i]
             else:
                 terminal = rest[i]
         elif tok == "--ship":
@@ -158,6 +161,8 @@ def cmd_ledger(args: list) -> None:
         state.goal = goal
     if ticket_mode is not None:
         state.ticket_mode = ticket_mode
+    if trunk_branch is not None:
+        state.trunk_branch = trunk_branch
     if terminal is not None:
         run_state.mark_terminal(state, terminal)
     run_state.save_run_state(repo_root, state)

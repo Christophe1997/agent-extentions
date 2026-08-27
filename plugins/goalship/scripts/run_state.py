@@ -75,6 +75,7 @@ class RunState:
     goal: str = ""
     ticket_mode: Optional[str] = None
     terminal_state: Optional[str] = None
+    trunk_branch: Optional[str] = None
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -89,6 +90,7 @@ class RunState:
             goal=data.get("goal", ""),
             ticket_mode=data.get("ticket_mode"),
             terminal_state=data.get("terminal_state"),
+            trunk_branch=data.get("trunk_branch"),
         )
 
 

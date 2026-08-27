@@ -342,6 +342,15 @@ class TestLedgerCommand(CliRepoTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("sideways", result.stderr)
 
+    def test_trunk_branch_persists_and_carries_forward_when_omitted(self):
+        result = _cli("ledger", str(self.repo_root), "--trunk-branch", "develop")
+        data = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(data["trunk_branch"], "develop")
+
+        again = json.loads(_cli("ledger", str(self.repo_root), "--run-id", data["run_id"]).stdout)
+        self.assertEqual(again["trunk_branch"], "develop")
+
     def test_terminal_flag_persists_and_invalid_reason_exits_1(self):
         run_id = json.loads(_cli("ledger", str(self.repo_root)).stdout)["run_id"]
         result = _cli("ledger", str(self.repo_root), "--run-id", run_id, "--terminal", "exhausted")
