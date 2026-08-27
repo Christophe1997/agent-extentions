@@ -43,11 +43,13 @@ cycle's own mechanics changes either way.
 
 **The first `ledger` call of a run** — preflight's resume check finding no
 candidate, then the ledger-and-caps read's first call — has no `run_id` yet and
-also passes `--goal "<goal>" --ticket-mode <branch|commit>` (Shipping
-mode, above), persisting both on the ledger from the start. Every later
-call for this run passes `--run-id` alone; `goal` and `ticket_mode`
-carry forward from the persisted ledger rather than needing to be
-resupplied.
+also passes `--goal "<goal>" --ticket-mode <branch|commit> --trunk-branch
+<resolved trunk branch>` (Shipping mode, above, and the trunk-branch
+determination step in Once per run: preflight, below), persisting all
+three on the ledger's `goal`, `ticket_mode`, and `trunk_branch` fields
+from the start. Every later call for this run passes `--run-id` alone;
+all three carry forward from the persisted ledger rather than needing to
+be resupplied.
 
 **Where `ScheduleWakeup` is available**: schedule the next turn at the end
 of every cycle (`delaySeconds: 60` — the floor; there is real forward
@@ -130,12 +132,31 @@ may silently no-op rather than error, so neither outcome gives a usable
 signal. Carry the result forward for every cycle's Loop-or-stop step
 (below) — Self-pacing model, above, covers both paths.
 
+**Decide whether to supply a trunk-branch override** before calling
+`preflight`, next. Its optional third positional argument, when given,
+replaces its own autodetection (`origin/HEAD`, then a local
+`main`/`master`, then the current branch) outright rather than feeding
+into it — preflight never guesses beyond that fixed heuristic on its own.
+Supplying an override is entirely the orchestrating session's call, drawn
+from context preflight doesn't have: a human stating the trunk branch
+explicitly in the goal, or this session reading the target repo's own
+`CLAUDE.md`/`AGENTS.md` for a named integration branch before the run
+starts. Confirming which applies, when neither source settles it, is
+legal here — strictly before Phase 2's cycles begin — the same way the
+resume check above already blocks on an ambiguous case rather than
+guessing; the "never blocked" guarantee (SKILL.md) applies only once a
+cycle is running, and nothing here relaxes it inside one.
+
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py preflight <repo_root> true
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py preflight <repo_root> true [<trunk_branch>]
 ```
 
-Prints `{"ok", "remote_url", "trunk_branch", "host_tool", "failures"}`.
-`ok: false` stops the run immediately — a fixable environment problem, not
+Omit `<trunk_branch>` to autodetect as above; pass it to override. Prints
+`{"ok", "remote_url", "trunk_branch", "host_tool", "failures"}` — an
+override that doesn't resolve to `refs/heads/<name>` or
+`refs/remotes/origin/<name>` lands in `failures`, naming the missing
+branch, rather than silently falling back to autodetection. `ok: false`
+stops the run immediately — a fixable environment problem, not
 one another invocation can retry past on its own, so mark it terminal
 before reporting `failures` verbatim (skip this on a fresh run with no
 `run_id` yet — there's no ledger for it to apply to):
@@ -146,10 +167,18 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 
 This failure is never counted against the failure cap; it fails the whole
 run, not one ticket. On `ok: true`, report the resolved `remote_url` and
-`trunk_branch` before touching any ticket, so a human watching notices
-immediately if this is the wrong repo. Keep `trunk_branch` and `host_tool`
-in context for every later step — they're passed explicitly to every
-subcommand that needs them, never re-derived.
+`trunk_branch` before touching any ticket — naming whether `trunk_branch`
+came from an override or autodetection — so a human watching notices
+immediately if this is the wrong repo or the wrong branch. Keep
+`trunk_branch` and `host_tool` in context for every later step — they're
+passed explicitly to every subcommand that needs them, never re-derived.
+
+This resolved value is what the run's first `ledger` call persists onto
+the ledger's `trunk_branch` field (Self-pacing model, above). A resumed
+turn's own ledger-and-caps read (below) then gets `trunk_branch` back from
+that same persisted ledger, the same way it already does for `goal` and
+`ticket_mode`, rather than this run needing to re-invoke preflight's
+git-based autodetection on every resumed turn.
 
 ## Every cycle
 
@@ -283,7 +312,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 ```
 
 (A bare status read on every call but the run's very first, which also
-carries `--goal`/`--ticket-mode` — Self-pacing model, above.) If
+carries `--goal`/`--ticket-mode`/`--trunk-branch` — Self-pacing model,
+above.) If
 `caps_exceeded` is non-null, stop:
 
 ```
@@ -291,7 +321,9 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/loop_runner.py ledger <repo_root> --run-id
 ```
 
 then report the classified summary (below) with that reason. Otherwise
-keep `claimed_ticket_ids` for the pick step next.
+keep `claimed_ticket_ids` for the pick step next, plus `trunk_branch` for
+the claim step on a turn that didn't itself run preflight (Once per run:
+preflight, above).
 
 ### 3. Check for a stop request
 

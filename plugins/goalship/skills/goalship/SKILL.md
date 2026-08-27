@@ -23,6 +23,13 @@ Confirm before doing anything else:
 - Inside a git work tree with `tk` on `PATH` (`git rev-parse
   --is-inside-work-tree`, `which tk`). Report and stop if either is
   missing — the execution loop's own preflight (below) checks the rest.
+- A goal that states an explicit trunk/integration branch, or a target
+  repo whose own `CLAUDE.md`/`AGENTS.md` names one, gives the execution
+  loop's preflight step a trunk-branch override to carry forward instead
+  of letting it autodetect (`references/execution-loop.md`'s "Once per
+  run: preflight" section). When neither source settles it, confirming
+  which branch applies is legal here, before Phase 2's cycles begin — the
+  same way Phase 1's decomposition may block on an ambiguous goal, below.
 
 ## Process
 
