@@ -16,7 +16,8 @@ same file and can't lose an update to a concurrent write.
   "claimed_ticket_ids": ["T-12", "T-14", "T-15"],
   "goal": "ship the widget",
   "ticket_mode": "branch",
-  "terminal_state": null
+  "terminal_state": null,
+  "trunk_branch": "main"
 }
 ```
 
@@ -28,6 +29,7 @@ same file and can't lose an update to a concurrent write.
 | `claimed_ticket_ids` | array of string | Tickets already processed (shipped, failed, or blocked) this run. `tk ready` lists both open and in-progress tickets, so this set — not `tk`'s own status field — is what stops the loop from re-picking a ticket it already handled this run. |
 | `goal` | string | The original goal text, set on the first `ledger` call of the run (`--goal`). Empty on a ledger that predates this field. |
 | `ticket_mode` | string or null | `"branch"` or `"commit"` (Shipping mode, `execution-loop.md`), set once on the first `ledger` call of the run (`--ticket-mode`) and never re-derived. `null` on a ledger that predates this field or hasn't set it yet. |
+| `trunk_branch` | string or null | The resolved trunk branch, set on the first `ledger` call of the run (`--trunk-branch`). `null` on a ledger that predates this field. |
 | `terminal_state` | string or null | One of `exhausted`, `deadlocked`, `capped`, `user_stop` once the run has ended (`--terminal`); `null` while the run is still resumable. This is what `find_resumable_runs` filters on — see Resuming a cold invocation, below. |
 
 ## Lifecycle

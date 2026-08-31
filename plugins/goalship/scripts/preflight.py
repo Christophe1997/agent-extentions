@@ -69,6 +69,20 @@ def _resolve_trunk_branch(repo_root: Path) -> Optional[str]:
     return current.stdout.strip() or None
 
 
+def _branch_ref_exists(repo_root: Path, branch: str) -> bool:
+    """A local ref (`refs/heads/<branch>`) or remote-tracking ref
+    (`refs/remotes/origin/<branch>`) covers both a checked-out branch and
+    a fresh clone that only fetched it."""
+    for ref in (f"refs/heads/{branch}", f"refs/remotes/origin/{branch}"):
+        check = subprocess.run(
+            ["git", "show-ref", "--verify", "--quiet", ref],
+            cwd=repo_root, capture_output=True,
+        )
+        if check.returncode == 0:
+            return True
+    return False
+
+
 _REMOTE_URL_HOST_RE = re.compile(r"^[a-zA-Z][\w+.-]*://(?:[^@/]*@)?([^/:]+)")
 _REMOTE_SCP_HOST_RE = re.compile(r"^(?:[^@/]*@)?([^/:]+):")
 
@@ -127,10 +141,19 @@ class PreflightResult:
     failures: list = field(default_factory=list)
 
 
-def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
+def run_preflight(
+    repo_root: Path, will_create_prs: bool, trunk_branch_override: Optional[str] = None,
+) -> PreflightResult:
     """Preconditions: tk present, remote configured, clean tree, and
     (only when PR creation will run) an authenticated gh/glab. Never
-    counted against the failure cap — this fails the whole run, not one ticket."""
+    counted against the failure cap — this fails the whole run, not one ticket.
+
+    `trunk_branch_override`, when truthy, replaces `_resolve_trunk_branch()`'s
+    autodetection outright rather than feeding into it — git has no signal
+    for which branch a repo actually treats as trunk when that diverges from
+    origin/HEAD or main/master, so this is a caller-supplied answer, not a
+    smarter heuristic.
+    """
     repo_root = Path(repo_root)
     failures = []
 
@@ -157,7 +180,19 @@ def run_preflight(repo_root: Path, will_create_prs: bool) -> PreflightResult:
         elif not _host_tool_authenticated(host_tool):
             failures.append(f"{host_tool} is not authenticated (run `{host_tool} auth login`)")
 
-    trunk_branch = _resolve_trunk_branch(repo_root) if not failures else None
+    if trunk_branch_override:
+        if _branch_ref_exists(repo_root, trunk_branch_override):
+            trunk_branch = trunk_branch_override
+        else:
+            failures.append(
+                f"trunk-branch override '{trunk_branch_override}' not found as "
+                f"refs/heads/{trunk_branch_override} or refs/remotes/origin/{trunk_branch_override}"
+            )
+            trunk_branch = None
+    elif not failures:
+        trunk_branch = _resolve_trunk_branch(repo_root)
+    else:
+        trunk_branch = None
 
     return PreflightResult(
         ok=not failures,

@@ -178,5 +178,49 @@ class TestPreflightFailures(PreflightTestCase):
         self.assertTrue(result.ok, result.failures)
 
 
+class TestTrunkBranchOverride(PreflightTestCase):
+    def test_override_wins_over_origin_head_and_skips_resolution(self):
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "remote", "set-head", "origin", "main"], self.repo_root)
+        _run(["git", "checkout", "-q", "-b", "develop"], self.repo_root)
+        (self.repo_root / "diverged.txt").write_text("diverged\n")
+        _run(["git", "add", "diverged.txt"], self.repo_root)
+        _run(["git", "commit", "-q", "-m", "diverge"], self.repo_root)
+        _run(["git", "checkout", "-q", "main"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})), \
+             mock.patch.object(preflight, "_resolve_trunk_branch") as mock_resolve:
+            result = preflight.run_preflight(
+                self.repo_root, will_create_prs=False, trunk_branch_override="develop",
+            )
+        self.assertEqual(result.trunk_branch, "develop")
+        mock_resolve.assert_not_called()
+
+    def test_override_naming_missing_branch_fails_and_names_it(self):
+        _init_repo_with_remote(self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(
+                self.repo_root, will_create_prs=False, trunk_branch_override="nonexistent-branch",
+            )
+        self.assertFalse(result.ok)
+        self.assertTrue(any("nonexistent-branch" in f for f in result.failures))
+        self.assertIsNone(result.trunk_branch)
+
+    def test_override_accepted_when_only_remote_tracking_ref_exists(self):
+        _init_repo_with_remote(self.repo_root)
+        _run(["git", "checkout", "-q", "-b", "feature"], self.repo_root)
+        (self.repo_root / "feature.txt").write_text("feature\n")
+        _run(["git", "add", "feature.txt"], self.repo_root)
+        _run(["git", "commit", "-q", "-m", "feature work"], self.repo_root)
+        _run(["git", "push", "-q", "-u", "origin", "feature"], self.repo_root)
+        _run(["git", "checkout", "-q", "main"], self.repo_root)
+        _run(["git", "branch", "-D", "feature"], self.repo_root)
+        with mock.patch.object(preflight.shutil, "which", side_effect=self._which_side_effect({"tk"})):
+            result = preflight.run_preflight(
+                self.repo_root, will_create_prs=False, trunk_branch_override="feature",
+            )
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.trunk_branch, "feature")
+
+
 if __name__ == "__main__":
     unittest.main()

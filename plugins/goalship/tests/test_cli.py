@@ -193,6 +193,15 @@ class TestPreflightCommand(CliRepoTestCase):
         self.assertTrue(data["ok"], data["failures"])
         self.assertEqual(data["trunk_branch"], "main")
 
+    def test_trunk_branch_override_argument_is_forwarded_and_reflected(self):
+        _run(["git", "checkout", "-q", "-b", "develop"], self.repo_root)
+        _run(["git", "checkout", "-q", "main"], self.repo_root)
+        result = _cli("preflight", str(self.repo_root), "false", "develop")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertTrue(data["ok"], data["failures"])
+        self.assertEqual(data["trunk_branch"], "develop")
+
 
 class TestRunBranchCommand(CliRepoTestCase):
     def test_prints_nothing_when_no_ticket_ids_given(self):
@@ -332,6 +341,15 @@ class TestLedgerCommand(CliRepoTestCase):
         result = _cli("ledger", str(self.repo_root), "--ticket-mode", "sideways")
         self.assertEqual(result.returncode, 1)
         self.assertIn("sideways", result.stderr)
+
+    def test_trunk_branch_persists_and_carries_forward_when_omitted(self):
+        result = _cli("ledger", str(self.repo_root), "--trunk-branch", "develop")
+        data = json.loads(result.stdout)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(data["trunk_branch"], "develop")
+
+        again = json.loads(_cli("ledger", str(self.repo_root), "--run-id", data["run_id"]).stdout)
+        self.assertEqual(again["trunk_branch"], "develop")
 
     def test_terminal_flag_persists_and_invalid_reason_exits_1(self):
         run_id = json.loads(_cli("ledger", str(self.repo_root)).stdout)["run_id"]
