@@ -1,6 +1,6 @@
 ---
 name: agd-commit
-description: This skill should be used when the user asks to "commit these changes", "create a commit", "commit this", "make a commit", or when the agent has completed a task and has uncommitted changes ready to commit. Generates a Conventional Commits message from staged changes and creates the commit after human confirmation.
+description: This skill should be used when the user asks to "commit these changes", "create a commit", "commit this", "make a commit", or when the agent has completed a task and has uncommitted changes ready to commit. Generates a Conventional Commits message from staged changes and creates the commit, confirming with the user first unless the change is small and unambiguous.
 argument-hint: optional scope (e.g., "api", "ui", "docs")
 allowed-tools: [Bash, Read, AskUserQuestion, Skill]
 ---
@@ -9,7 +9,7 @@ Generate a Conventional Commits message from staged changes and create the commi
 
 ## Core Principle
 
-**Human owns the commit.** Never add `Co-Authored-By` footer for AI assistance. The human takes full responsibility for all commits in their repository.
+**Human owns the commit.** Never add `Co-Authored-By` footer for AI assistance, unless the project explicitly allows it. The human takes full responsibility for all commits in their repository.
 
 ## Load Context
 
@@ -22,7 +22,7 @@ This provides:
 - Conventional Commits types and usage
 - Style rules (imperative mood, no capitalization, etc.)
 - Examples of good and bad commit messages
-- Co-Authored-By guidance (never for AI)
+- Co-Authored-By guidance (never for AI, unless the project explicitly allows it)
 
 ## Process
 
@@ -34,7 +34,14 @@ This provides:
 
 2. **Handle staging decision**:
 
-   Call the AskUserQuestion tool with these parameters:
+   If the unstaged files clearly belong to the same change being committed
+   (e.g. they're part of the task just finished, or the user's request
+   plainly covers "these changes"), run `git add -A` without asking and
+   continue to step 3.
+
+   Otherwise — the unstaged files look unrelated to the change being
+   committed, or it's unclear whether they belong — call the AskUserQuestion
+   tool with these parameters:
    ```json
    {
      "questions": [{
@@ -64,14 +71,28 @@ This provides:
    - For small/simple changes: `<type>[scope]: <description>`
    - For large/complex changes: Include body with what/why/impact
 
-   **Important**: Do NOT add `Co-Authored-By` footer. The commit belongs to the human user.
+   **Important**: Do NOT add `Co-Authored-By` footer unless the project explicitly allows it. The commit belongs to the human user.
 
-5. **Get human confirmation**:
+5. **Decide whether to confirm**:
 
-   Call the AskUserQuestion tool with the commit message in `preview` so it
-   renders in the side-by-side monospace pane (preserving alignment, blank
-   lines, and any trailers). Keep the question short — the preview carries
-   the content.
+   Use judgment about whether to ask before committing rather than always
+   prompting.
+
+   **Confirm first** when any of these apply:
+   - The user did not explicitly ask for a commit — the skill triggered
+     itself after finishing an unrelated task. Always confirm in this case.
+   - Type or scope required a judgment call rather than a clear read of the diff.
+   - The diff mixes unrelated concerns instead of one clear change.
+   - A breaking change is involved.
+   - Anything in the diff looks risky — deletions of tracked files, possible
+     secrets, or destructive/hard-to-reverse changes.
+   - Anything about the request or session suggests the user wants to review
+     the message first.
+
+   To confirm, call the AskUserQuestion tool with the commit message in
+   `preview` so it renders in the side-by-side monospace pane (preserving
+   alignment, blank lines, and any trailers). Keep the question short — the
+   preview carries the content.
 
    ```json
    {
@@ -110,13 +131,22 @@ This provides:
      `annotations` field keyed by question text), treat it as an amendment
      request: incorporate the note into the message and re-confirm.
 
+   **Otherwise, commit directly**: none of the above apply, so surface the
+   generated commit message as normal output text immediately before
+   committing — the user still sees what was written even though they
+   weren't asked — then proceed straight to step 6.
+
 6. **Create the commit**:
    - For single-line: `git commit -m "<type>[scope]: <description>"`
    - For multi-line: `git commit -m "<type>[scope]: <description>" -m "<body line 1>" -m "<body line 2>"`
 
 ## Error Handling
 
-- When unstaged changes exist, ask user via AskUserQuestion before proceeding to step 3
+- When unstaged changes exist, stage them directly if they clearly belong to
+  the change being committed; otherwise ask via AskUserQuestion before
+  proceeding to step 3
 - If no changes at all (staged or unstaged), inform user and exit
 - Follow breaking change format from the skill when applicable
-- Always get human confirmation before executing `git commit`
+- Confirm before executing `git commit` whenever any condition in step 5
+  applies — especially when the skill self-triggered without an explicit
+  user request — and when in doubt, ask
