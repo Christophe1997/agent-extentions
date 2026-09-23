@@ -376,6 +376,23 @@ class TestDecide(unittest.TestCase):
         self.assertEqual(decision.permission, "ask")
         self.assertIsNone(decision.additional_context)
 
+    def test_cacheable_cue_names_the_remember_skill_and_reads_as_factual(self):
+        # Claude Code's hooks reference ("Add context for Claude") asks for
+        # additionalContext phrased as factual statements, not imperative
+        # out-of-band commands — the latter can trip Claude's own
+        # prompt-injection defenses. The cue must name the actual skill
+        # rather than a bare, ambiguous "remember".
+        decision = yp.decide(
+            self._cacheable_ask_config(),
+            "Bash",
+            {"command": "deploy prod"},
+            cache={},
+            session_id="S1",
+        )
+        cue = decision.additional_context
+        self.assertIn("yapermission:yap-remember", cue)
+        self.assertNotIn("invoke", cue.lower())
+
 
 class TestNormalizeDefault(unittest.TestCase):
     def test_normalization_table(self):
@@ -757,6 +774,16 @@ class TestApprovalToken(unittest.TestCase):
             return_value=1_000_000.0 + yp._APPROVAL_TOKEN_TTL_SECONDS + 1,
         ):
             self.assertFalse(yp._verify_approval_token(token, **fields))
+
+    def test_token_survives_a_ten_minute_approval_delay(self):
+        # The token is minted at PreToolUse, before the human has even seen
+        # the permission prompt — the clock is already running against a
+        # human who hasn't acted yet, not against the agent relaying it.
+        fields = self._fields()
+        with mock.patch("yapermission.time.time", return_value=1_000_000.0):
+            token = yp._mint_approval_token(**fields)
+        with mock.patch("yapermission.time.time", return_value=1_000_000.0 + 600):
+            self.assertTrue(yp._verify_approval_token(token, **fields))
 
     def test_token_signed_under_a_different_secret_does_not_verify(self):
         fields = self._fields()

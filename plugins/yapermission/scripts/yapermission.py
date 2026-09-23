@@ -137,10 +137,10 @@ _RULE_GROUPS = (
 
 
 _CACHEABLE_CUE_TEMPLATE = (
-    "If this call proceeds to execute, the matched rule is cacheable: you may "
-    "offer to remember this exact call for the rest of this session. If the "
-    "human explicitly says yes, invoke remember with session_id={session_id} "
-    "and token={token}."
+    "yapermission: rule '{rule_name}' is cacheable. The human has not yet been "
+    "asked whether to remember this approval for the rest of the session. If "
+    "they agree, the yapermission:yap-remember skill can record it with "
+    "session_id={session_id} and token={token}."
 )
 
 
@@ -204,7 +204,7 @@ def decide(
                     session_id, cwd, rule.get("name"), tool_name, tool_input
                 )
                 additional_context = _CACHEABLE_CUE_TEMPLATE.format(
-                    session_id=session_id, token=token
+                    rule_name=rule.get("name"), session_id=session_id, token=token
                 )
 
             return Decision(
@@ -480,9 +480,11 @@ def append_cache_entry(
 # token stays presentable at all.
 # ---------------------------------------------------------------------------
 
-# 5 minutes: long enough for the agent to relay the token to `remember` in
-# the same turn, short enough to bound a leaked-token replay window.
-_APPROVAL_TOKEN_TTL_SECONDS = 300
+# 20 minutes: the clock starts at PreToolUse, before the human has even seen
+# the permission prompt, so it has to cover their approval latency plus tool
+# execution plus the time to answer the agent's remember offer — not just a
+# same-turn relay. Still short enough to bound a leaked-token replay window.
+_APPROVAL_TOKEN_TTL_SECONDS = 1200
 
 
 def _load_or_create_secret() -> bytes:

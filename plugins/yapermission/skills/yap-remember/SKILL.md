@@ -23,7 +23,7 @@ If either is missing, do not invoke this skill. If the human says no, or doesn't
 
 1. **Recover the session_id and token from the triggering call's `additionalContext` cue** — never from a guessed value or an environment variable. The cue looks like:
 
-   > If this call proceeds to execute, the matched rule is cacheable: you may offer to remember this exact call for the rest of this session. If the human explicitly says yes, invoke remember with session_id=abc123 and token=eyJz...a1b2c3.
+   > yapermission: rule 'deploy' is cacheable. The human has not yet been asked whether to remember this approval for the rest of the session. If they agree, the yapermission:yap-remember skill can record it with session_id=abc123 and token=eyJz...a1b2c3.
 
    The token proves this exact call actually reached a genuine `ask` decision — it is not optional, and it cannot be reused for a different call, directory, or session.
 
