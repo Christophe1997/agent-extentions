@@ -9,6 +9,7 @@ A `PreToolUse` hook evaluates every tool call against a TOML policy and emits th
 | Capability | Description |
 |---|---|
 | **TOML policy** | Group rules under `[[deny]]`, `[[ask]]`, `[[allow]]`, or `[[defer]]` arrays-of-tables — each key directly mirrors the decision it emits. Every rule takes `tool`, `matches`, optional `reason` |
+| **Chain-aware** | A Bash chain like `git add . && git push` is judged one command at a time and the strictest result wins, so `^`-anchored rules can't be dodged by chaining and an allow rule never vouches for what follows it |
 | **Stdlib-only** | Uses Python 3.11+ `tomllib` — no third-party dependencies |
 | **Config hierarchy** | `./.yapermission.toml` (project) overrides `~/.yapermission.toml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |

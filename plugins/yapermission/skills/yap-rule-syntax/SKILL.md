@@ -95,6 +95,10 @@ matches = [                           # list of input-pattern entries (REQUIRED)
 
 The order encodes "more restrictive intent wins": `deny` is absolute, `ask` forces a manual confirm even when a broader `allow` rule below would auto-approve, and `defer` only fires when nothing earlier had an opinion.
 
+### Chained Bash commands
+
+A Bash chain (`a && b; c | d`) is evaluated **one segment at a time**, and the strictest result wins: deny if any segment is denied, then ask, then defer; allow only if every segment is allowed. So write each pattern for a single command and anchor it with `^` freely: `^sudo\b` still catches `true && sudo id`, and `^git\b` no longer vouches for `git status && python x.py`. Whole-string `deny`/`ask` rules still apply as well, so a pattern that spans a pipe (`curl … \| sh`) keeps working. See `references/schema.md` for what can't be split.
+
 ## Config resolution
 
 1. If `./.yapermission.toml` exists in the cwd, it is the **only** active config (replaces global).

@@ -55,6 +55,9 @@ class Decision:
     # fallthrough) — lets cmd_remember re-inspect flags like `cacheable`
     # without re-scanning the rule groups decide() already scanned.
     matched_rule: Optional[dict] = None
+    # Texts of the command segments that triggered `matched_rule` — what the
+    # remember cue names, so the agent offers to remember that part alone.
+    gating_segments: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +150,12 @@ _PLAIN_WORD = re.compile(r"[\w./:@%+=,~^-]+")
 # Bash call fields that don't change what runs; every other field (notably
 # `dangerouslyDisableSandbox`) is bound into a segment approval.
 _COSMETIC_BASH_FIELDS = frozenset({"command", "description", "timeout"})
+# Segments starting with these change the directory or environment every
+# later segment runs in, so the session's cwd no longer says where those run.
+_CONTEXT_BUILTINS = frozenset(
+    {"cd", "pushd", "popd", "export", "unset", "source", ".", "alias", "declare", "typeset", "set"}
+)
+_ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 
 
 @dataclass
@@ -157,6 +166,9 @@ class Segment:
     tokens: list[str]
     # A redirect that can write somewhere; a prefix approval never covers it.
     has_redirect: bool
+    # Runs after a `cd`/`export`/… in the same chain, so an approval keyed on
+    # the session's cwd and environment can't speak for it.
+    after_context_change: bool = False
 
 
 def _separator_at(command: str, i: int) -> Optional[str]:
@@ -230,7 +242,18 @@ def split_command(command: str) -> Optional[list[Segment]]:
         if segment is None:
             return None
         segments.append(segment)
+
+    changed = False
+    for segment in segments:
+        segment.after_context_change = changed
+        changed = changed or _changes_context(segment)
     return segments or None
+
+
+def _changes_context(segment: Segment) -> bool:
+    return segment.tokens[0] in _CONTEXT_BUILTINS or all(
+        _ASSIGNMENT.match(t) for t in segment.tokens
+    )
 
 
 def _command_segments(tool_name: str, tool_input: dict) -> Optional[list[Segment]]:
@@ -250,14 +273,16 @@ def _with_command(tool_input: dict, segment: Segment) -> dict:
 def _gating_segments(
     rule: dict, tool_name: str, tool_input: dict, segments: Optional[list[Segment]]
 ) -> list[Segment]:
-    """Segments that trigger `rule` on their own.
+    """Segments that trigger `rule` on their own and can be remembered alone.
 
     Empty when the rule only matched the whole string (`git push.*-f\\b` vs
-    `git push x && tail -f log`); callers then key on the whole call.
+    `git push x && tail -f log`) or only after a `cd`/`export`; callers then
+    key on the whole call.
     """
     return [
         s for s in segments or ()
-        if rule_matches(rule, tool_name, _with_command(tool_input, s))
+        if not s.after_context_change
+        and rule_matches(rule, tool_name, _with_command(tool_input, s))
     ]
 
 
@@ -313,25 +338,47 @@ def decide(
     rule edited to drop `cacheable`, tightened, or deleted never produces a
     stale hit even if an old cache entry still exists.
 
-    A cache hit only ever turns that `ask` into `allow`: segments of a
-    compound command the cache doesn't cover are each re-evaluated, and
-    unless every one of them resolves to `allow`, the decision is exactly
-    the one an empty cache would have produced.
+    A splittable Bash chain is judged segment by segment and the strictest
+    result wins, so an anchored rule can't be dodged by chaining
+    (`true && sudo …`) and an anchored allow never vouches for what follows
+    it. Whole-string deny and ask rules still apply, for patterns that span
+    segments (a download piped into a shell).
     """
-    return _decide(
-        config, tool_name, tool_input, _command_segments(tool_name, tool_input),
-        cache, config_path, session_id, cwd,
-    )
+    segments = _command_segments(tool_name, tool_input)
+    if segments and (len(segments) > 1 or segments[0].text != tool_input.get("command")):
+        decision = _decide_compound(config, tool_name, tool_input, segments, cache, config_path, cwd)
+    else:
+        decision = _decide_single(config, tool_name, tool_input, segments, cache, config_path, cwd)
+
+    rule = decision.matched_rule
+    # No session_id, no cue: an empty id would render into the cue text and,
+    # if echoed back to a `remember` call, write an entry under "" that the
+    # empty-session_id guard in cmd_hook then refuses to ever look up again
+    # — a dead write plus a cue inviting it.
+    if (
+        session_id
+        and decision.permission == "ask"
+        and rule is not None
+        and rule.get("cacheable") is True
+    ):
+        token = _mint_approval_token(session_id, cwd, rule.get("name"), tool_name, tool_input)
+        decision.additional_context = _CACHEABLE_CUE_TEMPLATE.format(
+            rule_name=rule.get("name"), session_id=session_id, token=token
+        )
+        if decision.gating_segments:
+            decision.additional_context += _GATING_SEGMENTS_CUE.format(
+                segments=", ".join(f"`{text}`" for text in decision.gating_segments)
+            )
+    return decision
 
 
-def _decide(
+def _decide_single(
     config: dict,
     tool_name: str,
     tool_input: dict,
     segments: Optional[list[Segment]],
     cache: Optional[dict],
     config_path: Any,
-    session_id: Optional[str],
     cwd: Optional[str],
 ) -> Decision:
     trace: list[str] = []
@@ -349,85 +396,133 @@ def _decide(
             # typo'd string) must not accidentally opt a rule in.
             cacheable = group_key == "ask" and rule.get("cacheable") is True
             gating = _gating_segments(rule, tool_name, tool_input, segments) if cacheable else []
-            already_remembered = False
 
-            if cacheable and cache:
-                key = cache_key(
-                    rule.get("name"), tool_name, _call_subject(tool_name, tool_input),
-                    config_path, cwd,
+            if cacheable and cache and (
+                _call_cached(rule, tool_name, tool_input, cache, config_path, cwd)
+                or any(
+                    _segment_covered(config, rule, tool_name, tool_input, s, cache, config_path, cwd)
+                    for s in gating
                 )
-                if key in cache:
-                    trace.append(f"cache hit for rule '{name}' — resolving to allow")
-                    return Decision(
-                        permission="allow",
-                        rule_name=rule.get("name"),
-                        trace=trace,
-                        source="cache",
-                    )
-
-                covered = [
-                    s for s in gating
-                    if _segment_covered(config, rule, tool_name, tool_input, s, cache, config_path, cwd)
-                ]
-                if covered:
-                    blockers = [
-                        s.text for s in segments or ()
-                        if s not in covered and _decide(
-                            config, tool_name, _with_command(tool_input, s), [s],
-                            cache, config_path, None, cwd,
-                        ).permission != "allow"
-                    ]
-                    if not blockers:
-                        trace.append(
-                            f"cache covers rule '{name}' segment(s) and the rest is "
-                            "allowed — resolving to allow"
-                        )
-                        return Decision(
-                            permission="allow",
-                            rule_name=rule.get("name"),
-                            trace=trace,
-                            source="cache",
-                        )
-                    trace.append(
-                        f"cache covers rule '{name}' segment(s), but not: "
-                        + "; ".join(blockers)
-                    )
-                    already_remembered = len(covered) == len(gating)
+            ):
+                trace.append(f"cache hit for rule '{name}' — resolving to allow")
+                return Decision(
+                    permission="allow",
+                    rule_name=rule.get("name"),
+                    trace=trace,
+                    source="cache",
+                )
 
             reason = rule.get("reason")
             if decision_value == "deny" and not reason:
                 reason = "Denied by yapermission policy"
-
-            additional_context = None
-            if cacheable and session_id and not already_remembered:
-                # No session_id, no cue: an empty id would render into the
-                # cue text and, if echoed back to a `remember` call, write an
-                # entry under "" that the empty-session_id guard in cmd_hook
-                # then refuses to ever look up again — a dead write plus a
-                # cue inviting it.
-                token = _mint_approval_token(
-                    session_id, cwd, rule.get("name"), tool_name, tool_input
-                )
-                additional_context = _CACHEABLE_CUE_TEMPLATE.format(
-                    rule_name=rule.get("name"), session_id=session_id, token=token
-                )
-                if gating:
-                    additional_context += _GATING_SEGMENTS_CUE.format(
-                        segments=", ".join(f"`{s.text}`" for s in gating)
-                    )
 
             return Decision(
                 permission=decision_value,
                 rule_name=rule.get("name"),
                 reason=reason,
                 trace=trace,
-                additional_context=additional_context,
                 matched_rule=rule,
+                gating_segments=[s.text for s in gating],
             )
 
     default = (config.get("default") or "ask").lower()
     trace.append(f"no rule matched — default: {default}")
     return Decision(permission=_normalize_default(default), trace=trace)
+
+
+# Strictest first: how a chain's per-segment decisions combine.
+_STRICTNESS = ("deny", "ask", "defer")
+
+
+def _decide_compound(
+    config: dict,
+    tool_name: str,
+    tool_input: dict,
+    segments: list[Segment],
+    cache: Optional[dict],
+    config_path: Any,
+    cwd: Optional[str],
+) -> Decision:
+    whole = _decide_single(config, tool_name, tool_input, None, cache, config_path, cwd)
+    if whole.permission == "deny" and whole.matched_rule is not None:
+        return whole
+
+    def judge(segment: Segment) -> Decision:
+        d = _decide_single(
+            config, tool_name, _with_command(tool_input, segment), [segment],
+            cache, config_path, cwd,
+        )
+        rule = d.matched_rule
+        # A whole-call approval — the only kind a chain with a `cd` in it can
+        # get — speaks for its rule's asks anywhere in that exact chain.
+        if (
+            d.permission == "ask"
+            and rule is not None
+            and rule.get("cacheable") is True
+            and cache
+            and _call_cached(rule, tool_name, tool_input, cache, config_path, cwd)
+        ):
+            return Decision("allow", rule_name=rule.get("name"), trace=d.trace, source="cache")
+        return d
+
+    results = [(s, judge(s)) for s in segments]
+    trace = [f"[{s.text}] {line}" for s, d in results for line in d.trace]
+
+    def strictest(permission: str) -> Optional[Decision]:
+        for segment, d in results:
+            if d.permission != permission:
+                continue
+            d.trace = trace
+            if d.rule_name is None:
+                d.reason = f"No rule covers `{segment.text}` — default: {permission}"
+            if d.matched_rule is not None:
+                d.gating_segments = [
+                    text for _, other in results
+                    if other.permission == permission and other.matched_rule is d.matched_rule
+                    for text in other.gating_segments
+                ]
+            return d
+        return None
+
+    for permission in _STRICTNESS[:2]:
+        if decision := strictest(permission):
+            return decision
+
+    for rule in config.get("ask") or []:
+        cacheable = rule.get("cacheable") is True
+        if (
+            rule_matches(rule, tool_name, tool_input)
+            and not _gating_segments(rule, tool_name, tool_input, segments)
+            and not (cacheable and cache and _call_cached(rule, tool_name, tool_input, cache, config_path, cwd))
+        ):
+            trace.append(f"ask rule '{rule.get('name', '<unnamed>')}' matched across segments")
+            return Decision(
+                permission="ask",
+                rule_name=rule.get("name"),
+                reason=rule.get("reason"),
+                trace=trace,
+                matched_rule=rule,
+            )
+
+    if decision := strictest("defer"):
+        return decision
+
+    cached = next((d for _, d in results if d.source == "cache"), None)
+    return Decision(
+        permission="allow",
+        rule_name=(cached or results[0][1]).rule_name,
+        trace=trace,
+        source="cache" if cached else None,
+    )
+
+
+def _call_cached(
+    rule: dict, tool_name: str, tool_input: dict, cache: dict, config_path: Any, cwd: Any
+) -> bool:
+    key = cache_key(
+        rule.get("name"), tool_name, _call_subject(tool_name, tool_input), config_path, cwd
+    )
+    return key in cache
 
 
 def _segment_covered(
@@ -855,13 +950,17 @@ def _load_or_create_secret() -> bytes:
 def _approval_token_payload(
     session_id: str, cwd: Any, rule_name: Any, tool_name: str, tool_input: dict
 ) -> dict:
-    """Canonical field set both mint and verify sign/check identically."""
+    """Canonical field set both mint and verify sign/check identically.
+
+    The input is signed as a digest: the token rides in the agent-facing
+    cue, and an embedded multi-KB command would bloat context on every ask.
+    """
     return {
         "session_id": session_id,
         "cwd": str(cwd),
         "rule": rule_name,
         "tool": tool_name,
-        "input": tool_input,
+        "input": _digest({"input": tool_input}),
     }
 
 
@@ -1162,12 +1261,12 @@ def cmd_remember(argv: list[str]) -> int:
         # revalidation gate that can't be evaluated must refuse, not allow.
         return refuse(f"config load failed: {exc}", config_path=config_path)
 
-    # Empty cache: this call must exercise live rule evaluation, not a
-    # pre-existing cache hit — otherwise a repeat `remember` for an
-    # already-cached call would resolve to "allow" and skip the cacheable
-    # check entirely.
+    # The same cache the hook consulted: segments are judged one by one, so
+    # which rule is still asking depends on what earlier approvals already
+    # cover. A fully remembered call resolves to "allow" and is refused below.
     decision = decide(
-        config, tool_name, tool_input, cache={}, config_path=config_path, cwd=cwd
+        config, tool_name, tool_input, cache=load_cache(session_id),
+        config_path=config_path, cwd=cwd,
     )
 
     if decision.permission != "ask":
@@ -1230,7 +1329,8 @@ def cmd_remember(argv: list[str]) -> int:
     if not gating:
         if prefix is not None:
             return refuse(
-                "command cannot be split into segments safely — only the exact "
+                "command cannot be split into segments that can be remembered alone "
+                "(unsafe shell syntax, or it follows a cd/export) — only the exact "
                 "call can be remembered, without --prefix",
                 config_path=config_path, rule_name=rule_name,
             )

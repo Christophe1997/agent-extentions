@@ -18,6 +18,8 @@
 #     auto-blocked — you have to add them yourself.
 #
 # Eval order: deny → ask → allow → defer → default
+# A Bash chain (`a && b | c`) is judged one command at a time and the
+# strictest result wins, so `^`-anchored patterns also catch later commands.
 # This file has NO `allow` rules — anything not denied/asked falls through
 # to `default = "allow"`. The deny list is your only guardrail; the ask list
 # catches borderline-dangerous things (package installs, force pushes).

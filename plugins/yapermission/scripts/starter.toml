@@ -70,7 +70,7 @@ name = "read-only-shell"
 tool = "Bash"
 reason = "Read-only shell utilities and environment inspection"
 matches = [
-  { command = '^(ls|pwd|whoami|date|uname|cat|head|tail|wc|file|stat|which|tree|find|rg|grep|echo|df|du|ps|env|printenv)\b' },
+  { command = '^(cd|ls|pwd|whoami|date|uname|cat|head|tail|wc|file|stat|which|tree|find|rg|grep|echo|df|du|ps|env|printenv)\b' },
 ]
 
 # Pipeline tools. Note: awk/sed/tr can write via -i or redirection — the

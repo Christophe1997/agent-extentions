@@ -86,6 +86,12 @@ The `tool_input` shape varies by tool. Common fields:
 
 Match patterns are Python regexes evaluated with `re.search` (i.e., they match anywhere in the string unless anchored with `^` / `$`). All field values are stringified before matching, so numbers and booleans coerce cleanly.
 
+### Chained Bash commands
+
+A Bash `command` is split on its unquoted control operators (`&&`, `||`, `;`, `|`, `|&`, `&`) and each segment is evaluated as if it were its own call; the results combine strictest-first (deny → ask → defer → allow). On top of that, `[[deny]]` and `[[ask]]` rules are also matched against the whole string, so a pattern spanning segments (`(curl|wget)\s.*\|\s*sh`) still fires. When the result is `ask`, the reported rule (and any remember cue) comes from the first asking segment; a reason like ``No rule covers `python x.py` — default: ask`` names the segment that fell through to the default.
+
+Commands that can't be split safely — `$(…)`, backticks, heredocs, subshells, comments, `$'…'` quoting, unquoted newlines, unbalanced quotes — are evaluated on the whole string.
+
 ### Common regex patterns
 
 ```toml
