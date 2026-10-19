@@ -40,7 +40,7 @@ Any other top-level keys are ignored.
 | `tool` | regex string | no | `re.search`-matched against `tool_name`. Missing means "any tool". |
 | `matches` | array of inline tables | yes (to fire) | OR-of-ANDs. Empty or missing = rule never fires. Use `[ {} ]` for "any input". |
 | `reason` | string | no | Shown to the user on `deny` and `ask` (via `permissionDecisionReason`); recorded in the audit log for every decision. |
-| `cacheable` | boolean | no, default `false` | `[[ask]]` rules only. When `true`, an approved decision may be remembered for the rest of the current session (via the `yap-remember` skill), so the same rule matching the same exact tool call resolves to `allow` without prompting again — until the rule is edited to drop `cacheable`, tightened, or removed. A `[[deny]]` match always overrides a cached `allow`. Ignored on `deny`, `allow`, and `defer` rules. |
+| `cacheable` | boolean | no, default `false` | `[[ask]]` rules only. When `true`, an approved decision may be remembered for the rest of the current session (via the `yap-remember` skill), so the same rule matching the remembered command segment (or approved word prefix — see the session cache section) resolves to `allow` without prompting again — until the rule is edited to drop `cacheable`, tightened, or removed. A `[[deny]]` match always overrides a cached `allow`. Ignored on `deny`, `allow`, and `defer` rules. |
 
 ## TOML string types and regex
 
@@ -110,28 +110,41 @@ matches = [ {} ]
 
 ## Session cache (`cacheable` rules)
 
-A `[[ask]]` rule marked `cacheable = true` can have an approved decision remembered for the rest of the current Claude Code session, via the `remember` subcommand (invoked by the `yap-remember` skill only after the human explicitly confirms — see that skill's SKILL.md). A remembered call resolves straight to `allow` on the next identical call, without a prompt, for that session only. A matching `[[deny]]` rule always overrides a cached `allow` — the cache is checked only after `deny` has already failed to match.
+A `[[ask]]` rule marked `cacheable = true` can have an approved decision remembered for the rest of the current Claude Code session, via the `remember` subcommand (invoked by the `yap-remember` skill only after the human explicitly confirms — see that skill's SKILL.md). A remembered approval resolves straight to `allow` without a prompt, for that session only. A matching `[[deny]]` rule always overrides a cached `allow` — the cache is checked only after `deny` has already failed to match.
+
+### What a remembered approval covers
+
+For a Bash call, the command is split on its unquoted control operators (`&&`, `||`, `;`, `|`, `|&`, `&`), and the approval is scoped to the **gating segment** — the segment that triggers the rule on its own — never the whole chain:
+
+| Scope | Recorded by | Covers |
+|---|---|---|
+| `segment` | `remember` (default) | That segment's exact words, whatever is chained around it. Harmless redirects (`2>&1`, `>/dev/null`, `2>/dev/null`) are ignored. |
+| `prefix` | `remember --prefix '<words>'` | Any segment whose words *start with* those words, compared word by word (`main` never covers `mainline`), followed only by plain arguments (refs, branches, paths — no whitespace, quotes, `$`, globs, or shell metacharacters). Never covers a segment that redirects to a file. |
+| exact call | `remember` on a command that can't be split safely (`$(…)`, backticks, heredocs, subshells, comments, `$'…'` quoting, unquoted newlines), or on a non-Bash tool | The identical tool call (Bash's free-text `description` is ignored). |
+
+A cache hit can only turn that `ask` into `allow`, and only when the rest of the command would be allowed anyway: every segment the cache doesn't cover is re-evaluated against the full policy, and unless each one resolves to `allow`, the decision is exactly what it would have been with no cache. A segment that also matches a `[[deny]]` or a different `[[ask]]` rule is never covered, whatever order the rules are listed in — so `git push origin --delete x --force` still asks under a `--force` rule even with `git push origin --delete` remembered. Segment and prefix approvals are bound to the call's other fields except `description` and `timeout`, so an approval for a sandboxed call never covers the same command with `dangerouslyDisableSandbox`. When the rule only matched across segments (`git push.*-f\b` against `git push x && tail -f log`), the approval falls back to the exact call.
 
 | Detail | Value |
 |---|---|
 | File | One file per session in the OS temp dir, named from a hash of `session_id` (e.g. `$TMPDIR/yapermission-cache-<hash>.jsonl`) — deliberately not under `~/`, so no cache file outlives the OS's own temp-file lifecycle. Partitioning by session keeps each file's size, and the cost of reading it, bounded to that session's own remembered decisions instead of every session that ever ran. |
 | Format | JSON Lines, one record per remembered call, mode `0600`. |
 | Scope | Session-scoped: every record carries `session_id`; a lookup only ever matches records for the current session. |
-| Key | The tuple (`rule_name`, `tool_name`, `tool_input`, `config_path`, `cwd`) — an exact match on the matched rule, the exact tool call, the active config file, and the calling directory. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it), the config path, or the directory invalidates any old entry for it — the `cwd` component keeps a shared/global config from letting an approved relative-path command in one project auto-allow the same command in another. |
+| Key | The matched rule, the active config file, the calling directory, and either the segment's words (`segment`/`prefix`) or the exact tool call. Editing the rule (dropping `cacheable`, tightening `matches`, renaming it), the config path, or the directory invalidates any old entry for it — the `cwd` component keeps a shared/global config from letting an approval in one project auto-allow the same command in another. |
 
-Record shape:
+Record shapes:
 
 ```json
-{"session_id":"S1","rule_name":"deploy","tool_name":"Bash","tool_input":{"command":"deploy prod"},"config_path":"/Users/me/proj/.yapermission.toml","cwd":"/Users/me/proj"}
+{"session_id":"S1","rule_name":"git-push","tool_name":"Bash","scope":"prefix","tokens":["git","push","origin","--delete"],"context":{},"config_path":"/Users/me/.yapermission.toml","cwd":"/Users/me/proj"}
+{"session_id":"S1","rule_name":"deploy","tool_name":"Bash","tool_input":{"command":"deploy $(cat target)"},"config_path":"/Users/me/proj/.yapermission.toml","cwd":"/Users/me/proj"}
 ```
 
 ### `remember` subcommand
 
 ```
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>' <token>
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/yapermission.py remember <session_id> <tool_name> '<tool_input_json>' <token> [--prefix '<leading words>']
 ```
 
-Four positional arguments — **no `rule_name` argument**. The matched rule is re-derived from a fresh, live `decide()` call against the current config, not trusted from an agent-supplied claim. `<token>` is the approval token minted by `decide()` when it emitted the cacheable cue (see the `additionalContext` cue in the caching feature's engine section) — an HMAC-signed, short-lived proof that this exact call (`session_id`, calling directory, matched rule, `tool_name`, `tool_input`) actually reached a genuine `ask` decision. It cannot be forged, reused for a different call, or replayed once it expires. `remember` refuses (non-zero exit, nothing cached) when:
+Four positional arguments — **no `rule_name` argument** — plus an optional `--prefix`. The matched rule is re-derived from a fresh, live `decide()` call against the current config, not trusted from an agent-supplied claim. `<token>` is the approval token minted by `decide()` when it emitted the cacheable cue (see the `additionalContext` cue in the caching feature's engine section) — an HMAC-signed, short-lived proof that this exact call (`session_id`, calling directory, matched rule, `tool_name`, `tool_input`) actually reached a genuine `ask` decision. It cannot be forged, reused for a different call, or replayed once it expires. `remember` refuses (non-zero exit, nothing cached) when:
 
 - `session_id` is empty
 - no active config is found, or it fails to parse (fail-closed here, unlike `explain`'s fail-open-to-`ask`)
@@ -140,6 +153,10 @@ Four positional arguments — **no `rule_name` argument**. The matched rule is r
 - the matched rule isn't marked `cacheable = true`
 - the matched rule has no `name` (an unnamed cacheable rule would otherwise collapse its cache key onto any other unnamed cacheable rule)
 - `<token>` is missing, malformed, tampered, expired, or doesn't match this exact call's fields
+- a gating segment also matches a `[[deny]]` or another `[[ask]]` rule
+- with `--prefix`: the command can't be split safely; the prefix contains operators, redirects, or substitutions; it isn't a word-by-word prefix of a gating segment; or it doesn't trigger the rule on its own (so `git` can never stand in for `git push origin --delete`)
+
+On success it prints the recorded scope, e.g. `remembered: rule 'git-push' cached for session S1 (prefix: git push origin --delete)`, and the audit log's `remember-granted` record carries the same `scope`.
 
 ## Audit log
 
