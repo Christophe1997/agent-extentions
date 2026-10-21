@@ -63,7 +63,7 @@ matches = [                           # list of input-pattern entries (REQUIRED)
 - **`matches`** is a *list of inline tables*. The rule fires if **any one entry** matches.
 - Within an entry, **every** `field = pattern` pair is checked with `re.search` against `tool_input[field]`. If a referenced field is absent, it's treated as the empty string.
 - Use `{ }` (empty inline table) to mean "match any input" (e.g., when the `tool` regex is enough).
-- Missing or empty `matches` means **the rule never fires**. To match any input, write `matches = [ {} ]`.
+- Missing or empty `matches` puts **no constraint on the input**: the rule fires on every call whose tool matches, the same as `matches = [ {} ]`. Prefer the explicit `[ {} ]` so the intent is visible.
 
 ## Evaluation order
 

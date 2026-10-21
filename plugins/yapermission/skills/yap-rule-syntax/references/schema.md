@@ -38,7 +38,7 @@ Any other top-level keys are ignored.
 |---|---|---|---|
 | `name` | string | recommended | Used in audit log and `--verbose` traces. Use a short, unique identifier. |
 | `tool` | regex string | no | `re.search`-matched against `tool_name`. Missing means "any tool". |
-| `matches` | array of inline tables | yes (to fire) | OR-of-ANDs. Empty or missing = rule never fires. Use `[ {} ]` for "any input". |
+| `matches` | array of inline tables | no | OR-of-ANDs. Empty or missing = any input (fires on every call to a matching `tool`), same as `[ {} ]`. |
 | `reason` | string | no | Shown to the user on `deny` and `ask` (via `permissionDecisionReason`); recorded in the audit log for every decision. |
 | `cacheable` | boolean | no, default `false` | `[[ask]]` rules only. When `true`, an approved decision may be remembered for the rest of the current session (via the `yap-remember` skill), so the same rule matching the remembered command segment (or approved word prefix — see the session cache section) resolves to `allow` without prompting again — until the rule is edited to drop `cacheable`, tightened, or removed. A `[[deny]]` match always overrides a cached `allow`. Ignored on `deny`, `allow`, and `defer` rules. |
 
@@ -204,7 +204,7 @@ Patterns are user-controlled and matched with Python's `re` module, which is **n
 |---|---|
 | TOML missing entirely | Every call → `ask` (pass-through) |
 | TOML malformed | Hook logs error (with `tomllib.TOMLDecodeError` in the record), falls back to `ask`. Never silently allows. |
-| `matches` is `[]` or absent | Rule never fires. Use `[ {} ]` for "any input". |
+| `matches` is `[]` or absent | Rule fires on every call whose `tool` matches, same as `[ {} ]`. |
 | Field referenced in `matches` is absent in `tool_input` | Treated as empty string. `^anything` will not match; `.*` will. |
 | `reason` missing on a deny rule | A generic message is recorded and shown to Claude. |
 | Python < 3.11 | Hook errors on import — `tomllib` is a 3.11+ stdlib module. |
@@ -214,5 +214,5 @@ Patterns are user-controlled and matched with Python's `re` module, which is **n
 1. **Run `/yapermission:yap-explain --verbose <Tool> <args>`** for a per-rule trace of which rules were considered and why each matched or skipped.
 2. **`tail -f ~/.yapermission.log`** while you work — every tool call shows up.
 3. **Test rules in isolation** with explain before committing them to the live config.
-4. **A rule that "doesn't fire" is almost always** an empty `matches` list (use `[ {} ]`) or a regex that's missing a `^` / word boundary.
+4. **A rule that "doesn't fire" is almost always** a `tool` regex that misses the tool name, a field name that isn't in `tool_input`, or an earlier group (deny → ask → allow) matching first. **A rule that fires on everything** usually has an empty or missing `matches`.
 5. **Hooks load at session start.** After editing the TOML, restarts are not required (it's re-read each call). After editing `hooks/hooks.json` itself, restart Claude Code.
