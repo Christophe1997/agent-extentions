@@ -63,7 +63,7 @@ matches = [                           # list of input-pattern entries (REQUIRED)
 - **`matches`** is a *list of inline tables*. The rule fires if **any one entry** matches.
 - Within an entry, **every** `field = pattern` pair is checked with `re.search` against `tool_input[field]`. If a referenced field is absent, it's treated as the empty string.
 - Use `{ }` (empty inline table) to mean "match any input" (e.g., when the `tool` regex is enough).
-- Missing or empty `matches` means **the rule never fires**. To match any input, write `matches = [ {} ]`.
+- Missing or empty `matches` puts **no constraint on the input**: the rule fires on every call whose tool matches, the same as `matches = [ {} ]`. Prefer the explicit `[ {} ]` so the intent is visible.
 
 ## Evaluation order
 
@@ -94,6 +94,10 @@ matches = [                           # list of input-pattern entries (REQUIRED)
 ```
 
 The order encodes "more restrictive intent wins": `deny` is absolute, `ask` forces a manual confirm even when a broader `allow` rule below would auto-approve, and `defer` only fires when nothing earlier had an opinion.
+
+### Chained Bash commands
+
+A Bash chain (`a && b; c | d`) is evaluated **one segment at a time**, and the strictest result wins: deny if any segment is denied, then ask, then defer; allow only if every segment is allowed. So write each pattern for a single command and anchor it with `^` freely: `^sudo\b` still catches `true && sudo id`, and `^git\b` no longer vouches for `git status && python x.py`. Whole-string `deny`/`ask` rules still apply as well, so a pattern that spans a pipe (`curl … \| sh`) keeps working. See `references/schema.md` for what can't be split.
 
 ## Config resolution
 

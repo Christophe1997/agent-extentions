@@ -9,16 +9,17 @@ A `PreToolUse` hook evaluates every tool call against a TOML policy and emits th
 | Capability | Description |
 |---|---|
 | **TOML policy** | Group rules under `[[deny]]`, `[[ask]]`, `[[allow]]`, or `[[defer]]` arrays-of-tables — each key directly mirrors the decision it emits. Every rule takes `tool`, `matches`, optional `reason` |
+| **Chain-aware** | A Bash chain like `git add . && git push` is judged one command at a time and the strictest result wins, so `^`-anchored rules can't be dodged by chaining and an allow rule never vouches for what follows it |
 | **Stdlib-only** | Uses Python 3.11+ `tomllib` — no third-party dependencies |
 | **Config hierarchy** | `./.yapermission.toml` (project) overrides `~/.yapermission.toml` (global) wholesale — no merging |
 | **Audit log** | Every decision appended to `~/.yapermission.log` as JSON Lines |
-| **Session-scoped caching** | Opt a `[[ask]]` rule in with `cacheable = true`; once the human confirms via the `yap-remember` skill, the same rule matching the same exact tool call resolves to `allow` for the rest of the session — never silently, and a matching `[[deny]]` rule always wins regardless |
+| **Session-scoped caching** | Opt a `[[ask]]` rule in with `cacheable = true`; once the human confirms via the `yap-remember` skill, the part of a command that triggered the rule — that exact segment, or a word prefix like `git push origin --delete` — resolves to `allow` for the rest of the session, while anything chained onto it is still judged on its own. Never silent, and a matching `[[deny]]` rule always wins regardless |
 
 ### Skills
 
 - **yap-onboard** - `/yapermission:yap-onboard` writes a heavily-commented config to `~/.yapermission.toml` — choose between `starter` (default-ask, conservative) and `yolo` (default-allow with deny-list guardrails)
 - **yap-explain** - `/yapermission:yap-explain Bash "git push"` shows which rule matched and why (add `--session <id>` to also report live cache state for that session)
-- **yap-remember** - invoked by the agent, only after you explicitly say yes to an offer to cache an `[[ask]]` decision — remembers that exact call for the rest of the session
+- **yap-remember** - invoked by the agent, only after you explicitly say yes to an offer to cache an `[[ask]]` decision — remembers the gating command segment (or a word prefix you approve) for the rest of the session
 - **yap-rule-syntax** - Ask "how do I auto-allow git commands?" — auto-loads schema docs
 
 ### Hooks
@@ -54,7 +55,7 @@ matches = [
 ]
 
 # cacheable = true: once you approve one call and confirm via yap-remember,
-# the same exact call stops asking for the rest of this session
+# that command (or a word prefix you approve) stops asking for the rest of this session
 [[ask]]
 name = "deploy"
 tool = "Bash"
